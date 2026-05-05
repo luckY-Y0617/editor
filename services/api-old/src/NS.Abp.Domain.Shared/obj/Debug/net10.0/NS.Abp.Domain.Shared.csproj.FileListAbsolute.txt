@@ -1,0 +1,17 @@
+D:\editor\services\api\src\NS.Abp.Domain.Shared\bin\Debug\net10.0\NS.Abp.Domain.Shared.deps.json
+D:\editor\services\api\src\NS.Abp.Domain.Shared\bin\Debug\net10.0\NS.Abp.Domain.Shared.dll
+D:\editor\services\api\src\NS.Abp.Domain.Shared\bin\Debug\net10.0\NS.Abp.Domain.Shared.pdb
+D:\editor\services\api\src\NS.Abp.Domain.Shared\bin\Debug\net10.0\NS.Module.AuditLogging.Domain.Shared.dll
+D:\editor\services\api\src\NS.Abp.Domain.Shared\bin\Debug\net10.0\NS.Module.Identity.Domain.Shared.dll
+D:\editor\services\api\src\NS.Abp.Domain.Shared\bin\Debug\net10.0\NS.Module.AuditLogging.Domain.Shared.pdb
+D:\editor\services\api\src\NS.Abp.Domain.Shared\bin\Debug\net10.0\NS.Module.Identity.Domain.Shared.pdb
+D:\editor\services\api\src\NS.Abp.Domain.Shared\obj\Debug\net10.0\NS.Abp.Domain.Shared.csproj.AssemblyReference.cache
+D:\editor\services\api\src\NS.Abp.Domain.Shared\obj\Debug\net10.0\NS.Abp.Domain.Shared.GeneratedMSBuildEditorConfig.editorconfig
+D:\editor\services\api\src\NS.Abp.Domain.Shared\obj\Debug\net10.0\NS.Abp.Domain.Shared.AssemblyInfoInputs.cache
+D:\editor\services\api\src\NS.Abp.Domain.Shared\obj\Debug\net10.0\NS.Abp.Domain.Shared.AssemblyInfo.cs
+D:\editor\services\api\src\NS.Abp.Domain.Shared\obj\Debug\net10.0\NS.Abp.Domain.Shared.csproj.CoreCompileInputs.cache
+D:\editor\services\api\src\NS.Abp.Domain.Shared\obj\Debug\net10.0\NS.Abp.D.809E38E1.Up2Date
+D:\editor\services\api\src\NS.Abp.Domain.Shared\obj\Debug\net10.0\NS.Abp.Domain.Shared.dll
+D:\editor\services\api\src\NS.Abp.Domain.Shared\obj\Debug\net10.0\refint\NS.Abp.Domain.Shared.dll
+D:\editor\services\api\src\NS.Abp.Domain.Shared\obj\Debug\net10.0\NS.Abp.Domain.Shared.pdb
+D:\editor\services\api\src\NS.Abp.Domain.Shared\obj\Debug\net10.0\ref\NS.Abp.Domain.Shared.dll

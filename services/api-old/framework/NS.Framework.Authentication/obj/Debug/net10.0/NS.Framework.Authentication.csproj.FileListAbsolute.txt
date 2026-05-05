@@ -1,0 +1,15 @@
+D:\editor\services\api\framework\NS.Framework.Authentication\bin\Debug\net10.0\NS.Framework.Authentication.deps.json
+D:\editor\services\api\framework\NS.Framework.Authentication\bin\Debug\net10.0\NS.Framework.Authentication.dll
+D:\editor\services\api\framework\NS.Framework.Authentication\bin\Debug\net10.0\NS.Framework.Authentication.pdb
+D:\editor\services\api\framework\NS.Framework.Authentication\bin\Debug\net10.0\NS.Framework.Core.dll
+D:\editor\services\api\framework\NS.Framework.Authentication\bin\Debug\net10.0\NS.Framework.Core.pdb
+D:\editor\services\api\framework\NS.Framework.Authentication\obj\Debug\net10.0\NS.Framework.Authentication.csproj.AssemblyReference.cache
+D:\editor\services\api\framework\NS.Framework.Authentication\obj\Debug\net10.0\NS.Framework.Authentication.GeneratedMSBuildEditorConfig.editorconfig
+D:\editor\services\api\framework\NS.Framework.Authentication\obj\Debug\net10.0\NS.Framework.Authentication.AssemblyInfoInputs.cache
+D:\editor\services\api\framework\NS.Framework.Authentication\obj\Debug\net10.0\NS.Framework.Authentication.AssemblyInfo.cs
+D:\editor\services\api\framework\NS.Framework.Authentication\obj\Debug\net10.0\NS.Framework.Authentication.csproj.CoreCompileInputs.cache
+D:\editor\services\api\framework\NS.Framework.Authentication\obj\Debug\net10.0\NS.Frame.042C993F.Up2Date
+D:\editor\services\api\framework\NS.Framework.Authentication\obj\Debug\net10.0\NS.Framework.Authentication.dll
+D:\editor\services\api\framework\NS.Framework.Authentication\obj\Debug\net10.0\refint\NS.Framework.Authentication.dll
+D:\editor\services\api\framework\NS.Framework.Authentication\obj\Debug\net10.0\NS.Framework.Authentication.pdb
+D:\editor\services\api\framework\NS.Framework.Authentication\obj\Debug\net10.0\ref\NS.Framework.Authentication.dll

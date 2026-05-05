@@ -1,0 +1,16 @@
+E:\ClayMo\backend\framework\ClayMo.Framework.AspNetCore\bin\Debug\net10.0\ClayMo.Framework.AspNetCore.deps.json
+E:\ClayMo\backend\framework\ClayMo.Framework.AspNetCore\bin\Debug\net10.0\ClayMo.Framework.AspNetCore.dll
+E:\ClayMo\backend\framework\ClayMo.Framework.AspNetCore\bin\Debug\net10.0\ClayMo.Framework.AspNetCore.pdb
+E:\ClayMo\backend\framework\ClayMo.Framework.AspNetCore\bin\Debug\net10.0\ClayMo.Framework.Core.dll
+E:\ClayMo\backend\framework\ClayMo.Framework.AspNetCore\bin\Debug\net10.0\ClayMo.Framework.Core.pdb
+E:\ClayMo\backend\framework\ClayMo.Framework.AspNetCore\obj\Debug\net10.0\ClayMo.Framework.AspNetCore.csproj.AssemblyReference.cache
+E:\ClayMo\backend\framework\ClayMo.Framework.AspNetCore\obj\Debug\net10.0\ClayMo.Framework.AspNetCore.GeneratedMSBuildEditorConfig.editorconfig
+E:\ClayMo\backend\framework\ClayMo.Framework.AspNetCore\obj\Debug\net10.0\ClayMo.Framework.AspNetCore.AssemblyInfoInputs.cache
+E:\ClayMo\backend\framework\ClayMo.Framework.AspNetCore\obj\Debug\net10.0\ClayMo.Framework.AspNetCore.AssemblyInfo.cs
+E:\ClayMo\backend\framework\ClayMo.Framework.AspNetCore\obj\Debug\net10.0\ClayMo.Framework.AspNetCore.csproj.CoreCompileInputs.cache
+E:\ClayMo\backend\framework\ClayMo.Framework.AspNetCore\obj\Debug\net10.0\ClayMo.F.E05B0CF0.Up2Date
+E:\ClayMo\backend\framework\ClayMo.Framework.AspNetCore\obj\Debug\net10.0\ClayMo.Framework.AspNetCore.dll
+E:\ClayMo\backend\framework\ClayMo.Framework.AspNetCore\obj\Debug\net10.0\refint\ClayMo.Framework.AspNetCore.dll
+E:\ClayMo\backend\framework\ClayMo.Framework.AspNetCore\obj\Debug\net10.0\ClayMo.Framework.AspNetCore.pdb
+E:\ClayMo\backend\framework\ClayMo.Framework.AspNetCore\obj\Debug\net10.0\ref\ClayMo.Framework.AspNetCore.dll
+E:\ClayMo\backend\framework\ClayMo.Framework.AspNetCore\obj\Debug\net10.0\ClayMo.Framework.AspNetCore.sourcelink.json

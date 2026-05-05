@@ -1,0 +1,6 @@
+@Northstar.Api_HostAddress = http://localhost:5222
+
+GET {{Northstar.Api_HostAddress}}/api/v1/health
+Accept: application/json
+
+###

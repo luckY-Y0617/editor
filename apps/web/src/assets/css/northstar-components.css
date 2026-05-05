@@ -1,0 +1,56 @@
+.ns-icon {
+  width: 18px;
+  height: 18px;
+  color: var(--ns-navy-800);
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.ns-kicker {
+  color: var(--ns-blue-600);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.ns-compass-divider {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  color: rgba(31,58,86,.45);
+  margin: 22px 0 28px;
+}
+
+.ns-compass-divider::before,
+.ns-compass-divider::after {
+  content: "";
+  height: 1px;
+  flex: 1;
+  background: currentColor;
+  opacity: .45;
+}
+
+.ns-note {
+  display: grid;
+  grid-template-columns: 44px 1fr;
+  gap: 16px;
+  padding: 18px 22px;
+  border: 1px solid rgba(15,92,156,.25);
+  border-left: 3px solid var(--ns-blue-600);
+  background: rgba(143,182,216,.10);
+  border-radius: 4px;
+}
+
+.ns-route-node {
+  width: 9px;
+  height: 9px;
+  border: 1px solid var(--ns-slate-500);
+  border-radius: 999px;
+  background: var(--ns-paper);
+}
+
+.ns-route-node[data-active="true"] {
+  background: var(--ns-blue-600);
+  border-color: var(--ns-blue-600);
+}

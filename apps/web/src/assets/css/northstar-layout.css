@@ -1,0 +1,75 @@
+.northstar-shell {
+  height: 100vh;
+  background: var(--ns-paper-muted);
+  color: var(--ns-navy-900);
+  font-family: var(--ns-font-ui);
+}
+
+.northstar-topbar {
+  height: 56px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 0 20px;
+  background: var(--ns-navy-950);
+  color: var(--ns-paper);
+  border-bottom: 1px solid rgba(255,255,255,.08);
+}
+
+.northstar-workspace {
+  display: grid;
+  grid-template-columns: 320px minmax(720px, 1fr) 340px;
+  height: calc(100vh - 56px);
+}
+
+.knowledge-map {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(#f8f4ec, #f3eee5);
+  border-right: 1px solid var(--ns-border);
+}
+
+.knowledge-map::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: .22;
+  background-image: url("../svg/patterns/topographic-lines.svg");
+  background-size: 620px auto;
+  background-position: center top;
+  pointer-events: none;
+}
+
+.knowledge-map-content {
+  position: relative;
+  z-index: 1;
+  padding: 22px 24px;
+}
+
+.editor-canvas {
+  background: var(--ns-paper);
+  overflow: auto;
+}
+
+.editor-paper {
+  max-width: 860px;
+  min-height: calc(100vh - 156px);
+  margin: 0 auto;
+  padding: 56px 72px 80px;
+  background: var(--ns-paper);
+  box-shadow: inset 0 0 0 1px rgba(92,82,68,.10);
+}
+
+.editor-paper h1 {
+  font-family: var(--ns-font-serif);
+  font-size: 52px;
+  line-height: 1.1;
+  letter-spacing: -0.035em;
+  color: var(--ns-navy-950);
+}
+
+.document-map-panel {
+  background: #f8f4ec;
+  border-left: 1px solid var(--ns-border);
+  color: var(--ns-navy-800);
+}

@@ -1,0 +1,12 @@
+npm ERR! code ELIFECYCLE
+npm ERR! errno 1073807364
+npm ERR! knowledge-editor-shell@0.1.0 dev: `vite --host 0.0.0.0 "--port" "5174"`
+npm ERR! Exit status 1073807364
+npm ERR! 
+npm ERR! Failed at the knowledge-editor-shell@0.1.0 dev script.
+npm ERR! This is probably not a problem with npm. There is likely additional logging output above.
+
+npm ERR! A complete log of this run can be found in:
+npm ERR!     C:\Users\luckYY\AppData\Roaming\npm-cache\_logs\2026-04-28T08_32_14_201Z-debug.log
+'FIX_NPM_CLI_JS"' 不是内部或外部命令，也不是可运行的程序
+或批处理文件。

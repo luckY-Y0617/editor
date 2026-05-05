@@ -1,0 +1,9 @@
+<svg width="240" height="240" viewBox="0 0 240 240" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <g stroke="currentColor" stroke-width="1" opacity="0.35">
+    <path d="M1 1H239V239H1V1Z"/>
+    <path d="M40 1v10M80 1v10M120 1v10M160 1v10M200 1v10"/>
+    <path d="M40 229v10M80 229v10M120 229v10M160 229v10M200 229v10"/>
+    <path d="M1 40h10M1 80h10M1 120h10M1 160h10M1 200h10"/>
+    <path d="M229 40h10M229 80h10M229 120h10M229 160h10M229 200h10"/>
+  </g>
+</svg>

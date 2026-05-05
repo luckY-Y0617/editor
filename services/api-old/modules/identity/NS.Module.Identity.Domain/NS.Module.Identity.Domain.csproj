@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.Extensions.Caching.Abstractions" Version="10.0.0" />
+        <PackageReference Include="Volo.Abp.Ddd.Domain" Version="10.0.0" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\..\framework\NS.Framework.Authentication\NS.Framework.Authentication.csproj" />
+        <ProjectReference Include="..\..\..\framework\NS.Framework.Core\NS.Framework.Core.csproj" />
+        <ProjectReference Include="..\..\..\framework\NS.Framework.SqlSugar.Abstractions\NS.Framework.SqlSugar.Abstractions.csproj" />
+        <ProjectReference Include="..\..\ClayMo.Framework.Authentication\ClayMo.Framework.Authentication.csproj" />
+        <ProjectReference Include="..\..\ClayMo.Framework.Core\ClayMo.Framework.Core.csproj" />
+        <ProjectReference Include="..\..\ClayMo.Framework.SqlSugar.Abstractions\ClayMo.Framework.SqlSugar.Abstractions.csproj" />
+        <ProjectReference Include="..\ClayMo.Framework.Identity.Domain.Shared\ClayMo.Framework.Identity.Domain.Shared.csproj" />
+        <ProjectReference Include="..\NS.Module.Identity.Domain.Shared\NS.Module.Identity.Domain.Shared.csproj" />
+    </ItemGroup>
+
+</Project>
+

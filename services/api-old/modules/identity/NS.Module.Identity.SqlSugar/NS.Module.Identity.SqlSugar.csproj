@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\..\framework\NS.Framework.Authentication\NS.Framework.Authentication.csproj" />
+        <ProjectReference Include="..\..\..\framework\NS.Framework.Core\NS.Framework.Core.csproj" />
+        <ProjectReference Include="..\..\..\framework\NS.Framework.SqlSugar.Abstractions\NS.Framework.SqlSugar.Abstractions.csproj" />
+        <ProjectReference Include="..\..\..\framework\ClayMo.Framework.SqlSugar.Abstractions\ClayMo.Framework.SqlSugar.Abstractions.csproj" />
+        <ProjectReference Include="..\..\..\framework\NS.Framework.SqlSugar\NS.Framework.SqlSugar.csproj" />
+        <ProjectReference Include="..\..\ClayMo.Framework.SqlSugar\ClayMo.Framework.SqlSugar.csproj" />
+        <ProjectReference Include="..\ClayMo.Framework.Identity.Domain\ClayMo.Framework.Identity.Domain.csproj" />
+        <ProjectReference Include="..\NS.Module.Identity.Domain.Shared\NS.Module.Identity.Domain.Shared.csproj" />
+        <ProjectReference Include="..\NS.Module.Identity.Domain\NS.Module.Identity.Domain.csproj" />
+    </ItemGroup>
+
+</Project>
+

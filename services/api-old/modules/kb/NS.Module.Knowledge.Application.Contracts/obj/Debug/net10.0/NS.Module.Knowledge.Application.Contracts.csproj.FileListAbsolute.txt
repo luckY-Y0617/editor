@@ -1,0 +1,15 @@
+D:\editor\services\api\modules\kb\NS.Module.Knowledge.Application.Contracts\bin\Debug\net10.0\NS.Module.Knowledge.Application.Contracts.deps.json
+D:\editor\services\api\modules\kb\NS.Module.Knowledge.Application.Contracts\bin\Debug\net10.0\NS.Module.Knowledge.Application.Contracts.dll
+D:\editor\services\api\modules\kb\NS.Module.Knowledge.Application.Contracts\bin\Debug\net10.0\NS.Module.Knowledge.Application.Contracts.pdb
+D:\editor\services\api\modules\kb\NS.Module.Knowledge.Application.Contracts\bin\Debug\net10.0\NS.Module.Knowledge.Domain.Shared.dll
+D:\editor\services\api\modules\kb\NS.Module.Knowledge.Application.Contracts\bin\Debug\net10.0\NS.Module.Knowledge.Domain.Shared.pdb
+D:\editor\services\api\modules\kb\NS.Module.Knowledge.Application.Contracts\obj\Debug\net10.0\NS.Module.Knowledge.Application.Contracts.csproj.AssemblyReference.cache
+D:\editor\services\api\modules\kb\NS.Module.Knowledge.Application.Contracts\obj\Debug\net10.0\NS.Module.Knowledge.Application.Contracts.GeneratedMSBuildEditorConfig.editorconfig
+D:\editor\services\api\modules\kb\NS.Module.Knowledge.Application.Contracts\obj\Debug\net10.0\NS.Module.Knowledge.Application.Contracts.AssemblyInfoInputs.cache
+D:\editor\services\api\modules\kb\NS.Module.Knowledge.Application.Contracts\obj\Debug\net10.0\NS.Module.Knowledge.Application.Contracts.AssemblyInfo.cs
+D:\editor\services\api\modules\kb\NS.Module.Knowledge.Application.Contracts\obj\Debug\net10.0\NS.Module.Knowledge.Application.Contracts.csproj.CoreCompileInputs.cache
+D:\editor\services\api\modules\kb\NS.Module.Knowledge.Application.Contracts\obj\Debug\net10.0\NS.Modul.4F9AC806.Up2Date
+D:\editor\services\api\modules\kb\NS.Module.Knowledge.Application.Contracts\obj\Debug\net10.0\NS.Module.Knowledge.Application.Contracts.dll
+D:\editor\services\api\modules\kb\NS.Module.Knowledge.Application.Contracts\obj\Debug\net10.0\refint\NS.Module.Knowledge.Application.Contracts.dll
+D:\editor\services\api\modules\kb\NS.Module.Knowledge.Application.Contracts\obj\Debug\net10.0\NS.Module.Knowledge.Application.Contracts.pdb
+D:\editor\services\api\modules\kb\NS.Module.Knowledge.Application.Contracts\obj\Debug\net10.0\ref\NS.Module.Knowledge.Application.Contracts.dll

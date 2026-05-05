@@ -1,0 +1,38 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <PackageReference Include="NeoCaptcha" Version="1.0.15" />
+      <PackageReference Include="Volo.Abp.AspNetCore.Authentication.JwtBearer" Version="10.0.0" />
+      <PackageReference Include="Volo.Abp.Caching" Version="10.0.0" />
+      <PackageReference Include="Volo.Abp.Security" Version="10.0.0" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Compile Remove="Captcha\Models\**" />
+      <Compile Remove="Captcha\Providers\**" />
+      <Compile Remove="Captcha\Storage\**" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <EmbeddedResource Remove="Captcha\Models\**" />
+      <EmbeddedResource Remove="Captcha\Providers\**" />
+      <EmbeddedResource Remove="Captcha\Storage\**" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <None Remove="Captcha\Models\**" />
+      <None Remove="Captcha\Providers\**" />
+      <None Remove="Captcha\Storage\**" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\NS.Framework.Core\NS.Framework.Core.csproj" />
+    </ItemGroup>
+
+</Project>

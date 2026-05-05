@@ -1,0 +1,15 @@
+E:\ClayMo\backend\framework\ClayMo.Framework.Notifycation\bin\Debug\net10.0\ClayMo.Framework.Notifycation.deps.json
+E:\ClayMo\backend\framework\ClayMo.Framework.Notifycation\bin\Debug\net10.0\ClayMo.Framework.Notifycation.dll
+E:\ClayMo\backend\framework\ClayMo.Framework.Notifycation\bin\Debug\net10.0\ClayMo.Framework.Notifycation.pdb
+E:\ClayMo\backend\framework\ClayMo.Framework.Notifycation\bin\Debug\net10.0\ClayMo.Framework.Core.dll
+E:\ClayMo\backend\framework\ClayMo.Framework.Notifycation\bin\Debug\net10.0\ClayMo.Framework.Core.pdb
+E:\ClayMo\backend\framework\ClayMo.Framework.Notifycation\obj\Debug\net10.0\ClayMo.Framework.Notifycation.csproj.AssemblyReference.cache
+E:\ClayMo\backend\framework\ClayMo.Framework.Notifycation\obj\Debug\net10.0\ClayMo.Framework.Notifycation.GeneratedMSBuildEditorConfig.editorconfig
+E:\ClayMo\backend\framework\ClayMo.Framework.Notifycation\obj\Debug\net10.0\ClayMo.Framework.Notifycation.AssemblyInfoInputs.cache
+E:\ClayMo\backend\framework\ClayMo.Framework.Notifycation\obj\Debug\net10.0\ClayMo.Framework.Notifycation.AssemblyInfo.cs
+E:\ClayMo\backend\framework\ClayMo.Framework.Notifycation\obj\Debug\net10.0\ClayMo.Framework.Notifycation.csproj.CoreCompileInputs.cache
+E:\ClayMo\backend\framework\ClayMo.Framework.Notifycation\obj\Debug\net10.0\ClayMo.F.74A47C15.Up2Date
+E:\ClayMo\backend\framework\ClayMo.Framework.Notifycation\obj\Debug\net10.0\ClayMo.Framework.Notifycation.dll
+E:\ClayMo\backend\framework\ClayMo.Framework.Notifycation\obj\Debug\net10.0\refint\ClayMo.Framework.Notifycation.dll
+E:\ClayMo\backend\framework\ClayMo.Framework.Notifycation\obj\Debug\net10.0\ClayMo.Framework.Notifycation.pdb
+E:\ClayMo\backend\framework\ClayMo.Framework.Notifycation\obj\Debug\net10.0\ref\ClayMo.Framework.Notifycation.dll

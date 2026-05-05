@@ -1,0 +1,15 @@
+D:\editor\services\api\modules\auditlogging\NS.Module.AuditLogging.Application.Contracts\bin\Debug\net10.0\NS.Module.AuditLogging.Application.Contracts.deps.json
+D:\editor\services\api\modules\auditlogging\NS.Module.AuditLogging.Application.Contracts\bin\Debug\net10.0\NS.Module.AuditLogging.Application.Contracts.dll
+D:\editor\services\api\modules\auditlogging\NS.Module.AuditLogging.Application.Contracts\bin\Debug\net10.0\NS.Module.AuditLogging.Application.Contracts.pdb
+D:\editor\services\api\modules\auditlogging\NS.Module.AuditLogging.Application.Contracts\bin\Debug\net10.0\NS.Module.AuditLogging.Domain.Shared.dll
+D:\editor\services\api\modules\auditlogging\NS.Module.AuditLogging.Application.Contracts\bin\Debug\net10.0\NS.Module.AuditLogging.Domain.Shared.pdb
+D:\editor\services\api\modules\auditlogging\NS.Module.AuditLogging.Application.Contracts\obj\Debug\net10.0\NS.Module.AuditLogging.Application.Contracts.csproj.AssemblyReference.cache
+D:\editor\services\api\modules\auditlogging\NS.Module.AuditLogging.Application.Contracts\obj\Debug\net10.0\NS.Module.AuditLogging.Application.Contracts.GeneratedMSBuildEditorConfig.editorconfig
+D:\editor\services\api\modules\auditlogging\NS.Module.AuditLogging.Application.Contracts\obj\Debug\net10.0\NS.Module.AuditLogging.Application.Contracts.AssemblyInfoInputs.cache
+D:\editor\services\api\modules\auditlogging\NS.Module.AuditLogging.Application.Contracts\obj\Debug\net10.0\NS.Module.AuditLogging.Application.Contracts.AssemblyInfo.cs
+D:\editor\services\api\modules\auditlogging\NS.Module.AuditLogging.Application.Contracts\obj\Debug\net10.0\NS.Module.AuditLogging.Application.Contracts.csproj.CoreCompileInputs.cache
+D:\editor\services\api\modules\auditlogging\NS.Module.AuditLogging.Application.Contracts\obj\Debug\net10.0\NS.Modul.F8C7A827.Up2Date
+D:\editor\services\api\modules\auditlogging\NS.Module.AuditLogging.Application.Contracts\obj\Debug\net10.0\NS.Module.AuditLogging.Application.Contracts.dll
+D:\editor\services\api\modules\auditlogging\NS.Module.AuditLogging.Application.Contracts\obj\Debug\net10.0\refint\NS.Module.AuditLogging.Application.Contracts.dll
+D:\editor\services\api\modules\auditlogging\NS.Module.AuditLogging.Application.Contracts\obj\Debug\net10.0\NS.Module.AuditLogging.Application.Contracts.pdb
+D:\editor\services\api\modules\auditlogging\NS.Module.AuditLogging.Application.Contracts\obj\Debug\net10.0\ref\NS.Module.AuditLogging.Application.Contracts.dll

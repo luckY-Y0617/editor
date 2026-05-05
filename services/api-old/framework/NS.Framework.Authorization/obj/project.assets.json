@@ -1,0 +1,1760 @@
+{
+  "version": 3,
+  "targets": {
+    "net10.0": {
+      "JetBrains.Annotations/2025.2.2": {
+        "type": "package",
+        "compile": {
+          "lib/netstandard2.0/JetBrains.Annotations.dll": {
+            "related": ".deps.json;.xml"
+          }
+        },
+        "runtime": {
+          "lib/netstandard2.0/JetBrains.Annotations.dll": {
+            "related": ".deps.json;.xml"
+          }
+        }
+      },
+      "Microsoft.Extensions.FileProviders.Embedded/10.0.0": {
+        "type": "package",
+        "compile": {
+          "lib/net10.0/Microsoft.Extensions.FileProviders.Embedded.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net10.0/Microsoft.Extensions.FileProviders.Embedded.dll": {
+            "related": ".xml"
+          }
+        },
+        "build": {
+          "build/netstandard2.0/_._": {}
+        },
+        "buildMultiTargeting": {
+          "buildMultiTargeting/_._": {}
+        }
+      },
+      "Newtonsoft.Json/13.0.3": {
+        "type": "package",
+        "compile": {
+          "lib/net6.0/Newtonsoft.Json.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net6.0/Newtonsoft.Json.dll": {
+            "related": ".xml"
+          }
+        }
+      },
+      "Nito.AsyncEx.Context/5.1.2": {
+        "type": "package",
+        "dependencies": {
+          "Nito.AsyncEx.Tasks": "5.1.2"
+        },
+        "compile": {
+          "lib/netstandard2.0/Nito.AsyncEx.Context.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/netstandard2.0/Nito.AsyncEx.Context.dll": {
+            "related": ".xml"
+          }
+        }
+      },
+      "Nito.AsyncEx.Tasks/5.1.2": {
+        "type": "package",
+        "dependencies": {
+          "Nito.Disposables": "2.2.1"
+        },
+        "compile": {
+          "lib/netstandard2.0/Nito.AsyncEx.Tasks.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/netstandard2.0/Nito.AsyncEx.Tasks.dll": {
+            "related": ".xml"
+          }
+        }
+      },
+      "Nito.Disposables/2.2.1": {
+        "type": "package",
+        "compile": {
+          "lib/netstandard2.1/Nito.Disposables.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/netstandard2.1/Nito.Disposables.dll": {
+            "related": ".xml"
+          }
+        }
+      },
+      "Pipelines.Sockets.Unofficial/2.2.8": {
+        "type": "package",
+        "compile": {
+          "lib/net5.0/Pipelines.Sockets.Unofficial.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net5.0/Pipelines.Sockets.Unofficial.dll": {
+            "related": ".xml"
+          }
+        }
+      },
+      "StackExchange.Redis/2.8.41": {
+        "type": "package",
+        "dependencies": {
+          "Pipelines.Sockets.Unofficial": "2.2.8"
+        },
+        "compile": {
+          "lib/net8.0/StackExchange.Redis.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net8.0/StackExchange.Redis.dll": {
+            "related": ".xml"
+          }
+        }
+      },
+      "System.CodeDom/10.0.0": {
+        "type": "package",
+        "compile": {
+          "lib/net10.0/System.CodeDom.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net10.0/System.CodeDom.dll": {
+            "related": ".xml"
+          }
+        },
+        "build": {
+          "buildTransitive/net8.0/_._": {}
+        }
+      },
+      "System.Linq.Dynamic.Core/1.6.7": {
+        "type": "package",
+        "compile": {
+          "lib/net9.0/System.Linq.Dynamic.Core.dll": {
+            "related": ".pdb;.xml"
+          }
+        },
+        "runtime": {
+          "lib/net9.0/System.Linq.Dynamic.Core.dll": {
+            "related": ".pdb;.xml"
+          }
+        }
+      },
+      "System.Management/10.0.0": {
+        "type": "package",
+        "dependencies": {
+          "System.CodeDom": "10.0.0"
+        },
+        "compile": {
+          "lib/net10.0/System.Management.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net10.0/System.Management.dll": {
+            "related": ".xml"
+          }
+        },
+        "build": {
+          "buildTransitive/net8.0/_._": {}
+        },
+        "runtimeTargets": {
+          "runtimes/win/lib/net10.0/System.Management.dll": {
+            "assetType": "runtime",
+            "rid": "win"
+          }
+        }
+      },
+      "Volo.Abp.Authorization/10.0.0": {
+        "type": "package",
+        "dependencies": {
+          "Volo.Abp.Authorization.Abstractions": "10.0.0",
+          "Volo.Abp.Localization": "10.0.0",
+          "Volo.Abp.MultiTenancy": "10.0.0",
+          "Volo.Abp.Security": "10.0.0"
+        },
+        "compile": {
+          "lib/net10.0/Volo.Abp.Authorization.dll": {
+            "related": ".pdb;.xml"
+          }
+        },
+        "runtime": {
+          "lib/net10.0/Volo.Abp.Authorization.dll": {
+            "related": ".pdb;.xml"
+          }
+        }
+      },
+      "Volo.Abp.Authorization.Abstractions/10.0.0": {
+        "type": "package",
+        "dependencies": {
+          "Volo.Abp.MultiTenancy.Abstractions": "10.0.0"
+        },
+        "compile": {
+          "lib/net10.0/Volo.Abp.Authorization.Abstractions.dll": {
+            "related": ".pdb;.xml"
+          }
+        },
+        "runtime": {
+          "lib/net10.0/Volo.Abp.Authorization.Abstractions.dll": {
+            "related": ".pdb;.xml"
+          }
+        }
+      },
+      "Volo.Abp.Core/10.0.0": {
+        "type": "package",
+        "dependencies": {
+          "JetBrains.Annotations": "2025.2.2",
+          "Nito.AsyncEx.Context": "5.1.2",
+          "System.Linq.Dynamic.Core": "1.6.7",
+          "System.Management": "10.0.0"
+        },
+        "compile": {
+          "lib/net10.0/Volo.Abp.Core.dll": {
+            "related": ".pdb;.xml"
+          }
+        },
+        "runtime": {
+          "lib/net10.0/Volo.Abp.Core.dll": {
+            "related": ".pdb;.xml"
+          }
+        }
+      },
+      "Volo.Abp.Data/10.0.0": {
+        "type": "package",
+        "dependencies": {
+          "Volo.Abp.EventBus.Abstractions": "10.0.0",
+          "Volo.Abp.ObjectExtending": "10.0.0",
+          "Volo.Abp.Uow": "10.0.0"
+        },
+        "compile": {
+          "lib/net10.0/Volo.Abp.Data.dll": {
+            "related": ".pdb;.xml"
+          }
+        },
+        "runtime": {
+          "lib/net10.0/Volo.Abp.Data.dll": {
+            "related": ".pdb;.xml"
+          }
+        }
+      },
+      "Volo.Abp.EventBus.Abstractions/10.0.0": {
+        "type": "package",
+        "dependencies": {
+          "Volo.Abp.ObjectExtending": "10.0.0"
+        },
+        "compile": {
+          "lib/net10.0/Volo.Abp.EventBus.Abstractions.dll": {
+            "related": ".pdb;.xml"
+          }
+        },
+        "runtime": {
+          "lib/net10.0/Volo.Abp.EventBus.Abstractions.dll": {
+            "related": ".pdb;.xml"
+          }
+        }
+      },
+      "Volo.Abp.Localization/10.0.0": {
+        "type": "package",
+        "dependencies": {
+          "Volo.Abp.Localization.Abstractions": "10.0.0",
+          "Volo.Abp.Settings": "10.0.0",
+          "Volo.Abp.Threading": "10.0.0",
+          "Volo.Abp.VirtualFileSystem": "10.0.0"
+        },
+        "compile": {
+          "lib/net10.0/Volo.Abp.Localization.dll": {
+            "related": ".pdb;.xml"
+          }
+        },
+        "runtime": {
+          "lib/net10.0/Volo.Abp.Localization.dll": {
+            "related": ".pdb;.xml"
+          }
+        }
+      },
+      "Volo.Abp.Localization.Abstractions/10.0.0": {
+        "type": "package",
+        "dependencies": {
+          "Volo.Abp.Core": "10.0.0"
+        },
+        "compile": {
+          "lib/net10.0/Volo.Abp.Localization.Abstractions.dll": {
+            "related": ".pdb;.xml"
+          }
+        },
+        "runtime": {
+          "lib/net10.0/Volo.Abp.Localization.Abstractions.dll": {
+            "related": ".pdb;.xml"
+          }
+        }
+      },
+      "Volo.Abp.MultiTenancy/10.0.0": {
+        "type": "package",
+        "dependencies": {
+          "Volo.Abp.Data": "10.0.0",
+          "Volo.Abp.EventBus.Abstractions": "10.0.0",
+          "Volo.Abp.MultiTenancy.Abstractions": "10.0.0",
+          "Volo.Abp.Security": "10.0.0",
+          "Volo.Abp.Settings": "10.0.0"
+        },
+        "compile": {
+          "lib/net10.0/Volo.Abp.MultiTenancy.dll": {
+            "related": ".pdb;.xml"
+          }
+        },
+        "runtime": {
+          "lib/net10.0/Volo.Abp.MultiTenancy.dll": {
+            "related": ".pdb;.xml"
+          }
+        }
+      },
+      "Volo.Abp.MultiTenancy.Abstractions/10.0.0": {
+        "type": "package",
+        "dependencies": {
+          "Volo.Abp.Localization": "10.0.0",
+          "Volo.Abp.VirtualFileSystem": "10.0.0"
+        },
+        "compile": {
+          "lib/net10.0/Volo.Abp.MultiTenancy.Abstractions.dll": {
+            "related": ".pdb;.xml"
+          }
+        },
+        "runtime": {
+          "lib/net10.0/Volo.Abp.MultiTenancy.Abstractions.dll": {
+            "related": ".pdb;.xml"
+          }
+        }
+      },
+      "Volo.Abp.ObjectExtending/10.0.0": {
+        "type": "package",
+        "dependencies": {
+          "Volo.Abp.Localization.Abstractions": "10.0.0",
+          "Volo.Abp.Validation.Abstractions": "10.0.0"
+        },
+        "compile": {
+          "lib/net10.0/Volo.Abp.ObjectExtending.dll": {
+            "related": ".pdb;.xml"
+          }
+        },
+        "runtime": {
+          "lib/net10.0/Volo.Abp.ObjectExtending.dll": {
+            "related": ".pdb;.xml"
+          }
+        }
+      },
+      "Volo.Abp.Security/10.0.0": {
+        "type": "package",
+        "dependencies": {
+          "Volo.Abp.Core": "10.0.0"
+        },
+        "compile": {
+          "lib/net10.0/Volo.Abp.Security.dll": {
+            "related": ".pdb;.xml"
+          }
+        },
+        "runtime": {
+          "lib/net10.0/Volo.Abp.Security.dll": {
+            "related": ".pdb;.xml"
+          }
+        }
+      },
+      "Volo.Abp.Settings/10.0.0": {
+        "type": "package",
+        "dependencies": {
+          "Volo.Abp.Data": "10.0.0",
+          "Volo.Abp.Localization.Abstractions": "10.0.0",
+          "Volo.Abp.Security": "10.0.0"
+        },
+        "compile": {
+          "lib/net10.0/Volo.Abp.Settings.dll": {
+            "related": ".pdb;.xml"
+          }
+        },
+        "runtime": {
+          "lib/net10.0/Volo.Abp.Settings.dll": {
+            "related": ".pdb;.xml"
+          }
+        }
+      },
+      "Volo.Abp.Threading/10.0.0": {
+        "type": "package",
+        "dependencies": {
+          "Volo.Abp.Core": "10.0.0"
+        },
+        "compile": {
+          "lib/net10.0/Volo.Abp.Threading.dll": {
+            "related": ".pdb;.xml"
+          }
+        },
+        "runtime": {
+          "lib/net10.0/Volo.Abp.Threading.dll": {
+            "related": ".pdb;.xml"
+          }
+        }
+      },
+      "Volo.Abp.Uow/10.0.0": {
+        "type": "package",
+        "dependencies": {
+          "Volo.Abp.Core": "10.0.0"
+        },
+        "compile": {
+          "lib/net10.0/Volo.Abp.Uow.dll": {
+            "related": ".pdb;.xml"
+          }
+        },
+        "runtime": {
+          "lib/net10.0/Volo.Abp.Uow.dll": {
+            "related": ".pdb;.xml"
+          }
+        }
+      },
+      "Volo.Abp.Validation.Abstractions/10.0.0": {
+        "type": "package",
+        "dependencies": {
+          "Volo.Abp.Core": "10.0.0"
+        },
+        "compile": {
+          "lib/net10.0/Volo.Abp.Validation.Abstractions.dll": {
+            "related": ".pdb;.xml"
+          }
+        },
+        "runtime": {
+          "lib/net10.0/Volo.Abp.Validation.Abstractions.dll": {
+            "related": ".pdb;.xml"
+          }
+        }
+      },
+      "Volo.Abp.VirtualFileSystem/10.0.0": {
+        "type": "package",
+        "dependencies": {
+          "Microsoft.Extensions.FileProviders.Embedded": "10.0.0",
+          "Volo.Abp.Core": "10.0.0"
+        },
+        "compile": {
+          "lib/net10.0/Volo.Abp.VirtualFileSystem.dll": {
+            "related": ".pdb;.xml"
+          }
+        },
+        "runtime": {
+          "lib/net10.0/Volo.Abp.VirtualFileSystem.dll": {
+            "related": ".pdb;.xml"
+          }
+        }
+      },
+      "NS.Framework.Core/1.0.0": {
+        "type": "project",
+        "framework": ".NETCoreApp,Version=v10.0",
+        "dependencies": {
+          "Newtonsoft.Json": "13.0.3",
+          "StackExchange.Redis": "2.8.41",
+          "Volo.Abp.Core": "10.0.0"
+        },
+        "compile": {
+          "bin/placeholder/NS.Framework.Core.dll": {}
+        },
+        "runtime": {
+          "bin/placeholder/NS.Framework.Core.dll": {}
+        }
+      }
+    }
+  },
+  "libraries": {
+    "JetBrains.Annotations/2025.2.2": {
+      "sha512": "0X56ZRizuHdrnPpgXjWV7f2tQO1FlQg5O1967OGKnI/4ZRNOK642J8L7brM1nYvrxTTU5TP1yRyXLRLaXLPQ8A==",
+      "type": "package",
+      "path": "jetbrains.annotations/2025.2.2",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "icon.png",
+        "jetbrains.annotations.2025.2.2.nupkg.sha512",
+        "jetbrains.annotations.nuspec",
+        "lib/net20/JetBrains.Annotations.dll",
+        "lib/net20/JetBrains.Annotations.xml",
+        "lib/netstandard1.0/JetBrains.Annotations.deps.json",
+        "lib/netstandard1.0/JetBrains.Annotations.dll",
+        "lib/netstandard1.0/JetBrains.Annotations.xml",
+        "lib/netstandard2.0/JetBrains.Annotations.deps.json",
+        "lib/netstandard2.0/JetBrains.Annotations.dll",
+        "lib/netstandard2.0/JetBrains.Annotations.xml",
+        "lib/portable40-net40+sl5+win8+wp8+wpa81/JetBrains.Annotations.dll",
+        "lib/portable40-net40+sl5+win8+wp8+wpa81/JetBrains.Annotations.xml",
+        "readme.md"
+      ]
+    },
+    "Microsoft.Extensions.FileProviders.Embedded/10.0.0": {
+      "sha512": "ECaTMB4NdV9W1es9J6tN0yoXRPUHKMi5+2L7hcVZ5k9zVdxccIx6+vMllwEYcdTaO0mCETEmdH4F0KxCqgnPaw==",
+      "type": "package",
+      "path": "microsoft.extensions.fileproviders.embedded/10.0.0",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "Icon.png",
+        "build/netstandard2.0/Microsoft.Extensions.FileProviders.Embedded.props",
+        "build/netstandard2.0/Microsoft.Extensions.FileProviders.Embedded.targets",
+        "buildMultiTargeting/Microsoft.Extensions.FileProviders.Embedded.props",
+        "buildMultiTargeting/Microsoft.Extensions.FileProviders.Embedded.targets",
+        "lib/net10.0/Microsoft.Extensions.FileProviders.Embedded.dll",
+        "lib/net10.0/Microsoft.Extensions.FileProviders.Embedded.xml",
+        "lib/net462/Microsoft.Extensions.FileProviders.Embedded.dll",
+        "lib/net462/Microsoft.Extensions.FileProviders.Embedded.xml",
+        "lib/netstandard2.0/Microsoft.Extensions.FileProviders.Embedded.dll",
+        "lib/netstandard2.0/Microsoft.Extensions.FileProviders.Embedded.xml",
+        "microsoft.extensions.fileproviders.embedded.10.0.0.nupkg.sha512",
+        "microsoft.extensions.fileproviders.embedded.nuspec",
+        "tasks/netstandard2.0/Microsoft.Extensions.FileProviders.Embedded.Manifest.Task.dll"
+      ]
+    },
+    "Newtonsoft.Json/13.0.3": {
+      "sha512": "HrC5BXdl00IP9zeV+0Z848QWPAoCr9P3bDEZguI+gkLcBKAOxix/tLEAAHC+UvDNPv4a2d18lOReHMOagPa+zQ==",
+      "type": "package",
+      "path": "newtonsoft.json/13.0.3",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "LICENSE.md",
+        "README.md",
+        "lib/net20/Newtonsoft.Json.dll",
+        "lib/net20/Newtonsoft.Json.xml",
+        "lib/net35/Newtonsoft.Json.dll",
+        "lib/net35/Newtonsoft.Json.xml",
+        "lib/net40/Newtonsoft.Json.dll",
+        "lib/net40/Newtonsoft.Json.xml",
+        "lib/net45/Newtonsoft.Json.dll",
+        "lib/net45/Newtonsoft.Json.xml",
+        "lib/net6.0/Newtonsoft.Json.dll",
+        "lib/net6.0/Newtonsoft.Json.xml",
+        "lib/netstandard1.0/Newtonsoft.Json.dll",
+        "lib/netstandard1.0/Newtonsoft.Json.xml",
+        "lib/netstandard1.3/Newtonsoft.Json.dll",
+        "lib/netstandard1.3/Newtonsoft.Json.xml",
+        "lib/netstandard2.0/Newtonsoft.Json.dll",
+        "lib/netstandard2.0/Newtonsoft.Json.xml",
+        "newtonsoft.json.13.0.3.nupkg.sha512",
+        "newtonsoft.json.nuspec",
+        "packageIcon.png"
+      ]
+    },
+    "Nito.AsyncEx.Context/5.1.2": {
+      "sha512": "rMwL7Nj3oNyvFu/jxUzQ/YBobEkM2RQHe+5mpCDRyq6mfD7vCj7Z3rjB6XgpM6Mqcx1CA2xGv0ascU/2Xk8IIg==",
+      "type": "package",
+      "path": "nito.asyncex.context/5.1.2",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "icon.png",
+        "lib/net461/Nito.AsyncEx.Context.dll",
+        "lib/net461/Nito.AsyncEx.Context.xml",
+        "lib/netstandard1.3/Nito.AsyncEx.Context.dll",
+        "lib/netstandard1.3/Nito.AsyncEx.Context.xml",
+        "lib/netstandard2.0/Nito.AsyncEx.Context.dll",
+        "lib/netstandard2.0/Nito.AsyncEx.Context.xml",
+        "nito.asyncex.context.5.1.2.nupkg.sha512",
+        "nito.asyncex.context.nuspec"
+      ]
+    },
+    "Nito.AsyncEx.Tasks/5.1.2": {
+      "sha512": "jEkCfR2/M26OK/U4G7SEN063EU/F4LiVA06TtpZILMdX/quIHCg+wn31Zerl2LC+u1cyFancjTY3cNAr2/89PA==",
+      "type": "package",
+      "path": "nito.asyncex.tasks/5.1.2",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "icon.png",
+        "lib/net461/Nito.AsyncEx.Tasks.dll",
+        "lib/net461/Nito.AsyncEx.Tasks.xml",
+        "lib/netstandard1.3/Nito.AsyncEx.Tasks.dll",
+        "lib/netstandard1.3/Nito.AsyncEx.Tasks.xml",
+        "lib/netstandard2.0/Nito.AsyncEx.Tasks.dll",
+        "lib/netstandard2.0/Nito.AsyncEx.Tasks.xml",
+        "nito.asyncex.tasks.5.1.2.nupkg.sha512",
+        "nito.asyncex.tasks.nuspec"
+      ]
+    },
+    "Nito.Disposables/2.2.1": {
+      "sha512": "6sZ5uynQeAE9dPWBQGKebNmxbY4xsvcc5VplB5WkYEESUS7oy4AwnFp0FhqxTSKm/PaFrFqLrYr696CYN8cugg==",
+      "type": "package",
+      "path": "nito.disposables/2.2.1",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "icon.png",
+        "lib/net461/Nito.Disposables.dll",
+        "lib/net461/Nito.Disposables.xml",
+        "lib/netstandard1.0/Nito.Disposables.dll",
+        "lib/netstandard1.0/Nito.Disposables.xml",
+        "lib/netstandard2.0/Nito.Disposables.dll",
+        "lib/netstandard2.0/Nito.Disposables.xml",
+        "lib/netstandard2.1/Nito.Disposables.dll",
+        "lib/netstandard2.1/Nito.Disposables.xml",
+        "nito.disposables.2.2.1.nupkg.sha512",
+        "nito.disposables.nuspec"
+      ]
+    },
+    "Pipelines.Sockets.Unofficial/2.2.8": {
+      "sha512": "zG2FApP5zxSx6OcdJQLbZDk2AVlN2BNQD6MorwIfV6gVj0RRxWPEp2LXAxqDGZqeNV1Zp0BNPcNaey/GXmTdvQ==",
+      "type": "package",
+      "path": "pipelines.sockets.unofficial/2.2.8",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "lib/net461/Pipelines.Sockets.Unofficial.dll",
+        "lib/net461/Pipelines.Sockets.Unofficial.xml",
+        "lib/net472/Pipelines.Sockets.Unofficial.dll",
+        "lib/net472/Pipelines.Sockets.Unofficial.xml",
+        "lib/net5.0/Pipelines.Sockets.Unofficial.dll",
+        "lib/net5.0/Pipelines.Sockets.Unofficial.xml",
+        "lib/netcoreapp3.1/Pipelines.Sockets.Unofficial.dll",
+        "lib/netcoreapp3.1/Pipelines.Sockets.Unofficial.xml",
+        "lib/netstandard2.0/Pipelines.Sockets.Unofficial.dll",
+        "lib/netstandard2.0/Pipelines.Sockets.Unofficial.xml",
+        "lib/netstandard2.1/Pipelines.Sockets.Unofficial.dll",
+        "lib/netstandard2.1/Pipelines.Sockets.Unofficial.xml",
+        "pipelines.sockets.unofficial.2.2.8.nupkg.sha512",
+        "pipelines.sockets.unofficial.nuspec"
+      ]
+    },
+    "StackExchange.Redis/2.8.41": {
+      "sha512": "EgtQzlucry9V2Gces1K19Xi8Sz/8DfoZlGQEmL/hSM/SXO/ucDS5RPmLzcmT489ZNGFbj9CGhlpscPLOXtYWwA==",
+      "type": "package",
+      "path": "stackexchange.redis/2.8.41",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "README.md",
+        "lib/net461/StackExchange.Redis.dll",
+        "lib/net461/StackExchange.Redis.xml",
+        "lib/net472/StackExchange.Redis.dll",
+        "lib/net472/StackExchange.Redis.xml",
+        "lib/net6.0/StackExchange.Redis.dll",
+        "lib/net6.0/StackExchange.Redis.xml",
+        "lib/net8.0/StackExchange.Redis.dll",
+        "lib/net8.0/StackExchange.Redis.xml",
+        "lib/netcoreapp3.1/StackExchange.Redis.dll",
+        "lib/netcoreapp3.1/StackExchange.Redis.xml",
+        "lib/netstandard2.0/StackExchange.Redis.dll",
+        "lib/netstandard2.0/StackExchange.Redis.xml",
+        "stackexchange.redis.2.8.41.nupkg.sha512",
+        "stackexchange.redis.nuspec"
+      ]
+    },
+    "System.CodeDom/10.0.0": {
+      "sha512": "QWERdKi/tQAx+MbrPxTGcpchqMANnVXNiv2r2tILBBB38E74buD+fABSUhozZ1G9kjbadFB0m+HPFMkhJPeFvA==",
+      "type": "package",
+      "path": "system.codedom/10.0.0",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "Icon.png",
+        "PACKAGE.md",
+        "THIRD-PARTY-NOTICES.TXT",
+        "buildTransitive/net461/System.CodeDom.targets",
+        "buildTransitive/net462/_._",
+        "buildTransitive/net8.0/_._",
+        "buildTransitive/netcoreapp2.0/System.CodeDom.targets",
+        "lib/net10.0/System.CodeDom.dll",
+        "lib/net10.0/System.CodeDom.xml",
+        "lib/net462/System.CodeDom.dll",
+        "lib/net462/System.CodeDom.xml",
+        "lib/net8.0/System.CodeDom.dll",
+        "lib/net8.0/System.CodeDom.xml",
+        "lib/net9.0/System.CodeDom.dll",
+        "lib/net9.0/System.CodeDom.xml",
+        "lib/netstandard2.0/System.CodeDom.dll",
+        "lib/netstandard2.0/System.CodeDom.xml",
+        "system.codedom.10.0.0.nupkg.sha512",
+        "system.codedom.nuspec",
+        "useSharedDesignerContext.txt"
+      ]
+    },
+    "System.Linq.Dynamic.Core/1.6.7": {
+      "sha512": "lH+YgtovXbxD6JImHl2VXUtXRUvN8BMEZB2ReZNvS+J5GnGGZV9ivxslQ2nJWmKlBjFTReAKsevnQKE4yLP2pA==",
+      "type": "package",
+      "path": "system.linq.dynamic.core/1.6.7",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "PackageReadme.md",
+        "lib/net35/System.Linq.Dynamic.Core.dll",
+        "lib/net35/System.Linq.Dynamic.Core.pdb",
+        "lib/net35/System.Linq.Dynamic.Core.xml",
+        "lib/net40/System.Linq.Dynamic.Core.dll",
+        "lib/net40/System.Linq.Dynamic.Core.pdb",
+        "lib/net40/System.Linq.Dynamic.Core.xml",
+        "lib/net45/System.Linq.Dynamic.Core.dll",
+        "lib/net45/System.Linq.Dynamic.Core.pdb",
+        "lib/net45/System.Linq.Dynamic.Core.xml",
+        "lib/net452/System.Linq.Dynamic.Core.dll",
+        "lib/net452/System.Linq.Dynamic.Core.pdb",
+        "lib/net452/System.Linq.Dynamic.Core.xml",
+        "lib/net46/System.Linq.Dynamic.Core.dll",
+        "lib/net46/System.Linq.Dynamic.Core.pdb",
+        "lib/net46/System.Linq.Dynamic.Core.xml",
+        "lib/net5.0/System.Linq.Dynamic.Core.dll",
+        "lib/net5.0/System.Linq.Dynamic.Core.pdb",
+        "lib/net5.0/System.Linq.Dynamic.Core.xml",
+        "lib/net6.0/System.Linq.Dynamic.Core.dll",
+        "lib/net6.0/System.Linq.Dynamic.Core.pdb",
+        "lib/net6.0/System.Linq.Dynamic.Core.xml",
+        "lib/net7.0/System.Linq.Dynamic.Core.dll",
+        "lib/net7.0/System.Linq.Dynamic.Core.pdb",
+        "lib/net7.0/System.Linq.Dynamic.Core.xml",
+        "lib/net8.0/System.Linq.Dynamic.Core.dll",
+        "lib/net8.0/System.Linq.Dynamic.Core.pdb",
+        "lib/net8.0/System.Linq.Dynamic.Core.xml",
+        "lib/net9.0/System.Linq.Dynamic.Core.dll",
+        "lib/net9.0/System.Linq.Dynamic.Core.pdb",
+        "lib/net9.0/System.Linq.Dynamic.Core.xml",
+        "lib/netcoreapp2.1/System.Linq.Dynamic.Core.dll",
+        "lib/netcoreapp2.1/System.Linq.Dynamic.Core.pdb",
+        "lib/netcoreapp2.1/System.Linq.Dynamic.Core.xml",
+        "lib/netcoreapp3.1/System.Linq.Dynamic.Core.dll",
+        "lib/netcoreapp3.1/System.Linq.Dynamic.Core.pdb",
+        "lib/netcoreapp3.1/System.Linq.Dynamic.Core.xml",
+        "lib/netstandard1.3/System.Linq.Dynamic.Core.dll",
+        "lib/netstandard1.3/System.Linq.Dynamic.Core.pdb",
+        "lib/netstandard1.3/System.Linq.Dynamic.Core.xml",
+        "lib/netstandard2.0/System.Linq.Dynamic.Core.dll",
+        "lib/netstandard2.0/System.Linq.Dynamic.Core.pdb",
+        "lib/netstandard2.0/System.Linq.Dynamic.Core.xml",
+        "lib/netstandard2.1/System.Linq.Dynamic.Core.dll",
+        "lib/netstandard2.1/System.Linq.Dynamic.Core.pdb",
+        "lib/netstandard2.1/System.Linq.Dynamic.Core.xml",
+        "lib/uap10.0.10240/System.Linq.Dynamic.Core.dll",
+        "lib/uap10.0.10240/System.Linq.Dynamic.Core.pdb",
+        "lib/uap10.0.10240/System.Linq.Dynamic.Core.pri",
+        "lib/uap10.0.10240/System.Linq.Dynamic.Core.xml",
+        "logo.png",
+        "system.linq.dynamic.core.1.6.7.nupkg.sha512",
+        "system.linq.dynamic.core.nuspec"
+      ]
+    },
+    "System.Management/10.0.0": {
+      "sha512": "LE3rDZoPzulou78Tsq+3ALhUs4vatQ03v2QWbYVIenVPneUH/+LTUmHyyl098OxIFLQI6sNkZs8YHbUnT/sm3A==",
+      "type": "package",
+      "path": "system.management/10.0.0",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "Icon.png",
+        "PACKAGE.md",
+        "THIRD-PARTY-NOTICES.TXT",
+        "buildTransitive/net8.0/_._",
+        "buildTransitive/netcoreapp2.0/System.Management.targets",
+        "lib/net10.0/System.Management.dll",
+        "lib/net10.0/System.Management.xml",
+        "lib/net462/_._",
+        "lib/net8.0/System.Management.dll",
+        "lib/net8.0/System.Management.xml",
+        "lib/net9.0/System.Management.dll",
+        "lib/net9.0/System.Management.xml",
+        "lib/netstandard2.0/System.Management.dll",
+        "lib/netstandard2.0/System.Management.xml",
+        "runtimes/win/lib/net10.0/System.Management.dll",
+        "runtimes/win/lib/net10.0/System.Management.xml",
+        "runtimes/win/lib/net8.0/System.Management.dll",
+        "runtimes/win/lib/net8.0/System.Management.xml",
+        "runtimes/win/lib/net9.0/System.Management.dll",
+        "runtimes/win/lib/net9.0/System.Management.xml",
+        "system.management.10.0.0.nupkg.sha512",
+        "system.management.nuspec",
+        "useSharedDesignerContext.txt"
+      ]
+    },
+    "Volo.Abp.Authorization/10.0.0": {
+      "sha512": "91x7gu7c5NH5iSecwavY9FxQm/WVkc9VCjyI8N2M+LuRC7iBBPsPpUWoU+p+UqyU1QJzKSA8EX5O53dd29qOIA==",
+      "type": "package",
+      "path": "volo.abp.authorization/10.0.0",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "NuGet.md",
+        "content/Volo.Abp.Authorization.abppkg",
+        "content/Volo.Abp.Authorization.abppkg.analyze.json",
+        "lib/net10.0/Volo.Abp.Authorization.dll",
+        "lib/net10.0/Volo.Abp.Authorization.pdb",
+        "lib/net10.0/Volo.Abp.Authorization.xml",
+        "lib/net8.0/Volo.Abp.Authorization.dll",
+        "lib/net8.0/Volo.Abp.Authorization.pdb",
+        "lib/net8.0/Volo.Abp.Authorization.xml",
+        "lib/net9.0/Volo.Abp.Authorization.dll",
+        "lib/net9.0/Volo.Abp.Authorization.pdb",
+        "lib/net9.0/Volo.Abp.Authorization.xml",
+        "lib/netstandard2.0/Volo.Abp.Authorization.dll",
+        "lib/netstandard2.0/Volo.Abp.Authorization.pdb",
+        "lib/netstandard2.0/Volo.Abp.Authorization.xml",
+        "lib/netstandard2.1/Volo.Abp.Authorization.dll",
+        "lib/netstandard2.1/Volo.Abp.Authorization.pdb",
+        "lib/netstandard2.1/Volo.Abp.Authorization.xml",
+        "volo.abp.authorization.10.0.0.nupkg.sha512",
+        "volo.abp.authorization.nuspec"
+      ]
+    },
+    "Volo.Abp.Authorization.Abstractions/10.0.0": {
+      "sha512": "oN6Kv4g9p9jXQE6e08v02jSz2sJTuk6sZ1bDm1QMFReSaGBg7Qdy/zM9tjifexCqLcnL4wuEQdlm+Q8Nx3pIIg==",
+      "type": "package",
+      "path": "volo.abp.authorization.abstractions/10.0.0",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "NuGet.md",
+        "content/Volo.Abp.Authorization.Abstractions.abppkg",
+        "content/Volo.Abp.Authorization.Abstractions.abppkg.analyze.json",
+        "lib/net10.0/Volo.Abp.Authorization.Abstractions.dll",
+        "lib/net10.0/Volo.Abp.Authorization.Abstractions.pdb",
+        "lib/net10.0/Volo.Abp.Authorization.Abstractions.xml",
+        "lib/net8.0/Volo.Abp.Authorization.Abstractions.dll",
+        "lib/net8.0/Volo.Abp.Authorization.Abstractions.pdb",
+        "lib/net8.0/Volo.Abp.Authorization.Abstractions.xml",
+        "lib/net9.0/Volo.Abp.Authorization.Abstractions.dll",
+        "lib/net9.0/Volo.Abp.Authorization.Abstractions.pdb",
+        "lib/net9.0/Volo.Abp.Authorization.Abstractions.xml",
+        "lib/netstandard2.0/Volo.Abp.Authorization.Abstractions.dll",
+        "lib/netstandard2.0/Volo.Abp.Authorization.Abstractions.pdb",
+        "lib/netstandard2.0/Volo.Abp.Authorization.Abstractions.xml",
+        "lib/netstandard2.1/Volo.Abp.Authorization.Abstractions.dll",
+        "lib/netstandard2.1/Volo.Abp.Authorization.Abstractions.pdb",
+        "lib/netstandard2.1/Volo.Abp.Authorization.Abstractions.xml",
+        "volo.abp.authorization.abstractions.10.0.0.nupkg.sha512",
+        "volo.abp.authorization.abstractions.nuspec"
+      ]
+    },
+    "Volo.Abp.Core/10.0.0": {
+      "sha512": "uk6frLEVgqIdKAZIL4rsnUcHJfcG/Bd5w60QNQocdqIkwb8biYh4gc6l8Ux4YQrzXMYqzeP/H8QnELfPAmtzXg==",
+      "type": "package",
+      "path": "volo.abp.core/10.0.0",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "NuGet.md",
+        "content/Volo.Abp.Core.abppkg",
+        "content/Volo.Abp.Core.abppkg.analyze.json",
+        "lib/net10.0/Volo.Abp.Core.dll",
+        "lib/net10.0/Volo.Abp.Core.pdb",
+        "lib/net10.0/Volo.Abp.Core.xml",
+        "lib/net8.0/Volo.Abp.Core.dll",
+        "lib/net8.0/Volo.Abp.Core.pdb",
+        "lib/net8.0/Volo.Abp.Core.xml",
+        "lib/net9.0/Volo.Abp.Core.dll",
+        "lib/net9.0/Volo.Abp.Core.pdb",
+        "lib/net9.0/Volo.Abp.Core.xml",
+        "lib/netstandard2.0/Volo.Abp.Core.dll",
+        "lib/netstandard2.0/Volo.Abp.Core.pdb",
+        "lib/netstandard2.0/Volo.Abp.Core.xml",
+        "lib/netstandard2.1/Volo.Abp.Core.dll",
+        "lib/netstandard2.1/Volo.Abp.Core.pdb",
+        "lib/netstandard2.1/Volo.Abp.Core.xml",
+        "volo.abp.core.10.0.0.nupkg.sha512",
+        "volo.abp.core.nuspec"
+      ]
+    },
+    "Volo.Abp.Data/10.0.0": {
+      "sha512": "cJa4qAs/ZH7dIBDYqZyZXOcPzQ1eQKLIfILAJ96SRHmWNM+yDmGM5dI6s7jqc9ZnZ94mcMmJcTfNq0k7TKVHOQ==",
+      "type": "package",
+      "path": "volo.abp.data/10.0.0",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "NuGet.md",
+        "content/Volo.Abp.Data.abppkg",
+        "content/Volo.Abp.Data.abppkg.analyze.json",
+        "lib/net10.0/Volo.Abp.Data.dll",
+        "lib/net10.0/Volo.Abp.Data.pdb",
+        "lib/net10.0/Volo.Abp.Data.xml",
+        "lib/net8.0/Volo.Abp.Data.dll",
+        "lib/net8.0/Volo.Abp.Data.pdb",
+        "lib/net8.0/Volo.Abp.Data.xml",
+        "lib/net9.0/Volo.Abp.Data.dll",
+        "lib/net9.0/Volo.Abp.Data.pdb",
+        "lib/net9.0/Volo.Abp.Data.xml",
+        "lib/netstandard2.0/Volo.Abp.Data.dll",
+        "lib/netstandard2.0/Volo.Abp.Data.pdb",
+        "lib/netstandard2.0/Volo.Abp.Data.xml",
+        "lib/netstandard2.1/Volo.Abp.Data.dll",
+        "lib/netstandard2.1/Volo.Abp.Data.pdb",
+        "lib/netstandard2.1/Volo.Abp.Data.xml",
+        "volo.abp.data.10.0.0.nupkg.sha512",
+        "volo.abp.data.nuspec"
+      ]
+    },
+    "Volo.Abp.EventBus.Abstractions/10.0.0": {
+      "sha512": "g8ysUWOHGzpe8XFt/MCM0eLezWID5R/hMlyIGgOPxc4z4hpKBtb6+d15mW3VdbNd6q10mBgGppPbpQaVxWJZOg==",
+      "type": "package",
+      "path": "volo.abp.eventbus.abstractions/10.0.0",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "NuGet.md",
+        "content/Volo.Abp.EventBus.Abstractions.abppkg",
+        "content/Volo.Abp.EventBus.Abstractions.abppkg.analyze.json",
+        "lib/net10.0/Volo.Abp.EventBus.Abstractions.dll",
+        "lib/net10.0/Volo.Abp.EventBus.Abstractions.pdb",
+        "lib/net10.0/Volo.Abp.EventBus.Abstractions.xml",
+        "lib/net8.0/Volo.Abp.EventBus.Abstractions.dll",
+        "lib/net8.0/Volo.Abp.EventBus.Abstractions.pdb",
+        "lib/net8.0/Volo.Abp.EventBus.Abstractions.xml",
+        "lib/net9.0/Volo.Abp.EventBus.Abstractions.dll",
+        "lib/net9.0/Volo.Abp.EventBus.Abstractions.pdb",
+        "lib/net9.0/Volo.Abp.EventBus.Abstractions.xml",
+        "lib/netstandard2.0/Volo.Abp.EventBus.Abstractions.dll",
+        "lib/netstandard2.0/Volo.Abp.EventBus.Abstractions.pdb",
+        "lib/netstandard2.0/Volo.Abp.EventBus.Abstractions.xml",
+        "lib/netstandard2.1/Volo.Abp.EventBus.Abstractions.dll",
+        "lib/netstandard2.1/Volo.Abp.EventBus.Abstractions.pdb",
+        "lib/netstandard2.1/Volo.Abp.EventBus.Abstractions.xml",
+        "volo.abp.eventbus.abstractions.10.0.0.nupkg.sha512",
+        "volo.abp.eventbus.abstractions.nuspec"
+      ]
+    },
+    "Volo.Abp.Localization/10.0.0": {
+      "sha512": "DPHEbCIwfzvqeMieBm0foDoOO+r49Q533q9/V6ybDc+RFP4Tk5ngTFONLiVSIOlq8W2jvddsT3yiz6JP4rGjIw==",
+      "type": "package",
+      "path": "volo.abp.localization/10.0.0",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "NuGet.md",
+        "content/Volo.Abp.Localization.abppkg",
+        "content/Volo.Abp.Localization.abppkg.analyze.json",
+        "lib/net10.0/Volo.Abp.Localization.dll",
+        "lib/net10.0/Volo.Abp.Localization.pdb",
+        "lib/net10.0/Volo.Abp.Localization.xml",
+        "lib/net8.0/Volo.Abp.Localization.dll",
+        "lib/net8.0/Volo.Abp.Localization.pdb",
+        "lib/net8.0/Volo.Abp.Localization.xml",
+        "lib/net9.0/Volo.Abp.Localization.dll",
+        "lib/net9.0/Volo.Abp.Localization.pdb",
+        "lib/net9.0/Volo.Abp.Localization.xml",
+        "lib/netstandard2.0/Volo.Abp.Localization.dll",
+        "lib/netstandard2.0/Volo.Abp.Localization.pdb",
+        "lib/netstandard2.0/Volo.Abp.Localization.xml",
+        "lib/netstandard2.1/Volo.Abp.Localization.dll",
+        "lib/netstandard2.1/Volo.Abp.Localization.pdb",
+        "lib/netstandard2.1/Volo.Abp.Localization.xml",
+        "volo.abp.localization.10.0.0.nupkg.sha512",
+        "volo.abp.localization.nuspec"
+      ]
+    },
+    "Volo.Abp.Localization.Abstractions/10.0.0": {
+      "sha512": "QdIx2TvZBU/sZ1s5IQpCVU0GauPhvE4jXMTt3zofe9ZUg8obrhfGCeAORa+PVasF45qaAhK/1TICxIdyYy9epw==",
+      "type": "package",
+      "path": "volo.abp.localization.abstractions/10.0.0",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "NuGet.md",
+        "content/Volo.Abp.Localization.Abstractions.abppkg",
+        "content/Volo.Abp.Localization.Abstractions.abppkg.analyze.json",
+        "lib/net10.0/Volo.Abp.Localization.Abstractions.dll",
+        "lib/net10.0/Volo.Abp.Localization.Abstractions.pdb",
+        "lib/net10.0/Volo.Abp.Localization.Abstractions.xml",
+        "lib/net8.0/Volo.Abp.Localization.Abstractions.dll",
+        "lib/net8.0/Volo.Abp.Localization.Abstractions.pdb",
+        "lib/net8.0/Volo.Abp.Localization.Abstractions.xml",
+        "lib/net9.0/Volo.Abp.Localization.Abstractions.dll",
+        "lib/net9.0/Volo.Abp.Localization.Abstractions.pdb",
+        "lib/net9.0/Volo.Abp.Localization.Abstractions.xml",
+        "lib/netstandard2.0/Volo.Abp.Localization.Abstractions.dll",
+        "lib/netstandard2.0/Volo.Abp.Localization.Abstractions.pdb",
+        "lib/netstandard2.0/Volo.Abp.Localization.Abstractions.xml",
+        "lib/netstandard2.1/Volo.Abp.Localization.Abstractions.dll",
+        "lib/netstandard2.1/Volo.Abp.Localization.Abstractions.pdb",
+        "lib/netstandard2.1/Volo.Abp.Localization.Abstractions.xml",
+        "volo.abp.localization.abstractions.10.0.0.nupkg.sha512",
+        "volo.abp.localization.abstractions.nuspec"
+      ]
+    },
+    "Volo.Abp.MultiTenancy/10.0.0": {
+      "sha512": "S8HU7uUe2qJIIvxeKg/iDrqF8pTWRotQnLuQ2j6EjsSLl2QYwiXp/+mPlzrZ4Wc3bS3Wnnwg1QyrHTBnKrTnBw==",
+      "type": "package",
+      "path": "volo.abp.multitenancy/10.0.0",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "NuGet.md",
+        "content/Volo.Abp.MultiTenancy.abppkg",
+        "content/Volo.Abp.MultiTenancy.abppkg.analyze.json",
+        "lib/net10.0/Volo.Abp.MultiTenancy.dll",
+        "lib/net10.0/Volo.Abp.MultiTenancy.pdb",
+        "lib/net10.0/Volo.Abp.MultiTenancy.xml",
+        "lib/net8.0/Volo.Abp.MultiTenancy.dll",
+        "lib/net8.0/Volo.Abp.MultiTenancy.pdb",
+        "lib/net8.0/Volo.Abp.MultiTenancy.xml",
+        "lib/net9.0/Volo.Abp.MultiTenancy.dll",
+        "lib/net9.0/Volo.Abp.MultiTenancy.pdb",
+        "lib/net9.0/Volo.Abp.MultiTenancy.xml",
+        "lib/netstandard2.0/Volo.Abp.MultiTenancy.dll",
+        "lib/netstandard2.0/Volo.Abp.MultiTenancy.pdb",
+        "lib/netstandard2.0/Volo.Abp.MultiTenancy.xml",
+        "lib/netstandard2.1/Volo.Abp.MultiTenancy.dll",
+        "lib/netstandard2.1/Volo.Abp.MultiTenancy.pdb",
+        "lib/netstandard2.1/Volo.Abp.MultiTenancy.xml",
+        "volo.abp.multitenancy.10.0.0.nupkg.sha512",
+        "volo.abp.multitenancy.nuspec"
+      ]
+    },
+    "Volo.Abp.MultiTenancy.Abstractions/10.0.0": {
+      "sha512": "tW7z9cafpvRUjl9Bhy1UV80vqZO1/GrHyxv9wLxPs1baC9/POTPHndIWndrt3ctm7B4tKjfzU3VZnooZ0sWMbQ==",
+      "type": "package",
+      "path": "volo.abp.multitenancy.abstractions/10.0.0",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "NuGet.md",
+        "lib/net10.0/Volo.Abp.MultiTenancy.Abstractions.dll",
+        "lib/net10.0/Volo.Abp.MultiTenancy.Abstractions.pdb",
+        "lib/net10.0/Volo.Abp.MultiTenancy.Abstractions.xml",
+        "lib/net8.0/Volo.Abp.MultiTenancy.Abstractions.dll",
+        "lib/net8.0/Volo.Abp.MultiTenancy.Abstractions.pdb",
+        "lib/net8.0/Volo.Abp.MultiTenancy.Abstractions.xml",
+        "lib/net9.0/Volo.Abp.MultiTenancy.Abstractions.dll",
+        "lib/net9.0/Volo.Abp.MultiTenancy.Abstractions.pdb",
+        "lib/net9.0/Volo.Abp.MultiTenancy.Abstractions.xml",
+        "lib/netstandard2.0/Volo.Abp.MultiTenancy.Abstractions.dll",
+        "lib/netstandard2.0/Volo.Abp.MultiTenancy.Abstractions.pdb",
+        "lib/netstandard2.0/Volo.Abp.MultiTenancy.Abstractions.xml",
+        "lib/netstandard2.1/Volo.Abp.MultiTenancy.Abstractions.dll",
+        "lib/netstandard2.1/Volo.Abp.MultiTenancy.Abstractions.pdb",
+        "lib/netstandard2.1/Volo.Abp.MultiTenancy.Abstractions.xml",
+        "volo.abp.multitenancy.abstractions.10.0.0.nupkg.sha512",
+        "volo.abp.multitenancy.abstractions.nuspec"
+      ]
+    },
+    "Volo.Abp.ObjectExtending/10.0.0": {
+      "sha512": "Bnn5vgZ70AcfBArATxa5JkTak4J4frY0BteEEan7wXvBAPhIqfjYbra8ZcKZBHMEsHOsxLJpSBZWm9+p50bHRA==",
+      "type": "package",
+      "path": "volo.abp.objectextending/10.0.0",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "NuGet.md",
+        "content/Volo.Abp.ObjectExtending.abppkg",
+        "content/Volo.Abp.ObjectExtending.abppkg.analyze.json",
+        "lib/net10.0/Volo.Abp.ObjectExtending.dll",
+        "lib/net10.0/Volo.Abp.ObjectExtending.pdb",
+        "lib/net10.0/Volo.Abp.ObjectExtending.xml",
+        "lib/net8.0/Volo.Abp.ObjectExtending.dll",
+        "lib/net8.0/Volo.Abp.ObjectExtending.pdb",
+        "lib/net8.0/Volo.Abp.ObjectExtending.xml",
+        "lib/net9.0/Volo.Abp.ObjectExtending.dll",
+        "lib/net9.0/Volo.Abp.ObjectExtending.pdb",
+        "lib/net9.0/Volo.Abp.ObjectExtending.xml",
+        "lib/netstandard2.0/Volo.Abp.ObjectExtending.dll",
+        "lib/netstandard2.0/Volo.Abp.ObjectExtending.pdb",
+        "lib/netstandard2.0/Volo.Abp.ObjectExtending.xml",
+        "lib/netstandard2.1/Volo.Abp.ObjectExtending.dll",
+        "lib/netstandard2.1/Volo.Abp.ObjectExtending.pdb",
+        "lib/netstandard2.1/Volo.Abp.ObjectExtending.xml",
+        "volo.abp.objectextending.10.0.0.nupkg.sha512",
+        "volo.abp.objectextending.nuspec"
+      ]
+    },
+    "Volo.Abp.Security/10.0.0": {
+      "sha512": "yc/8ZhUW2cY9LlZkcJM4wgE9pvdS/cASkoU1hfC3AwZ9rDcpzCgXPGoPUru04X8cvJQinKFgpBx+QlpNIkf0Jg==",
+      "type": "package",
+      "path": "volo.abp.security/10.0.0",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "NuGet.md",
+        "content/Volo.Abp.Security.abppkg",
+        "content/Volo.Abp.Security.abppkg.analyze.json",
+        "lib/net10.0/Volo.Abp.Security.dll",
+        "lib/net10.0/Volo.Abp.Security.pdb",
+        "lib/net10.0/Volo.Abp.Security.xml",
+        "lib/net8.0/Volo.Abp.Security.dll",
+        "lib/net8.0/Volo.Abp.Security.pdb",
+        "lib/net8.0/Volo.Abp.Security.xml",
+        "lib/net9.0/Volo.Abp.Security.dll",
+        "lib/net9.0/Volo.Abp.Security.pdb",
+        "lib/net9.0/Volo.Abp.Security.xml",
+        "lib/netstandard2.0/Volo.Abp.Security.dll",
+        "lib/netstandard2.0/Volo.Abp.Security.pdb",
+        "lib/netstandard2.0/Volo.Abp.Security.xml",
+        "lib/netstandard2.1/Volo.Abp.Security.dll",
+        "lib/netstandard2.1/Volo.Abp.Security.pdb",
+        "lib/netstandard2.1/Volo.Abp.Security.xml",
+        "volo.abp.security.10.0.0.nupkg.sha512",
+        "volo.abp.security.nuspec"
+      ]
+    },
+    "Volo.Abp.Settings/10.0.0": {
+      "sha512": "gzxCBFuHBEOvIzZAZWzIDPUHWWyKZ4ui11d6r4BYfXJ5Sv19gOFgzrgXsEAw8YNHFZ+mDrQzsszXkq920YfT+A==",
+      "type": "package",
+      "path": "volo.abp.settings/10.0.0",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "NuGet.md",
+        "content/Volo.Abp.Settings.abppkg",
+        "content/Volo.Abp.Settings.abppkg.analyze.json",
+        "lib/net10.0/Volo.Abp.Settings.dll",
+        "lib/net10.0/Volo.Abp.Settings.pdb",
+        "lib/net10.0/Volo.Abp.Settings.xml",
+        "lib/net8.0/Volo.Abp.Settings.dll",
+        "lib/net8.0/Volo.Abp.Settings.pdb",
+        "lib/net8.0/Volo.Abp.Settings.xml",
+        "lib/net9.0/Volo.Abp.Settings.dll",
+        "lib/net9.0/Volo.Abp.Settings.pdb",
+        "lib/net9.0/Volo.Abp.Settings.xml",
+        "lib/netstandard2.0/Volo.Abp.Settings.dll",
+        "lib/netstandard2.0/Volo.Abp.Settings.pdb",
+        "lib/netstandard2.0/Volo.Abp.Settings.xml",
+        "lib/netstandard2.1/Volo.Abp.Settings.dll",
+        "lib/netstandard2.1/Volo.Abp.Settings.pdb",
+        "lib/netstandard2.1/Volo.Abp.Settings.xml",
+        "volo.abp.settings.10.0.0.nupkg.sha512",
+        "volo.abp.settings.nuspec"
+      ]
+    },
+    "Volo.Abp.Threading/10.0.0": {
+      "sha512": "n03OONN2XkEqSGe/9JV4g+K59UN1VJiFWYMStpWSie1erzI4Yq2NtRD5lUMELdD39Pluzw8xfpkkOyp+QXIRdg==",
+      "type": "package",
+      "path": "volo.abp.threading/10.0.0",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "NuGet.md",
+        "content/Volo.Abp.Threading.abppkg",
+        "content/Volo.Abp.Threading.abppkg.analyze.json",
+        "lib/net10.0/Volo.Abp.Threading.dll",
+        "lib/net10.0/Volo.Abp.Threading.pdb",
+        "lib/net10.0/Volo.Abp.Threading.xml",
+        "lib/net8.0/Volo.Abp.Threading.dll",
+        "lib/net8.0/Volo.Abp.Threading.pdb",
+        "lib/net8.0/Volo.Abp.Threading.xml",
+        "lib/net9.0/Volo.Abp.Threading.dll",
+        "lib/net9.0/Volo.Abp.Threading.pdb",
+        "lib/net9.0/Volo.Abp.Threading.xml",
+        "lib/netstandard2.0/Volo.Abp.Threading.dll",
+        "lib/netstandard2.0/Volo.Abp.Threading.pdb",
+        "lib/netstandard2.0/Volo.Abp.Threading.xml",
+        "lib/netstandard2.1/Volo.Abp.Threading.dll",
+        "lib/netstandard2.1/Volo.Abp.Threading.pdb",
+        "lib/netstandard2.1/Volo.Abp.Threading.xml",
+        "volo.abp.threading.10.0.0.nupkg.sha512",
+        "volo.abp.threading.nuspec"
+      ]
+    },
+    "Volo.Abp.Uow/10.0.0": {
+      "sha512": "0w9+P/U4NROOtW3qklHcVRhEaD9VZYG6OllepTs2+Ecz7XHEOrXev/s+T20AGTDy5rtCNNEZc8CgWvDhb2ss9A==",
+      "type": "package",
+      "path": "volo.abp.uow/10.0.0",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "NuGet.md",
+        "content/Volo.Abp.Uow.abppkg",
+        "content/Volo.Abp.Uow.abppkg.analyze.json",
+        "lib/net10.0/Volo.Abp.Uow.dll",
+        "lib/net10.0/Volo.Abp.Uow.pdb",
+        "lib/net10.0/Volo.Abp.Uow.xml",
+        "lib/net8.0/Volo.Abp.Uow.dll",
+        "lib/net8.0/Volo.Abp.Uow.pdb",
+        "lib/net8.0/Volo.Abp.Uow.xml",
+        "lib/net9.0/Volo.Abp.Uow.dll",
+        "lib/net9.0/Volo.Abp.Uow.pdb",
+        "lib/net9.0/Volo.Abp.Uow.xml",
+        "lib/netstandard2.0/Volo.Abp.Uow.dll",
+        "lib/netstandard2.0/Volo.Abp.Uow.pdb",
+        "lib/netstandard2.0/Volo.Abp.Uow.xml",
+        "lib/netstandard2.1/Volo.Abp.Uow.dll",
+        "lib/netstandard2.1/Volo.Abp.Uow.pdb",
+        "lib/netstandard2.1/Volo.Abp.Uow.xml",
+        "volo.abp.uow.10.0.0.nupkg.sha512",
+        "volo.abp.uow.nuspec"
+      ]
+    },
+    "Volo.Abp.Validation.Abstractions/10.0.0": {
+      "sha512": "LmcYWCvbFSLmJJo6gMS4cMHvhMR7OiwbDB9+jyozRl1fOpEgFJcuN/VAAvvXHShodYfiDX3GhSOVhQ4qE9WkKQ==",
+      "type": "package",
+      "path": "volo.abp.validation.abstractions/10.0.0",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "NuGet.md",
+        "content/Volo.Abp.Validation.Abstractions.abppkg",
+        "content/Volo.Abp.Validation.Abstractions.abppkg.analyze.json",
+        "lib/net10.0/Volo.Abp.Validation.Abstractions.dll",
+        "lib/net10.0/Volo.Abp.Validation.Abstractions.pdb",
+        "lib/net10.0/Volo.Abp.Validation.Abstractions.xml",
+        "lib/net8.0/Volo.Abp.Validation.Abstractions.dll",
+        "lib/net8.0/Volo.Abp.Validation.Abstractions.pdb",
+        "lib/net8.0/Volo.Abp.Validation.Abstractions.xml",
+        "lib/net9.0/Volo.Abp.Validation.Abstractions.dll",
+        "lib/net9.0/Volo.Abp.Validation.Abstractions.pdb",
+        "lib/net9.0/Volo.Abp.Validation.Abstractions.xml",
+        "lib/netstandard2.0/Volo.Abp.Validation.Abstractions.dll",
+        "lib/netstandard2.0/Volo.Abp.Validation.Abstractions.pdb",
+        "lib/netstandard2.0/Volo.Abp.Validation.Abstractions.xml",
+        "lib/netstandard2.1/Volo.Abp.Validation.Abstractions.dll",
+        "lib/netstandard2.1/Volo.Abp.Validation.Abstractions.pdb",
+        "lib/netstandard2.1/Volo.Abp.Validation.Abstractions.xml",
+        "volo.abp.validation.abstractions.10.0.0.nupkg.sha512",
+        "volo.abp.validation.abstractions.nuspec"
+      ]
+    },
+    "Volo.Abp.VirtualFileSystem/10.0.0": {
+      "sha512": "VhdInk6/puwIUy5Twfr2GXCdgEVClqch//hpuIQpvOJTsfT9Np0zW7lv98JCSJ4sIuYH6Ip4CkvrkcTLRJj4Cw==",
+      "type": "package",
+      "path": "volo.abp.virtualfilesystem/10.0.0",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "NuGet.md",
+        "content/Volo.Abp.VirtualFileSystem.abppkg",
+        "content/Volo.Abp.VirtualFileSystem.abppkg.analyze.json",
+        "lib/net10.0/Volo.Abp.VirtualFileSystem.dll",
+        "lib/net10.0/Volo.Abp.VirtualFileSystem.pdb",
+        "lib/net10.0/Volo.Abp.VirtualFileSystem.xml",
+        "lib/net8.0/Volo.Abp.VirtualFileSystem.dll",
+        "lib/net8.0/Volo.Abp.VirtualFileSystem.pdb",
+        "lib/net8.0/Volo.Abp.VirtualFileSystem.xml",
+        "lib/net9.0/Volo.Abp.VirtualFileSystem.dll",
+        "lib/net9.0/Volo.Abp.VirtualFileSystem.pdb",
+        "lib/net9.0/Volo.Abp.VirtualFileSystem.xml",
+        "lib/netstandard2.0/Volo.Abp.VirtualFileSystem.dll",
+        "lib/netstandard2.0/Volo.Abp.VirtualFileSystem.pdb",
+        "lib/netstandard2.0/Volo.Abp.VirtualFileSystem.xml",
+        "lib/netstandard2.1/Volo.Abp.VirtualFileSystem.dll",
+        "lib/netstandard2.1/Volo.Abp.VirtualFileSystem.pdb",
+        "lib/netstandard2.1/Volo.Abp.VirtualFileSystem.xml",
+        "volo.abp.virtualfilesystem.10.0.0.nupkg.sha512",
+        "volo.abp.virtualfilesystem.nuspec"
+      ]
+    },
+    "NS.Framework.Core/1.0.0": {
+      "type": "project",
+      "path": "../NS.Framework.Core/NS.Framework.Core.csproj",
+      "msbuildProject": "../NS.Framework.Core/NS.Framework.Core.csproj"
+    }
+  },
+  "projectFileDependencyGroups": {
+    "net10.0": [
+      "NS.Framework.Core >= 1.0.0",
+      "Volo.Abp.Authorization >= 10.0.0",
+      "Volo.Abp.Core >= 10.0.0",
+      "Volo.Abp.MultiTenancy >= 10.0.0",
+      "Volo.Abp.Security >= 10.0.0"
+    ]
+  },
+  "packageFolders": {
+    "D:\\NuGet\\packages": {},
+    "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages": {}
+  },
+  "project": {
+    "version": "1.0.0",
+    "restore": {
+      "projectUniqueName": "D:\\editor\\services\\api\\framework\\NS.Framework.Authorization\\NS.Framework.Authorization.csproj",
+      "projectName": "NS.Framework.Authorization",
+      "projectPath": "D:\\editor\\services\\api\\framework\\NS.Framework.Authorization\\NS.Framework.Authorization.csproj",
+      "packagesPath": "D:\\NuGet\\packages",
+      "outputPath": "D:\\editor\\services\\api\\framework\\NS.Framework.Authorization\\obj\\",
+      "projectStyle": "PackageReference",
+      "fallbackFolders": [
+        "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
+      ],
+      "configFilePaths": [
+        "C:\\Users\\luckYY\\AppData\\Roaming\\NuGet\\NuGet.Config",
+        "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
+        "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
+      ],
+      "originalTargetFrameworks": [
+        "net10.0"
+      ],
+      "sources": {
+        "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
+        "C:\\Program Files\\dotnet\\library-packs": {},
+        "https://api.nuget.org/v3/index.json": {}
+      },
+      "frameworks": {
+        "net10.0": {
+          "targetAlias": "net10.0",
+          "projectReferences": {
+            "D:\\editor\\services\\api\\framework\\NS.Framework.Core\\NS.Framework.Core.csproj": {
+              "projectPath": "D:\\editor\\services\\api\\framework\\NS.Framework.Core\\NS.Framework.Core.csproj"
+            }
+          }
+        }
+      },
+      "warningProperties": {
+        "warnAsError": [
+          "NU1605"
+        ]
+      },
+      "restoreAuditProperties": {
+        "enableAudit": "true",
+        "auditLevel": "low",
+        "auditMode": "all"
+      },
+      "SdkAnalysisLevel": "10.0.100"
+    },
+    "frameworks": {
+      "net10.0": {
+        "targetAlias": "net10.0",
+        "dependencies": {
+          "Volo.Abp.Authorization": {
+            "target": "Package",
+            "version": "[10.0.0, )"
+          },
+          "Volo.Abp.Core": {
+            "target": "Package",
+            "version": "[10.0.0, )"
+          },
+          "Volo.Abp.MultiTenancy": {
+            "target": "Package",
+            "version": "[10.0.0, )"
+          },
+          "Volo.Abp.Security": {
+            "target": "Package",
+            "version": "[10.0.0, )"
+          }
+        },
+        "imports": [
+          "net461",
+          "net462",
+          "net47",
+          "net471",
+          "net472",
+          "net48",
+          "net481"
+        ],
+        "assetTargetFallback": true,
+        "warn": true,
+        "frameworkReferences": {
+          "Microsoft.AspNetCore.App": {
+            "privateAssets": "none"
+          },
+          "Microsoft.NETCore.App": {
+            "privateAssets": "all"
+          }
+        },
+        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.100/PortableRuntimeIdentifierGraph.json",
+        "packagesToPrune": {
+          "Microsoft.AspNetCore": "(,10.0.32767]",
+          "Microsoft.AspNetCore.Antiforgery": "(,10.0.32767]",
+          "Microsoft.AspNetCore.App": "(,10.0.32767]",
+          "Microsoft.AspNetCore.Authentication": "(,10.0.32767]",
+          "Microsoft.AspNetCore.Authentication.Abstractions": "(,10.0.32767]",
+          "Microsoft.AspNetCore.Authentication.BearerToken": "(,10.0.32767]",
+          "Microsoft.AspNetCore.Authentication.Cookies": "(,10.0.32767]",
+          "Microsoft.AspNetCore.Authentication.Core": "(,10.0.32767]",
+          "Microsoft.AspNetCore.Authentication.OAuth": "(,10.0.32767]",
+          "Microsoft.AspNetCore.Authorization": "(,10.0.32767]",
+          "Microsoft.AspNetCore.Authorization.Policy": "(,10.0.32767]",
+          "Microsoft.AspNetCore.Components": "(,10.0.32767]",
+          "Microsoft.AspNetCore.Components.Authorization": "(,10.0.32767]",
+          "Microsoft.AspNetCore.Components.Endpoints": "(,10.0.32767]",
+          "Microsoft.AspNetCore.Components.Forms": "(,10.0.32767]",
+          "Microsoft.AspNetCore.Components.Server": "(,10.0.32767]",
+          "Microsoft.AspNetCore.Components.Web": "(,10.0.32767]",
+          "Microsoft.AspNetCore.Connections.Abstractions": "(,10.0.32767]",
+          "Microsoft.AspNetCore.CookiePolicy": "(,10.0.32767]",
+          "Microsoft.AspNetCore.Cors": "(,10.0.32767]",
+          "Microsoft.AspNetCore.Cryptography.Internal": "(,10.0.32767]",
+          "Microsoft.AspNetCore.Cryptography.KeyDerivation": "(,10.0.32767]",
+          "Microsoft.AspNetCore.DataProtection": "(,10.0.32767]",
+          "Microsoft.AspNetCore.DataProtection.Abstractions": "(,10.0.32767]",
+          "Microsoft.AspNetCore.DataProtection.Extensions": "(,10.0.32767]",
+          "Microsoft.AspNetCore.Diagnostics": "(,10.0.32767]",
+          "Microsoft.AspNetCore.Diagnostics.Abstractions": "(,10.0.32767]",
+          "Microsoft.AspNetCore.Diagnostics.HealthChecks": "(,10.0.32767]",
+          "Microsoft.AspNetCore.HostFiltering": "(,10.0.32767]",
+          "Microsoft.AspNetCore.Hosting": "(,10.0.32767]",
+          "Microsoft.AspNetCore.Hosting.Abstractions": "(,10.0.32767]",
+          "Microsoft.AspNetCore.Hosting.Server.Abstractions": "(,10.0.32767]",
+          "Microsoft.AspNetCore.Html.Abstractions": "(,10.0.32767]",
+          "Microsoft.AspNetCore.Http": "(,10.0.32767]",
+          "Microsoft.AspNetCore.Http.Abstractions": "(,10.0.32767]",
+          "Microsoft.AspNetCore.Http.Connections": "(,10.0.32767]",
+          "Microsoft.AspNetCore.Http.Connections.Common": "(,10.0.32767]",
+          "Microsoft.AspNetCore.Http.Extensions": "(,10.0.32767]",
+          "Microsoft.AspNetCore.Http.Features": "(,10.0.32767]",
+          "Microsoft.AspNetCore.Http.Results": "(,10.0.32767]",
+          "Microsoft.AspNetCore.HttpLogging": "(,10.0.32767]",
+          "Microsoft.AspNetCore.HttpOverrides": "(,10.0.32767]",
+          "Microsoft.AspNetCore.HttpsPolicy": "(,10.0.32767]",
+          "Microsoft.AspNetCore.Identity": "(,10.0.32767]",
+          "Microsoft.AspNetCore.Localization": "(,10.0.32767]",
+          "Microsoft.AspNetCore.Localization.Routing": "(,10.0.32767]",
+          "Microsoft.AspNetCore.Metadata": "(,10.0.32767]",
+          "Microsoft.AspNetCore.Mvc": "(,10.0.32767]",
+          "Microsoft.AspNetCore.Mvc.Abstractions": "(,10.0.32767]",
+          "Microsoft.AspNetCore.Mvc.ApiExplorer": "(,10.0.32767]",
+          "Microsoft.AspNetCore.Mvc.Core": "(,10.0.32767]",
+          "Microsoft.AspNetCore.Mvc.Cors": "(,10.0.32767]",
+          "Microsoft.AspNetCore.Mvc.DataAnnotations": "(,10.0.32767]",
+          "Microsoft.AspNetCore.Mvc.Formatters.Json": "(,10.0.32767]",
+          "Microsoft.AspNetCore.Mvc.Formatters.Xml": "(,10.0.32767]",
+          "Microsoft.AspNetCore.Mvc.Localization": "(,10.0.32767]",
+          "Microsoft.AspNetCore.Mvc.Razor": "(,10.0.32767]",
+          "Microsoft.AspNetCore.Mvc.RazorPages": "(,10.0.32767]",
+          "Microsoft.AspNetCore.Mvc.TagHelpers": "(,10.0.32767]",
+          "Microsoft.AspNetCore.Mvc.ViewFeatures": "(,10.0.32767]",
+          "Microsoft.AspNetCore.OutputCaching": "(,10.0.32767]",
+          "Microsoft.AspNetCore.RateLimiting": "(,10.0.32767]",
+          "Microsoft.AspNetCore.Razor": "(,10.0.32767]",
+          "Microsoft.AspNetCore.Razor.Runtime": "(,10.0.32767]",
+          "Microsoft.AspNetCore.RequestDecompression": "(,10.0.32767]",
+          "Microsoft.AspNetCore.ResponseCaching": "(,10.0.32767]",
+          "Microsoft.AspNetCore.ResponseCaching.Abstractions": "(,10.0.32767]",
+          "Microsoft.AspNetCore.ResponseCompression": "(,10.0.32767]",
+          "Microsoft.AspNetCore.Rewrite": "(,10.0.32767]",
+          "Microsoft.AspNetCore.Routing": "(,10.0.32767]",
+          "Microsoft.AspNetCore.Routing.Abstractions": "(,10.0.32767]",
+          "Microsoft.AspNetCore.Server.HttpSys": "(,10.0.32767]",
+          "Microsoft.AspNetCore.Server.IIS": "(,10.0.32767]",
+          "Microsoft.AspNetCore.Server.IISIntegration": "(,10.0.32767]",
+          "Microsoft.AspNetCore.Server.Kestrel": "(,10.0.32767]",
+          "Microsoft.AspNetCore.Server.Kestrel.Core": "(,10.0.32767]",
+          "Microsoft.AspNetCore.Server.Kestrel.Transport.NamedPipes": "(,10.0.32767]",
+          "Microsoft.AspNetCore.Server.Kestrel.Transport.Quic": "(,10.0.32767]",
+          "Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets": "(,10.0.32767]",
+          "Microsoft.AspNetCore.Session": "(,10.0.32767]",
+          "Microsoft.AspNetCore.SignalR": "(,10.0.32767]",
+          "Microsoft.AspNetCore.SignalR.Common": "(,10.0.32767]",
+          "Microsoft.AspNetCore.SignalR.Core": "(,10.0.32767]",
+          "Microsoft.AspNetCore.SignalR.Protocols.Json": "(,10.0.32767]",
+          "Microsoft.AspNetCore.StaticAssets": "(,10.0.32767]",
+          "Microsoft.AspNetCore.StaticFiles": "(,10.0.32767]",
+          "Microsoft.AspNetCore.WebSockets": "(,10.0.32767]",
+          "Microsoft.AspNetCore.WebUtilities": "(,10.0.32767]",
+          "Microsoft.CSharp": "(,4.7.32767]",
+          "Microsoft.Extensions.Caching.Abstractions": "(,10.0.32767]",
+          "Microsoft.Extensions.Caching.Memory": "(,10.0.32767]",
+          "Microsoft.Extensions.Configuration": "(,10.0.32767]",
+          "Microsoft.Extensions.Configuration.Abstractions": "(,10.0.32767]",
+          "Microsoft.Extensions.Configuration.Binder": "(,10.0.32767]",
+          "Microsoft.Extensions.Configuration.CommandLine": "(,10.0.32767]",
+          "Microsoft.Extensions.Configuration.EnvironmentVariables": "(,10.0.32767]",
+          "Microsoft.Extensions.Configuration.FileExtensions": "(,10.0.32767]",
+          "Microsoft.Extensions.Configuration.Ini": "(,10.0.32767]",
+          "Microsoft.Extensions.Configuration.Json": "(,10.0.32767]",
+          "Microsoft.Extensions.Configuration.KeyPerFile": "(,10.0.32767]",
+          "Microsoft.Extensions.Configuration.UserSecrets": "(,10.0.32767]",
+          "Microsoft.Extensions.Configuration.Xml": "(,10.0.32767]",
+          "Microsoft.Extensions.DependencyInjection": "(,10.0.32767]",
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "(,10.0.32767]",
+          "Microsoft.Extensions.Diagnostics": "(,10.0.32767]",
+          "Microsoft.Extensions.Diagnostics.Abstractions": "(,10.0.32767]",
+          "Microsoft.Extensions.Diagnostics.HealthChecks": "(,10.0.32767]",
+          "Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions": "(,10.0.32767]",
+          "Microsoft.Extensions.Features": "(,10.0.32767]",
+          "Microsoft.Extensions.FileProviders.Abstractions": "(,10.0.32767]",
+          "Microsoft.Extensions.FileProviders.Composite": "(,10.0.32767]",
+          "Microsoft.Extensions.FileProviders.Physical": "(,10.0.32767]",
+          "Microsoft.Extensions.FileSystemGlobbing": "(,10.0.32767]",
+          "Microsoft.Extensions.Hosting": "(,10.0.32767]",
+          "Microsoft.Extensions.Hosting.Abstractions": "(,10.0.32767]",
+          "Microsoft.Extensions.Http": "(,10.0.32767]",
+          "Microsoft.Extensions.Identity.Core": "(,10.0.32767]",
+          "Microsoft.Extensions.Identity.Stores": "(,10.0.32767]",
+          "Microsoft.Extensions.Localization": "(,10.0.32767]",
+          "Microsoft.Extensions.Localization.Abstractions": "(,10.0.32767]",
+          "Microsoft.Extensions.Logging": "(,10.0.32767]",
+          "Microsoft.Extensions.Logging.Abstractions": "(,10.0.32767]",
+          "Microsoft.Extensions.Logging.Configuration": "(,10.0.32767]",
+          "Microsoft.Extensions.Logging.Console": "(,10.0.32767]",
+          "Microsoft.Extensions.Logging.Debug": "(,10.0.32767]",
+          "Microsoft.Extensions.Logging.EventLog": "(,10.0.32767]",
+          "Microsoft.Extensions.Logging.EventSource": "(,10.0.32767]",
+          "Microsoft.Extensions.Logging.TraceSource": "(,10.0.32767]",
+          "Microsoft.Extensions.ObjectPool": "(,10.0.32767]",
+          "Microsoft.Extensions.Options": "(,10.0.32767]",
+          "Microsoft.Extensions.Options.ConfigurationExtensions": "(,10.0.32767]",
+          "Microsoft.Extensions.Options.DataAnnotations": "(,10.0.32767]",
+          "Microsoft.Extensions.Primitives": "(,10.0.32767]",
+          "Microsoft.Extensions.Validation": "(,10.0.32767]",
+          "Microsoft.Extensions.WebEncoders": "(,10.0.32767]",
+          "Microsoft.JSInterop": "(,10.0.32767]",
+          "Microsoft.Net.Http.Headers": "(,10.0.32767]",
+          "Microsoft.VisualBasic": "(,10.4.32767]",
+          "Microsoft.Win32.Primitives": "(,4.3.32767]",
+          "Microsoft.Win32.Registry": "(,5.0.32767]",
+          "runtime.any.System.Collections": "(,4.3.32767]",
+          "runtime.any.System.Diagnostics.Tools": "(,4.3.32767]",
+          "runtime.any.System.Diagnostics.Tracing": "(,4.3.32767]",
+          "runtime.any.System.Globalization": "(,4.3.32767]",
+          "runtime.any.System.Globalization.Calendars": "(,4.3.32767]",
+          "runtime.any.System.IO": "(,4.3.32767]",
+          "runtime.any.System.Reflection": "(,4.3.32767]",
+          "runtime.any.System.Reflection.Extensions": "(,4.3.32767]",
+          "runtime.any.System.Reflection.Primitives": "(,4.3.32767]",
+          "runtime.any.System.Resources.ResourceManager": "(,4.3.32767]",
+          "runtime.any.System.Runtime": "(,4.3.32767]",
+          "runtime.any.System.Runtime.Handles": "(,4.3.32767]",
+          "runtime.any.System.Runtime.InteropServices": "(,4.3.32767]",
+          "runtime.any.System.Text.Encoding": "(,4.3.32767]",
+          "runtime.any.System.Text.Encoding.Extensions": "(,4.3.32767]",
+          "runtime.any.System.Threading.Tasks": "(,4.3.32767]",
+          "runtime.any.System.Threading.Timer": "(,4.3.32767]",
+          "runtime.aot.System.Collections": "(,4.3.32767]",
+          "runtime.aot.System.Diagnostics.Tools": "(,4.3.32767]",
+          "runtime.aot.System.Diagnostics.Tracing": "(,4.3.32767]",
+          "runtime.aot.System.Globalization": "(,4.3.32767]",
+          "runtime.aot.System.Globalization.Calendars": "(,4.3.32767]",
+          "runtime.aot.System.IO": "(,4.3.32767]",
+          "runtime.aot.System.Reflection": "(,4.3.32767]",
+          "runtime.aot.System.Reflection.Extensions": "(,4.3.32767]",
+          "runtime.aot.System.Reflection.Primitives": "(,4.3.32767]",
+          "runtime.aot.System.Resources.ResourceManager": "(,4.3.32767]",
+          "runtime.aot.System.Runtime": "(,4.3.32767]",
+          "runtime.aot.System.Runtime.Handles": "(,4.3.32767]",
+          "runtime.aot.System.Runtime.InteropServices": "(,4.3.32767]",
+          "runtime.aot.System.Text.Encoding": "(,4.3.32767]",
+          "runtime.aot.System.Text.Encoding.Extensions": "(,4.3.32767]",
+          "runtime.aot.System.Threading.Tasks": "(,4.3.32767]",
+          "runtime.aot.System.Threading.Timer": "(,4.3.32767]",
+          "runtime.debian.8-x64.runtime.native.System": "(,4.3.32767]",
+          "runtime.debian.8-x64.runtime.native.System.IO.Compression": "(,4.3.32767]",
+          "runtime.debian.8-x64.runtime.native.System.Net.Http": "(,4.3.32767]",
+          "runtime.debian.8-x64.runtime.native.System.Net.Security": "(,4.3.32767]",
+          "runtime.debian.8-x64.runtime.native.System.Security.Cryptography": "(,4.3.32767]",
+          "runtime.debian.8-x64.runtime.native.System.Security.Cryptography.OpenSsl": "(,4.3.32767]",
+          "runtime.debian.9-x64.runtime.native.System": "(,4.3.32767]",
+          "runtime.debian.9-x64.runtime.native.System.IO.Compression": "(,4.3.32767]",
+          "runtime.debian.9-x64.runtime.native.System.Net.Http": "(,4.3.32767]",
+          "runtime.debian.9-x64.runtime.native.System.Net.Security": "(,4.3.32767]",
+          "runtime.fedora.23-x64.runtime.native.System": "(,4.3.32767]",
+          "runtime.fedora.23-x64.runtime.native.System.IO.Compression": "(,4.3.32767]",
+          "runtime.fedora.23-x64.runtime.native.System.Net.Http": "(,4.3.32767]",
+          "runtime.fedora.23-x64.runtime.native.System.Net.Security": "(,4.3.32767]",
+          "runtime.fedora.23-x64.runtime.native.System.Security.Cryptography": "(,4.3.32767]",
+          "runtime.fedora.23-x64.runtime.native.System.Security.Cryptography.OpenSsl": "(,4.3.32767]",
+          "runtime.fedora.24-x64.runtime.native.System": "(,4.3.32767]",
+          "runtime.fedora.24-x64.runtime.native.System.IO.Compression": "(,4.3.32767]",
+          "runtime.fedora.24-x64.runtime.native.System.Net.Http": "(,4.3.32767]",
+          "runtime.fedora.24-x64.runtime.native.System.Net.Security": "(,4.3.32767]",
+          "runtime.fedora.24-x64.runtime.native.System.Security.Cryptography": "(,4.3.32767]",
+          "runtime.fedora.24-x64.runtime.native.System.Security.Cryptography.OpenSsl": "(,4.3.32767]",
+          "runtime.fedora.27-x64.runtime.native.System": "(,4.3.32767]",
+          "runtime.fedora.27-x64.runtime.native.System.IO.Compression": "(,4.3.32767]",
+          "runtime.fedora.27-x64.runtime.native.System.Net.Http": "(,4.3.32767]",
+          "runtime.fedora.27-x64.runtime.native.System.Net.Security": "(,4.3.32767]",
+          "runtime.fedora.28-x64.runtime.native.System": "(,4.3.32767]",
+          "runtime.fedora.28-x64.runtime.native.System.IO.Compression": "(,4.3.32767]",
+          "runtime.fedora.28-x64.runtime.native.System.Net.Http": "(,4.3.32767]",
+          "runtime.fedora.28-x64.runtime.native.System.Net.Security": "(,4.3.32767]",
+          "runtime.opensuse.13.2-x64.runtime.native.System": "(,4.3.32767]",
+          "runtime.opensuse.13.2-x64.runtime.native.System.IO.Compression": "(,4.3.32767]",
+          "runtime.opensuse.13.2-x64.runtime.native.System.Net.Http": "(,4.3.32767]",
+          "runtime.opensuse.13.2-x64.runtime.native.System.Net.Security": "(,4.3.32767]",
+          "runtime.opensuse.13.2-x64.runtime.native.System.Security.Cryptography": "(,4.3.32767]",
+          "runtime.opensuse.13.2-x64.runtime.native.System.Security.Cryptography.OpenSsl": "(,4.3.32767]",
+          "runtime.opensuse.42.1-x64.runtime.native.System": "(,4.3.32767]",
+          "runtime.opensuse.42.1-x64.runtime.native.System.IO.Compression": "(,4.3.32767]",
+          "runtime.opensuse.42.1-x64.runtime.native.System.Net.Http": "(,4.3.32767]",
+          "runtime.opensuse.42.1-x64.runtime.native.System.Net.Security": "(,4.3.32767]",
+          "runtime.opensuse.42.1-x64.runtime.native.System.Security.Cryptography": "(,4.3.32767]",
+          "runtime.opensuse.42.1-x64.runtime.native.System.Security.Cryptography.OpenSsl": "(,4.3.32767]",
+          "runtime.opensuse.42.3-x64.runtime.native.System": "(,4.3.32767]",
+          "runtime.opensuse.42.3-x64.runtime.native.System.IO.Compression": "(,4.3.32767]",
+          "runtime.opensuse.42.3-x64.runtime.native.System.Net.Http": "(,4.3.32767]",
+          "runtime.opensuse.42.3-x64.runtime.native.System.Net.Security": "(,4.3.32767]",
+          "runtime.osx.10.10-x64.runtime.native.System": "(,4.3.32767]",
+          "runtime.osx.10.10-x64.runtime.native.System.IO.Compression": "(,4.3.32767]",
+          "runtime.osx.10.10-x64.runtime.native.System.Net.Http": "(,4.3.32767]",
+          "runtime.osx.10.10-x64.runtime.native.System.Net.Security": "(,4.3.32767]",
+          "runtime.osx.10.10-x64.runtime.native.System.Security.Cryptography": "(,4.3.32767]",
+          "runtime.osx.10.10-x64.runtime.native.System.Security.Cryptography.Apple": "(,4.3.32767]",
+          "runtime.osx.10.10-x64.runtime.native.System.Security.Cryptography.OpenSsl": "(,4.3.32767]",
+          "runtime.rhel.7-x64.runtime.native.System": "(,4.3.32767]",
+          "runtime.rhel.7-x64.runtime.native.System.IO.Compression": "(,4.3.32767]",
+          "runtime.rhel.7-x64.runtime.native.System.Net.Http": "(,4.3.32767]",
+          "runtime.rhel.7-x64.runtime.native.System.Net.Security": "(,4.3.32767]",
+          "runtime.rhel.7-x64.runtime.native.System.Security.Cryptography": "(,4.3.32767]",
+          "runtime.rhel.7-x64.runtime.native.System.Security.Cryptography.OpenSsl": "(,4.3.32767]",
+          "runtime.ubuntu.14.04-x64.runtime.native.System": "(,4.3.32767]",
+          "runtime.ubuntu.14.04-x64.runtime.native.System.IO.Compression": "(,4.3.32767]",
+          "runtime.ubuntu.14.04-x64.runtime.native.System.Net.Http": "(,4.3.32767]",
+          "runtime.ubuntu.14.04-x64.runtime.native.System.Net.Security": "(,4.3.32767]",
+          "runtime.ubuntu.14.04-x64.runtime.native.System.Security.Cryptography": "(,4.3.32767]",
+          "runtime.ubuntu.14.04-x64.runtime.native.System.Security.Cryptography.OpenSsl": "(,4.3.32767]",
+          "runtime.ubuntu.16.04-x64.runtime.native.System": "(,4.3.32767]",
+          "runtime.ubuntu.16.04-x64.runtime.native.System.IO.Compression": "(,4.3.32767]",
+          "runtime.ubuntu.16.04-x64.runtime.native.System.Net.Http": "(,4.3.32767]",
+          "runtime.ubuntu.16.04-x64.runtime.native.System.Net.Security": "(,4.3.32767]",
+          "runtime.ubuntu.16.04-x64.runtime.native.System.Security.Cryptography": "(,4.3.32767]",
+          "runtime.ubuntu.16.04-x64.runtime.native.System.Security.Cryptography.OpenSsl": "(,4.3.32767]",
+          "runtime.ubuntu.16.10-x64.runtime.native.System": "(,4.3.32767]",
+          "runtime.ubuntu.16.10-x64.runtime.native.System.IO.Compression": "(,4.3.32767]",
+          "runtime.ubuntu.16.10-x64.runtime.native.System.Net.Http": "(,4.3.32767]",
+          "runtime.ubuntu.16.10-x64.runtime.native.System.Net.Security": "(,4.3.32767]",
+          "runtime.ubuntu.16.10-x64.runtime.native.System.Security.Cryptography": "(,4.3.32767]",
+          "runtime.ubuntu.16.10-x64.runtime.native.System.Security.Cryptography.OpenSsl": "(,4.3.32767]",
+          "runtime.ubuntu.18.04-x64.runtime.native.System": "(,4.3.32767]",
+          "runtime.ubuntu.18.04-x64.runtime.native.System.IO.Compression": "(,4.3.32767]",
+          "runtime.ubuntu.18.04-x64.runtime.native.System.Net.Http": "(,4.3.32767]",
+          "runtime.ubuntu.18.04-x64.runtime.native.System.Net.Security": "(,4.3.32767]",
+          "runtime.unix.Microsoft.Win32.Primitives": "(,4.3.32767]",
+          "runtime.unix.System.Console": "(,4.3.32767]",
+          "runtime.unix.System.Diagnostics.Debug": "(,4.3.32767]",
+          "runtime.unix.System.IO.FileSystem": "(,4.3.32767]",
+          "runtime.unix.System.Net.Primitives": "(,4.3.32767]",
+          "runtime.unix.System.Net.Sockets": "(,4.3.32767]",
+          "runtime.unix.System.Private.Uri": "(,4.3.32767]",
+          "runtime.unix.System.Runtime.Extensions": "(,4.3.32767]",
+          "runtime.win.Microsoft.Win32.Primitives": "(,4.3.32767]",
+          "runtime.win.System.Console": "(,4.3.32767]",
+          "runtime.win.System.Diagnostics.Debug": "(,4.3.32767]",
+          "runtime.win.System.IO.FileSystem": "(,4.3.32767]",
+          "runtime.win.System.Net.Primitives": "(,4.3.32767]",
+          "runtime.win.System.Net.Sockets": "(,4.3.32767]",
+          "runtime.win.System.Runtime.Extensions": "(,4.3.32767]",
+          "runtime.win10-arm-aot.runtime.native.System.IO.Compression": "(,4.0.32767]",
+          "runtime.win10-arm64.runtime.native.System.IO.Compression": "(,4.3.32767]",
+          "runtime.win10-x64-aot.runtime.native.System.IO.Compression": "(,4.0.32767]",
+          "runtime.win10-x86-aot.runtime.native.System.IO.Compression": "(,4.0.32767]",
+          "runtime.win7-x64.runtime.native.System.IO.Compression": "(,4.3.32767]",
+          "runtime.win7-x86.runtime.native.System.IO.Compression": "(,4.3.32767]",
+          "runtime.win7.System.Private.Uri": "(,4.3.32767]",
+          "runtime.win8-arm.runtime.native.System.IO.Compression": "(,4.3.32767]",
+          "System.AppContext": "(,4.3.32767]",
+          "System.Buffers": "(,5.0.32767]",
+          "System.Collections": "(,4.3.32767]",
+          "System.Collections.Concurrent": "(,4.3.32767]",
+          "System.Collections.Immutable": "(,10.0.32767]",
+          "System.Collections.NonGeneric": "(,4.3.32767]",
+          "System.Collections.Specialized": "(,4.3.32767]",
+          "System.ComponentModel": "(,4.3.32767]",
+          "System.ComponentModel.Annotations": "(,4.3.32767]",
+          "System.ComponentModel.EventBasedAsync": "(,4.3.32767]",
+          "System.ComponentModel.Primitives": "(,4.3.32767]",
+          "System.ComponentModel.TypeConverter": "(,4.3.32767]",
+          "System.Console": "(,4.3.32767]",
+          "System.Data.Common": "(,4.3.32767]",
+          "System.Data.DataSetExtensions": "(,4.4.32767]",
+          "System.Diagnostics.Contracts": "(,4.3.32767]",
+          "System.Diagnostics.Debug": "(,4.3.32767]",
+          "System.Diagnostics.DiagnosticSource": "(,10.0.32767]",
+          "System.Diagnostics.EventLog": "(,10.0.32767]",
+          "System.Diagnostics.FileVersionInfo": "(,4.3.32767]",
+          "System.Diagnostics.Process": "(,4.3.32767]",
+          "System.Diagnostics.StackTrace": "(,4.3.32767]",
+          "System.Diagnostics.TextWriterTraceListener": "(,4.3.32767]",
+          "System.Diagnostics.Tools": "(,4.3.32767]",
+          "System.Diagnostics.TraceSource": "(,4.3.32767]",
+          "System.Diagnostics.Tracing": "(,4.3.32767]",
+          "System.Drawing.Primitives": "(,4.3.32767]",
+          "System.Dynamic.Runtime": "(,4.3.32767]",
+          "System.Formats.Asn1": "(,10.0.32767]",
+          "System.Formats.Cbor": "(,10.0.32767]",
+          "System.Formats.Tar": "(,10.0.32767]",
+          "System.Globalization": "(,4.3.32767]",
+          "System.Globalization.Calendars": "(,4.3.32767]",
+          "System.Globalization.Extensions": "(,4.3.32767]",
+          "System.IO": "(,4.3.32767]",
+          "System.IO.Compression": "(,4.3.32767]",
+          "System.IO.Compression.ZipFile": "(,4.3.32767]",
+          "System.IO.FileSystem": "(,4.3.32767]",
+          "System.IO.FileSystem.AccessControl": "(,4.4.32767]",
+          "System.IO.FileSystem.DriveInfo": "(,4.3.32767]",
+          "System.IO.FileSystem.Primitives": "(,4.3.32767]",
+          "System.IO.FileSystem.Watcher": "(,4.3.32767]",
+          "System.IO.IsolatedStorage": "(,4.3.32767]",
+          "System.IO.MemoryMappedFiles": "(,4.3.32767]",
+          "System.IO.Pipelines": "(,10.0.32767]",
+          "System.IO.Pipes": "(,4.3.32767]",
+          "System.IO.Pipes.AccessControl": "(,5.0.32767]",
+          "System.IO.UnmanagedMemoryStream": "(,4.3.32767]",
+          "System.Linq": "(,4.3.32767]",
+          "System.Linq.AsyncEnumerable": "(,10.0.32767]",
+          "System.Linq.Expressions": "(,4.3.32767]",
+          "System.Linq.Parallel": "(,4.3.32767]",
+          "System.Linq.Queryable": "(,4.3.32767]",
+          "System.Memory": "(,5.0.32767]",
+          "System.Net.Http": "(,4.3.32767]",
+          "System.Net.Http.Json": "(,10.0.32767]",
+          "System.Net.NameResolution": "(,4.3.32767]",
+          "System.Net.NetworkInformation": "(,4.3.32767]",
+          "System.Net.Ping": "(,4.3.32767]",
+          "System.Net.Primitives": "(,4.3.32767]",
+          "System.Net.Requests": "(,4.3.32767]",
+          "System.Net.Security": "(,4.3.32767]",
+          "System.Net.ServerSentEvents": "(,10.0.32767]",
+          "System.Net.Sockets": "(,4.3.32767]",
+          "System.Net.WebHeaderCollection": "(,4.3.32767]",
+          "System.Net.WebSockets": "(,4.3.32767]",
+          "System.Net.WebSockets.Client": "(,4.3.32767]",
+          "System.Numerics.Vectors": "(,5.0.32767]",
+          "System.ObjectModel": "(,4.3.32767]",
+          "System.Private.DataContractSerialization": "(,4.3.32767]",
+          "System.Private.Uri": "(,4.3.32767]",
+          "System.Reflection": "(,4.3.32767]",
+          "System.Reflection.DispatchProxy": "(,6.0.32767]",
+          "System.Reflection.Emit": "(,4.7.32767]",
+          "System.Reflection.Emit.ILGeneration": "(,4.7.32767]",
+          "System.Reflection.Emit.Lightweight": "(,4.7.32767]",
+          "System.Reflection.Extensions": "(,4.3.32767]",
+          "System.Reflection.Metadata": "(,10.0.32767]",
+          "System.Reflection.Primitives": "(,4.3.32767]",
+          "System.Reflection.TypeExtensions": "(,4.3.32767]",
+          "System.Resources.Reader": "(,4.3.32767]",
+          "System.Resources.ResourceManager": "(,4.3.32767]",
+          "System.Resources.Writer": "(,4.3.32767]",
+          "System.Runtime": "(,4.3.32767]",
+          "System.Runtime.CompilerServices.Unsafe": "(,7.0.32767]",
+          "System.Runtime.CompilerServices.VisualC": "(,4.3.32767]",
+          "System.Runtime.Extensions": "(,4.3.32767]",
+          "System.Runtime.Handles": "(,4.3.32767]",
+          "System.Runtime.InteropServices": "(,4.3.32767]",
+          "System.Runtime.InteropServices.RuntimeInformation": "(,4.3.32767]",
+          "System.Runtime.Loader": "(,4.3.32767]",
+          "System.Runtime.Numerics": "(,4.3.32767]",
+          "System.Runtime.Serialization.Formatters": "(,4.3.32767]",
+          "System.Runtime.Serialization.Json": "(,4.3.32767]",
+          "System.Runtime.Serialization.Primitives": "(,4.3.32767]",
+          "System.Runtime.Serialization.Xml": "(,4.3.32767]",
+          "System.Security.AccessControl": "(,6.0.32767]",
+          "System.Security.Claims": "(,4.3.32767]",
+          "System.Security.Cryptography.Algorithms": "(,4.3.32767]",
+          "System.Security.Cryptography.Cng": "(,5.0.32767]",
+          "System.Security.Cryptography.Csp": "(,4.3.32767]",
+          "System.Security.Cryptography.Encoding": "(,4.3.32767]",
+          "System.Security.Cryptography.OpenSsl": "(,5.0.32767]",
+          "System.Security.Cryptography.Primitives": "(,4.3.32767]",
+          "System.Security.Cryptography.X509Certificates": "(,4.3.32767]",
+          "System.Security.Cryptography.Xml": "(,10.0.32767]",
+          "System.Security.Principal": "(,4.3.32767]",
+          "System.Security.Principal.Windows": "(,5.0.32767]",
+          "System.Security.SecureString": "(,4.3.32767]",
+          "System.Text.Encoding": "(,4.3.32767]",
+          "System.Text.Encoding.CodePages": "(,10.0.32767]",
+          "System.Text.Encoding.Extensions": "(,4.3.32767]",
+          "System.Text.Encodings.Web": "(,10.0.32767]",
+          "System.Text.Json": "(,10.0.32767]",
+          "System.Text.RegularExpressions": "(,4.3.32767]",
+          "System.Threading": "(,4.3.32767]",
+          "System.Threading.AccessControl": "(,10.0.32767]",
+          "System.Threading.Channels": "(,10.0.32767]",
+          "System.Threading.Overlapped": "(,4.3.32767]",
+          "System.Threading.RateLimiting": "(,10.0.32767]",
+          "System.Threading.Tasks": "(,4.3.32767]",
+          "System.Threading.Tasks.Dataflow": "(,10.0.32767]",
+          "System.Threading.Tasks.Extensions": "(,5.0.32767]",
+          "System.Threading.Tasks.Parallel": "(,4.3.32767]",
+          "System.Threading.Thread": "(,4.3.32767]",
+          "System.Threading.ThreadPool": "(,4.3.32767]",
+          "System.Threading.Timer": "(,4.3.32767]",
+          "System.ValueTuple": "(,4.5.32767]",
+          "System.Xml.ReaderWriter": "(,4.3.32767]",
+          "System.Xml.XDocument": "(,4.3.32767]",
+          "System.Xml.XmlDocument": "(,4.3.32767]",
+          "System.Xml.XmlSerializer": "(,4.3.32767]",
+          "System.Xml.XPath": "(,4.3.32767]",
+          "System.Xml.XPath.XDocument": "(,5.0.32767]"
+        }
+      }
+    }
+  }
+}

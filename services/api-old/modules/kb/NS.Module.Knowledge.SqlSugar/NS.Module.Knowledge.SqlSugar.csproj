@@ -1,0 +1,20 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\..\..\framework\NS.Framework.SqlSugar.Abstractions\NS.Framework.SqlSugar.Abstractions.csproj" />
+      <ProjectReference Include="..\..\..\framework\ClayMo.Framework.Identity\ClayMo.Framework.Identity.Domain\ClayMo.Framework.Identity.Domain.csproj" />
+      <ProjectReference Include="..\..\..\framework\NS.Framework.SqlSugar\NS.Framework.SqlSugar.csproj" />
+      <ProjectReference Include="..\..\identity\NS.Module.Identity.Domain.Shared\NS.Module.Identity.Domain.Shared.csproj" />
+      <ProjectReference Include="..\..\identity\NS.Module.Identity.Domain\NS.Module.Identity.Domain.csproj" />
+      <ProjectReference Include="..\ClayMo.Module.Kb.Domain\ClayMo.Module.Kb.Domain.csproj" />
+      <ProjectReference Include="..\NS.Module.Knowledge.Domain.Shared\NS.Module.Knowledge.Domain.Shared.csproj" />
+      <ProjectReference Include="..\NS.Module.Knowledge.Domain\NS.Module.Knowledge.Domain.csproj" />
+    </ItemGroup>
+
+</Project>

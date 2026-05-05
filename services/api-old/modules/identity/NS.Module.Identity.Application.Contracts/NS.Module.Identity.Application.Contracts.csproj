@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\..\framework\NS.Framework.Authorization\NS.Framework.Authorization.csproj" />
+        <ProjectReference Include="..\..\ClayMo.Framework.Authorization\ClayMo.Framework.Authorization.csproj" />
+        <ProjectReference Include="..\..\ClayMo.Framework.Ddd.Application.Contracts\ClayMo.Framework.Ddd.Application.Contracts.csproj" />
+        <ProjectReference Include="..\NS.Module.Identity.Domain.Shared\NS.Module.Identity.Domain.Shared.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="FluentValidation" Version="12.0.0" />
+        <PackageReference Include="Volo.Abp.Ddd.Application.Contracts" Version="10.0.0" />
+    </ItemGroup>
+
+</Project>
+

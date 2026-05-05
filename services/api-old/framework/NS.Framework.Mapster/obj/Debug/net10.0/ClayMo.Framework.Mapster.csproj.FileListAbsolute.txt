@@ -1,0 +1,12 @@
+E:\ClayMo\backend\framework\ClayMo.Framework.Mapster\bin\Debug\net10.0\ClayMo.Framework.Mapster.deps.json
+E:\ClayMo\backend\framework\ClayMo.Framework.Mapster\bin\Debug\net10.0\ClayMo.Framework.Mapster.dll
+E:\ClayMo\backend\framework\ClayMo.Framework.Mapster\bin\Debug\net10.0\ClayMo.Framework.Mapster.pdb
+E:\ClayMo\backend\framework\ClayMo.Framework.Mapster\obj\Debug\net10.0\ClayMo.Framework.Mapster.csproj.AssemblyReference.cache
+E:\ClayMo\backend\framework\ClayMo.Framework.Mapster\obj\Debug\net10.0\ClayMo.Framework.Mapster.GeneratedMSBuildEditorConfig.editorconfig
+E:\ClayMo\backend\framework\ClayMo.Framework.Mapster\obj\Debug\net10.0\ClayMo.Framework.Mapster.AssemblyInfoInputs.cache
+E:\ClayMo\backend\framework\ClayMo.Framework.Mapster\obj\Debug\net10.0\ClayMo.Framework.Mapster.AssemblyInfo.cs
+E:\ClayMo\backend\framework\ClayMo.Framework.Mapster\obj\Debug\net10.0\ClayMo.Framework.Mapster.csproj.CoreCompileInputs.cache
+E:\ClayMo\backend\framework\ClayMo.Framework.Mapster\obj\Debug\net10.0\ClayMo.Framework.Mapster.dll
+E:\ClayMo\backend\framework\ClayMo.Framework.Mapster\obj\Debug\net10.0\refint\ClayMo.Framework.Mapster.dll
+E:\ClayMo\backend\framework\ClayMo.Framework.Mapster\obj\Debug\net10.0\ClayMo.Framework.Mapster.pdb
+E:\ClayMo\backend\framework\ClayMo.Framework.Mapster\obj\Debug\net10.0\ref\ClayMo.Framework.Mapster.dll

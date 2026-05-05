@@ -1,0 +1,30 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <PackageReference Include="Volo.Abp.AutoMapper" Version="10.0.0" />
+      <PackageReference Include="Volo.Abp.Ddd.Application" Version="10.0.0" />
+        <ProjectReference Include="..\..\..\framework\NS.Framework.Authorization\NS.Framework.Authorization.csproj" />
+        <ProjectReference Include="..\..\..\framework\ClayMo.Framework.Identity\ClayMo.Framework.Identity.Domain.Shared\ClayMo.Framework.Identity.Domain.Shared.csproj" />
+        <ProjectReference Include="..\..\..\framework\ClayMo.Framework.Identity\ClayMo.Framework.Identity.Domain\ClayMo.Framework.Identity.Domain.csproj" />
+        <ProjectReference Include="..\..\..\framework\NS.Framework.SqlSugar.Abstractions\NS.Framework.SqlSugar.Abstractions.csproj" />
+        <ProjectReference Include="..\..\eventing\ClayMo.Module.Eventing.Application.Contracts\ClayMo.Module.Eventing.Application.Contracts.csproj" />
+        <ProjectReference Include="..\..\identity\NS.Module.Identity.Application.Contracts\NS.Module.Identity.Application.Contracts.csproj" />
+        <ProjectReference Include="..\..\identity\NS.Module.Identity.Domain.Shared\NS.Module.Identity.Domain.Shared.csproj" />
+        <ProjectReference Include="..\..\identity\NS.Module.Identity.Domain\NS.Module.Identity.Domain.csproj" />
+        <ProjectReference Include="..\NS.Module.Knowledge.Application.Contracts\NS.Module.Knowledge.Application.Contracts.csproj" />
+        <ProjectReference Include="..\ClayMo.Module.Kb.Domain\ClayMo.Module.Kb.Domain.csproj" />
+        <ProjectReference Include="..\NS.Module.Knowledge.Domain.Shared\NS.Module.Knowledge.Domain.Shared.csproj" />
+        <ProjectReference Include="..\NS.Module.Knowledge.Domain\NS.Module.Knowledge.Domain.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    </ItemGroup>
+
+</Project>

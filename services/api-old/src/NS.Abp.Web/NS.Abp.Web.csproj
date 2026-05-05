@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Hangfire.MemoryStorage" Version="1.8.1.1" />
+        <PackageReference Include="Hangfire.Redis.StackExchange" Version="1.12.0" />
+        <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.0" />
+        <PackageReference Include="Swashbuckle.AspNetCore" Version="9.0.4" />
+        <PackageReference Include="Volo.Abp.AspNetCore.MultiTenancy" Version="10.0.0" />
+        <PackageReference Include="Volo.Abp.AspNetCore.Mvc" Version="10.0.0" />
+        <PackageReference Include="Volo.Abp.AspNetCore.Serilog" Version="10.0.0" />
+        <PackageReference Include="Volo.Abp.Autofac" Version="10.0.0" />
+        <PackageReference Include="Volo.Abp.Caching.StackExchangeRedis" Version="10.0.0" />
+        <PackageReference Include="Volo.Abp.Swashbuckle" Version="10.0.0" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\..\framework\NS.Framework.AspNetCore\NS.Framework.AspNetCore.csproj" />
+      <ProjectReference Include="..\..\framework\NS.Framework.Authentication\NS.Framework.Authentication.csproj" />
+      <ProjectReference Include="..\..\framework\NS.Framework.Authorization\NS.Framework.Authorization.csproj" />
+      <ProjectReference Include="..\..\framework\NS.Framework.BackgroundJobs.Hangfire\NS.Framework.BackgroundJobs.Hangfire.csproj" />
+      <ProjectReference Include="..\..\framework\NS.Framework.Core\NS.Framework.Core.csproj" />
+      <ProjectReference Include="..\..\framework\NS.Framework.SqlSugar\NS.Framework.SqlSugar.csproj" />
+      <ProjectReference Include="..\..\modules\auditlogging\NS.Module.AuditLogging.Application\NS.Module.AuditLogging.Application.csproj" />
+      <ProjectReference Include="..\..\modules\identity\NS.Module.Identity.Application\NS.Module.Identity.Application.csproj" />
+      <ProjectReference Include="..\..\modules\identity\ClayMo.Module.Identity\ClayMo.Module.Identity.Application\ClayMo.Module.Identity.Application.csproj" />
+      <ProjectReference Include="..\..\modules\identity\ClayMo.Module.Identity\ClayMo.Module.Identity.SqlSugar\ClayMo.Module.Identity.SqlSugar.csproj" />
+      <ProjectReference Include="..\..\modules\identity\NS.Module.Identity.Domain.Shared\NS.Module.Identity.Domain.Shared.csproj" />
+      <ProjectReference Include="..\..\modules\kb\NS.Module.Knowledge.Application\NS.Module.Knowledge.Application.csproj" />
+      <ProjectReference Include="..\..\modules\kb\NS.Module.Knowledge.SqlSugar\NS.Module.Knowledge.SqlSugar.csproj" />
+      <ProjectReference Include="..\..\modules\tenantmanagement\NS.Module.TenantManagement.Application\NS.Module.TenantManagement.Application.csproj" />
+      <ProjectReference Include="..\NS.Abp.Application\NS.Abp.Application.csproj" />
+      <ProjectReference Include="..\NS.Abp.SqlSugar\NS.Abp.SqlSugar.csproj" />
+    </ItemGroup>
+
+
+</Project>

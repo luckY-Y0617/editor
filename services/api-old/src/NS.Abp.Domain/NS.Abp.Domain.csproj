@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <Configurations>Debug;Release;</Configurations>
+        <Platforms>AnyCPU</Platforms>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <PackageReference Include="Volo.Abp.Ddd.Domain" Version="10.0.0" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\..\modules\auditlogging\NS.Module.AuditLogging.Domain\NS.Module.AuditLogging.Domain.csproj" />
+      <ProjectReference Include="..\..\modules\auditlogging\ClayMo.Module.AuditLogging\ClayMo.Module.AuditLogging.Domain\ClayMo.Module.AuditLogging.Domain.csproj" />
+      <ProjectReference Include="..\..\modules\tenantmanagement\NS.Module.TenantManagement.Domain\NS.Module.TenantManagement.Domain.csproj" />
+      <ProjectReference Include="..\NS.Abp.Domain.Shared\NS.Abp.Domain.Shared.csproj" />
+    </ItemGroup>
+
+</Project>

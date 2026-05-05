@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <PackageReference Include="Volo.Abp.Ddd.Application.Contracts" Version="10.0.0" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\..\..\framework\NS.Framework.SqlSugar.Abstractions\NS.Framework.SqlSugar.Abstractions.csproj" />
+      <ProjectReference Include="..\NS.Module.TenantManagement.Domain.Shared\NS.Module.TenantManagement.Domain.Shared.csproj" />
+    </ItemGroup>
+
+</Project>

@@ -1,0 +1,17 @@
+D:\editor\services\api\modules\identity\NS.Module.Identity.Application.Contracts\bin\Debug\net10.0\NS.Module.Identity.Application.Contracts.deps.json
+D:\editor\services\api\modules\identity\NS.Module.Identity.Application.Contracts\bin\Debug\net10.0\NS.Module.Identity.Application.Contracts.dll
+D:\editor\services\api\modules\identity\NS.Module.Identity.Application.Contracts\bin\Debug\net10.0\NS.Module.Identity.Application.Contracts.pdb
+D:\editor\services\api\modules\identity\NS.Module.Identity.Application.Contracts\bin\Debug\net10.0\NS.Framework.Authorization.dll
+D:\editor\services\api\modules\identity\NS.Module.Identity.Application.Contracts\bin\Debug\net10.0\NS.Module.Identity.Domain.Shared.dll
+D:\editor\services\api\modules\identity\NS.Module.Identity.Application.Contracts\bin\Debug\net10.0\NS.Framework.Authorization.pdb
+D:\editor\services\api\modules\identity\NS.Module.Identity.Application.Contracts\bin\Debug\net10.0\NS.Module.Identity.Domain.Shared.pdb
+D:\editor\services\api\modules\identity\NS.Module.Identity.Application.Contracts\obj\Debug\net10.0\NS.Module.Identity.Application.Contracts.csproj.AssemblyReference.cache
+D:\editor\services\api\modules\identity\NS.Module.Identity.Application.Contracts\obj\Debug\net10.0\NS.Module.Identity.Application.Contracts.GeneratedMSBuildEditorConfig.editorconfig
+D:\editor\services\api\modules\identity\NS.Module.Identity.Application.Contracts\obj\Debug\net10.0\NS.Module.Identity.Application.Contracts.AssemblyInfoInputs.cache
+D:\editor\services\api\modules\identity\NS.Module.Identity.Application.Contracts\obj\Debug\net10.0\NS.Module.Identity.Application.Contracts.AssemblyInfo.cs
+D:\editor\services\api\modules\identity\NS.Module.Identity.Application.Contracts\obj\Debug\net10.0\NS.Module.Identity.Application.Contracts.csproj.CoreCompileInputs.cache
+D:\editor\services\api\modules\identity\NS.Module.Identity.Application.Contracts\obj\Debug\net10.0\NS.Modul.12472BFD.Up2Date
+D:\editor\services\api\modules\identity\NS.Module.Identity.Application.Contracts\obj\Debug\net10.0\NS.Module.Identity.Application.Contracts.dll
+D:\editor\services\api\modules\identity\NS.Module.Identity.Application.Contracts\obj\Debug\net10.0\refint\NS.Module.Identity.Application.Contracts.dll
+D:\editor\services\api\modules\identity\NS.Module.Identity.Application.Contracts\obj\Debug\net10.0\NS.Module.Identity.Application.Contracts.pdb
+D:\editor\services\api\modules\identity\NS.Module.Identity.Application.Contracts\obj\Debug\net10.0\ref\NS.Module.Identity.Application.Contracts.dll

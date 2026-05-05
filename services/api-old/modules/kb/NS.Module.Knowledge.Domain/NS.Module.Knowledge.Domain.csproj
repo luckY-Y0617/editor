@@ -1,0 +1,15 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\..\..\framework\NS.Framework.Core\NS.Framework.Core.csproj" />
+      <ProjectReference Include="..\..\..\framework\NS.Framework.SqlSugar.Abstractions\NS.Framework.SqlSugar.Abstractions.csproj" />
+      <ProjectReference Include="..\NS.Module.Knowledge.Domain.Shared\NS.Module.Knowledge.Domain.Shared.csproj" />
+    </ItemGroup>
+
+</Project>

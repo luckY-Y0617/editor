@@ -1,0 +1,12 @@
+D:\editor\services\api\modules\identity\NS.Module.Identity.Domain.Shared\bin\Debug\net10.0\NS.Module.Identity.Domain.Shared.deps.json
+D:\editor\services\api\modules\identity\NS.Module.Identity.Domain.Shared\bin\Debug\net10.0\NS.Module.Identity.Domain.Shared.dll
+D:\editor\services\api\modules\identity\NS.Module.Identity.Domain.Shared\bin\Debug\net10.0\NS.Module.Identity.Domain.Shared.pdb
+D:\editor\services\api\modules\identity\NS.Module.Identity.Domain.Shared\obj\Debug\net10.0\NS.Module.Identity.Domain.Shared.csproj.AssemblyReference.cache
+D:\editor\services\api\modules\identity\NS.Module.Identity.Domain.Shared\obj\Debug\net10.0\NS.Module.Identity.Domain.Shared.GeneratedMSBuildEditorConfig.editorconfig
+D:\editor\services\api\modules\identity\NS.Module.Identity.Domain.Shared\obj\Debug\net10.0\NS.Module.Identity.Domain.Shared.AssemblyInfoInputs.cache
+D:\editor\services\api\modules\identity\NS.Module.Identity.Domain.Shared\obj\Debug\net10.0\NS.Module.Identity.Domain.Shared.AssemblyInfo.cs
+D:\editor\services\api\modules\identity\NS.Module.Identity.Domain.Shared\obj\Debug\net10.0\NS.Module.Identity.Domain.Shared.csproj.CoreCompileInputs.cache
+D:\editor\services\api\modules\identity\NS.Module.Identity.Domain.Shared\obj\Debug\net10.0\NS.Module.Identity.Domain.Shared.dll
+D:\editor\services\api\modules\identity\NS.Module.Identity.Domain.Shared\obj\Debug\net10.0\refint\NS.Module.Identity.Domain.Shared.dll
+D:\editor\services\api\modules\identity\NS.Module.Identity.Domain.Shared\obj\Debug\net10.0\NS.Module.Identity.Domain.Shared.pdb
+D:\editor\services\api\modules\identity\NS.Module.Identity.Domain.Shared\obj\Debug\net10.0\ref\NS.Module.Identity.Domain.Shared.dll

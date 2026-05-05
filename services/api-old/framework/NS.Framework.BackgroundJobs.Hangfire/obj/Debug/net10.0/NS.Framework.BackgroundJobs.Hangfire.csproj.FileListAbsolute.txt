@@ -1,0 +1,17 @@
+D:\editor\services\api\framework\NS.Framework.BackgroundJobs.Hangfire\bin\Debug\net10.0\NS.Framework.BackgroundJobs.Hangfire.deps.json
+D:\editor\services\api\framework\NS.Framework.BackgroundJobs.Hangfire\bin\Debug\net10.0\NS.Framework.BackgroundJobs.Hangfire.dll
+D:\editor\services\api\framework\NS.Framework.BackgroundJobs.Hangfire\bin\Debug\net10.0\NS.Framework.BackgroundJobs.Hangfire.pdb
+D:\editor\services\api\framework\NS.Framework.BackgroundJobs.Hangfire\bin\Debug\net10.0\NS.Framework.Authorization.dll
+D:\editor\services\api\framework\NS.Framework.BackgroundJobs.Hangfire\bin\Debug\net10.0\NS.Framework.Core.dll
+D:\editor\services\api\framework\NS.Framework.BackgroundJobs.Hangfire\bin\Debug\net10.0\NS.Framework.Core.pdb
+D:\editor\services\api\framework\NS.Framework.BackgroundJobs.Hangfire\bin\Debug\net10.0\NS.Framework.Authorization.pdb
+D:\editor\services\api\framework\NS.Framework.BackgroundJobs.Hangfire\obj\Debug\net10.0\NS.Framework.BackgroundJobs.Hangfire.csproj.AssemblyReference.cache
+D:\editor\services\api\framework\NS.Framework.BackgroundJobs.Hangfire\obj\Debug\net10.0\NS.Framework.BackgroundJobs.Hangfire.GeneratedMSBuildEditorConfig.editorconfig
+D:\editor\services\api\framework\NS.Framework.BackgroundJobs.Hangfire\obj\Debug\net10.0\NS.Framework.BackgroundJobs.Hangfire.AssemblyInfoInputs.cache
+D:\editor\services\api\framework\NS.Framework.BackgroundJobs.Hangfire\obj\Debug\net10.0\NS.Framework.BackgroundJobs.Hangfire.AssemblyInfo.cs
+D:\editor\services\api\framework\NS.Framework.BackgroundJobs.Hangfire\obj\Debug\net10.0\NS.Framework.BackgroundJobs.Hangfire.csproj.CoreCompileInputs.cache
+D:\editor\services\api\framework\NS.Framework.BackgroundJobs.Hangfire\obj\Debug\net10.0\NS.Frame.EE04EC5D.Up2Date
+D:\editor\services\api\framework\NS.Framework.BackgroundJobs.Hangfire\obj\Debug\net10.0\NS.Framework.BackgroundJobs.Hangfire.dll
+D:\editor\services\api\framework\NS.Framework.BackgroundJobs.Hangfire\obj\Debug\net10.0\refint\NS.Framework.BackgroundJobs.Hangfire.dll
+D:\editor\services\api\framework\NS.Framework.BackgroundJobs.Hangfire\obj\Debug\net10.0\NS.Framework.BackgroundJobs.Hangfire.pdb
+D:\editor\services\api\framework\NS.Framework.BackgroundJobs.Hangfire\obj\Debug\net10.0\ref\NS.Framework.BackgroundJobs.Hangfire.dll

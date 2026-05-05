@@ -1,0 +1,15 @@
+D:\editor\services\api\framework\NS.Framework.Authorization\bin\Debug\net10.0\NS.Framework.Authorization.deps.json
+D:\editor\services\api\framework\NS.Framework.Authorization\bin\Debug\net10.0\NS.Framework.Authorization.dll
+D:\editor\services\api\framework\NS.Framework.Authorization\bin\Debug\net10.0\NS.Framework.Authorization.pdb
+D:\editor\services\api\framework\NS.Framework.Authorization\bin\Debug\net10.0\NS.Framework.Core.dll
+D:\editor\services\api\framework\NS.Framework.Authorization\bin\Debug\net10.0\NS.Framework.Core.pdb
+D:\editor\services\api\framework\NS.Framework.Authorization\obj\Debug\net10.0\NS.Framework.Authorization.csproj.AssemblyReference.cache
+D:\editor\services\api\framework\NS.Framework.Authorization\obj\Debug\net10.0\NS.Framework.Authorization.GeneratedMSBuildEditorConfig.editorconfig
+D:\editor\services\api\framework\NS.Framework.Authorization\obj\Debug\net10.0\NS.Framework.Authorization.AssemblyInfoInputs.cache
+D:\editor\services\api\framework\NS.Framework.Authorization\obj\Debug\net10.0\NS.Framework.Authorization.AssemblyInfo.cs
+D:\editor\services\api\framework\NS.Framework.Authorization\obj\Debug\net10.0\NS.Framework.Authorization.csproj.CoreCompileInputs.cache
+D:\editor\services\api\framework\NS.Framework.Authorization\obj\Debug\net10.0\NS.Frame.CD620EC9.Up2Date
+D:\editor\services\api\framework\NS.Framework.Authorization\obj\Debug\net10.0\NS.Framework.Authorization.dll
+D:\editor\services\api\framework\NS.Framework.Authorization\obj\Debug\net10.0\refint\NS.Framework.Authorization.dll
+D:\editor\services\api\framework\NS.Framework.Authorization\obj\Debug\net10.0\NS.Framework.Authorization.pdb
+D:\editor\services\api\framework\NS.Framework.Authorization\obj\Debug\net10.0\ref\NS.Framework.Authorization.dll

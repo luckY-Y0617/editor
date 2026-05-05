@@ -1,0 +1,158 @@
+
+> knowledge-editor-shell@0.1.0 dev
+> vite --host 0.0.0.0 --host 127.0.0.1 --port 5174
+
+
+  [32m[1mVITE[22m v4.5.14[39m  [2mready in [0m[1m173[22m[2m[0m ms[22m
+
+  [32m➜[39m  [1mLocal[22m:   [36mhttp://127.0.0.1:[1m5174[22m/[39m
+[2m08:37:31[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/types/editor.ts[22m
+[2m08:38:01[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/TiptapEditor.tsx[22m
+[2m08:38:10[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/TiptapEditor.tsx[22m
+[2m08:38:23[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/TiptapEditor.tsx, /src/index.css[22m
+[2m08:38:34[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/TiptapEditor.tsx, /src/index.css[22m
+[2m08:38:41[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/TiptapEditor.tsx, /src/index.css[22m
+[2m08:38:48[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/EditorCanvas.tsx, /src/index.css[22m
+[2m08:38:53[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/KnowledgeEditorPage.tsx, /src/index.css[22m
+[2m08:39:03[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/KnowledgeEditorPage.tsx, /src/index.css[22m
+[2m08:39:09[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/KnowledgeEditorPage.tsx, /src/index.css[22m
+[2m08:39:17[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/OutlinePanel.tsx, /src/index.css[22m
+[2m08:39:26[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/OutlinePanel.tsx, /src/index.css[22m
+[2m08:39:46[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/OutlinePanel.tsx, /src/index.css[22m
+[2m08:39:59[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/OutlinePanel.tsx, /src/index.css[22m
+[2m08:40:17[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/styles/tiptap.css[22m
+[2m08:41:30[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/KnowledgeEditorPage.tsx, /src/index.css[22m
+[2m08:50:09[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/TiptapEditor.tsx[22m
+[2m08:50:24[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/types/editor.ts[22m
+[2m08:50:33[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/TiptapEditor.tsx[22m
+[2m08:50:56[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/TiptapEditor.tsx, /src/index.css[22m
+[2m08:51:08[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/EditorBubbleMenu.tsx, /src/index.css[22m
+[2m08:51:20[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/EditorCanvas.tsx, /src/index.css[22m
+[2m08:51:51[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/KnowledgeEditorPage.tsx, /src/index.css[22m
+[2m08:52:06[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/KnowledgeEditorPage.tsx, /src/index.css[22m
+[2m08:52:15[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/KnowledgeEditorPage.tsx, /src/index.css[22m
+[2m08:52:25[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/KnowledgeEditorPage.tsx, /src/index.css[22m
+[2m08:52:32[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/KnowledgeEditorPage.tsx, /src/index.css[22m
+[2m08:53:00[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/OutlinePanel.tsx, /src/index.css[22m
+[2m08:53:14[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/OutlinePanel.tsx, /src/index.css[22m
+[2m08:53:34[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/OutlinePanel.tsx, /src/index.css[22m
+[2m08:53:44[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/OutlinePanel.tsx, /src/index.css[22m
+[2m08:54:05[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/OutlinePanel.tsx, /src/index.css[22m
+[2m08:54:11[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/OutlinePanel.tsx, /src/index.css[22m
+[2m08:54:20[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/OutlinePanel.tsx, /src/index.css[22m
+[2m08:54:43[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/OutlinePanel.tsx, /src/index.css[22m
+[2m08:54:55[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/OutlinePanel.tsx, /src/index.css[22m
+[2m08:55:01[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/KnowledgeEditorPage.tsx, /src/index.css[22m
+[2m08:55:11[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/TiptapEditor.tsx, /src/index.css[22m
+[2m08:56:46[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/TiptapEditor.tsx[22m
+[2m09:06:11[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/TiptapEditor.tsx[22m
+[2m09:06:18[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/TiptapEditor.tsx[22m
+[2m09:06:37[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/styles/tiptap.css[22m
+[2m09:16:39[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/TiptapEditor.tsx[22m
+[2m09:17:01[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/EditorBubbleMenu.tsx, /src/index.css[22m
+[2m09:17:15[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/TiptapEditor.tsx, /src/index.css[22m
+[2m09:17:24[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/EditorCanvas.tsx, /src/index.css[22m
+[2m09:17:29[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/KnowledgeEditorPage.tsx, /src/index.css[22m
+[2m09:17:38[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/TiptapEditor.tsx, /src/index.css[22m
+[2m09:36:32[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/EditorBubbleMenu.tsx, /src/index.css[22m
+[2m09:36:41[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/TiptapEditor.tsx, /src/index.css[22m
+[2m09:37:17[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/KnowledgeEditorPage.tsx, /src/index.css[22m
+[2m09:37:30[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/OutlinePanel.tsx, /src/index.css[22m
+[2m09:37:48[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/TiptapEditor.tsx, /src/components/EditorBubbleMenu.tsx[22m
+[2m09:55:17[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/KnowledgeEditorPage.tsx, /src/index.css[22m
+[2m13:27:42[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/KnowledgeEditorPage.tsx[22m
+[2m13:27:42[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/KnowledgeEditorPage.tsx, /src/index.css[22m
+[2m13:28:23[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/KnowledgeEditorPage.tsx[22m
+[2m13:28:49[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/lib/commentRepository.test.ts[22m
+[2m13:33:07[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/KnowledgeEditorPage.tsx[22m
+[2m13:47:21[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/TiptapEditor.tsx, /src/index.css[22m
+[2m13:47:21[22m [36m[1m[vite][22m[39m [33mhmr invalidate [39m[2m/src/components/TiptapEditor.tsx[22m Could not Fast Refresh (new export)
+[2m13:47:21[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/EditorCanvas.tsx[22m
+[2m13:47:21[22m [36m[1m[vite][22m[39m [33mhmr invalidate [39m[2m/src/components/TiptapEditor.tsx[22m Could not Fast Refresh (new export)
+[2m13:47:21[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/EditorCanvas.tsx[22m
+[2m13:47:37[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/KnowledgeEditorPage.tsx, /src/index.css[22m
+[2m13:47:48[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/KnowledgeEditorPage.tsx, /src/index.css[22m
+[2m13:47:58[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/KnowledgeEditorPage.tsx, /src/index.css[22m
+[2m13:51:02[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/utils/knowledgeTransfer.test.ts[22m
+[2m13:51:39[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/TiptapEditor.tsx, /src/index.css, /src/components/KnowledgeEditorPage.tsx[22m
+[2m13:51:40[22m [36m[1m[vite][22m[39m [33mhmr invalidate [39m[2m/src/components/TiptapEditor.tsx[22m Could not Fast Refresh ("createCommentAnchor" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m13:51:40[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/EditorCanvas.tsx[22m
+[2m13:51:40[22m [36m[1m[vite][22m[39m [33mhmr invalidate [39m[2m/src/components/TiptapEditor.tsx[22m Could not Fast Refresh ("createCommentAnchor" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m13:51:40[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/EditorCanvas.tsx[22m
+[2m13:52:00[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/extensions/BlockIdentity.test.ts[22m
+[2m13:55:00[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/test/commentTestUtils.ts[22m
+[2m13:55:16[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/lib/commentRepository.test.ts[22m
+[2m14:08:38[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/TiptapEditor.tsx, /src/components/EditorBubbleMenu.tsx[22m
+[2m14:08:39[22m [36m[1m[vite][22m[39m [33mhmr invalidate [39m[2m/src/components/TiptapEditor.tsx[22m Could not Fast Refresh ("createCommentAnchor" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m14:08:39[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/EditorCanvas.tsx[22m
+[2m14:08:39[22m [36m[1m[vite][22m[39m [33mhmr invalidate [39m[2m/src/components/TiptapEditor.tsx[22m Could not Fast Refresh ("createCommentAnchor" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m14:08:39[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/EditorCanvas.tsx[22m
+[2m14:08:52[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/types/editor.ts[22m
+[2m14:09:19[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/KnowledgeEditorPage.tsx, /src/index.css[22m
+[2m14:10:18[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/OutlinePanel.tsx, /src/index.css[22m
+[2m14:10:30[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/OutlinePanel.tsx, /src/index.css[22m
+[2m14:10:40[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/OutlinePanel.tsx, /src/index.css[22m
+[2m14:11:15[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/OutlinePanel.tsx, /src/index.css[22m
+[2m14:11:31[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/OutlinePanel.tsx, /src/index.css[22m
+[2m14:11:52[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/OutlinePanel.tsx, /src/index.css[22m
+[2m14:12:13[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/test/commentTestUtils.ts[22m
+[2m14:13:21[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/extensions/CommentDecorations.test.ts[22m
+[2m14:13:49[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/utils/knowledgeTransfer.test.ts[22m
+[2m14:14:49[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/TiptapEditor.tsx, /src/components/EditorBubbleMenu.tsx[22m
+[2m14:14:49[22m [36m[1m[vite][22m[39m [33mhmr invalidate [39m[2m/src/components/TiptapEditor.tsx[22m Could not Fast Refresh ("createCommentAnchor" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m14:14:49[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/EditorCanvas.tsx[22m
+[2m14:14:49[22m [36m[1m[vite][22m[39m [33mhmr invalidate [39m[2m/src/components/TiptapEditor.tsx[22m Could not Fast Refresh ("createCommentAnchor" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m14:14:49[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/EditorCanvas.tsx[22m
+[2m14:15:04[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/TiptapEditor.tsx, /src/components/EditorBubbleMenu.tsx[22m
+[2m14:15:04[22m [36m[1m[vite][22m[39m [33mhmr invalidate [39m[2m/src/components/TiptapEditor.tsx[22m Could not Fast Refresh ("createCommentAnchor" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m14:15:04[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/EditorCanvas.tsx[22m
+[2m14:15:04[22m [36m[1m[vite][22m[39m [33mhmr invalidate [39m[2m/src/components/TiptapEditor.tsx[22m Could not Fast Refresh ("createCommentAnchor" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m14:15:04[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/EditorCanvas.tsx[22m
+[2m14:15:16[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/lib/commentAnchorRelocation.test.ts[22m
+[2m14:16:06[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/TiptapEditor.tsx, /src/components/EditorBubbleMenu.tsx[22m
+[2m14:16:06[22m [36m[1m[vite][22m[39m [33mhmr invalidate [39m[2m/src/components/TiptapEditor.tsx[22m Could not Fast Refresh ("createCommentAnchor" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m14:16:06[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/EditorCanvas.tsx[22m
+[2m14:16:06[22m [36m[1m[vite][22m[39m [33mhmr invalidate [39m[2m/src/components/TiptapEditor.tsx[22m Could not Fast Refresh ("createCommentAnchor" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m14:16:06[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/EditorCanvas.tsx[22m
+[2m14:16:17[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/TiptapEditor.tsx, /src/components/EditorBubbleMenu.tsx[22m
+[2m14:16:17[22m [36m[1m[vite][22m[39m [33mhmr invalidate [39m[2m/src/components/TiptapEditor.tsx[22m Could not Fast Refresh ("createCommentAnchor" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m14:16:17[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/EditorCanvas.tsx[22m
+[2m14:16:17[22m [36m[1m[vite][22m[39m [33mhmr invalidate [39m[2m/src/components/TiptapEditor.tsx[22m Could not Fast Refresh ("createCommentAnchor" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m14:16:17[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/EditorCanvas.tsx[22m
+[2m14:34:57[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/types/editor.ts[22m
+[2m14:36:09[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/KnowledgeEditorPage.tsx, /src/index.css[22m
+[2m14:36:34[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/KnowledgeEditorPage.tsx, /src/index.css[22m
+[2m14:36:58[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/KnowledgeEditorPage.tsx, /src/index.css[22m
+[2m14:37:16[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/KnowledgeEditorPage.tsx, /src/index.css[22m
+[2m14:37:44[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/KnowledgeEditorPage.tsx, /src/index.css[22m
+[2m14:37:55[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/KnowledgeEditorPage.tsx, /src/index.css[22m
+[2m14:38:08[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/KnowledgeEditorPage.tsx, /src/index.css[22m
+[2m14:38:50[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/OutlinePanel.tsx, /src/index.css[22m
+[2m14:39:23[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/OutlinePanel.tsx, /src/index.css[22m
+[2m14:39:53[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/OutlinePanel.tsx, /src/index.css[22m
+[2m14:40:23[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/OutlinePanel.tsx, /src/index.css[22m
+[2m14:41:16[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/lib/commentRepository.test.ts[22m
+[2m14:41:32[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/extensions/CommentDecorations.test.ts[22m
+[2m14:43:02[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/lib/commentProductionState.test.ts[22m
+[2m14:43:52[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/utils/knowledgeTransfer.test.ts[22m
+[2m15:09:10[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/App.tsx, /src/index.css[22m
+[2m15:11:00[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m15:11:10[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/WorkspaceHomePage.tsx, /src/index.css[22m
+[2m15:16:29[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/WorkspaceHomeTopBar.tsx, /src/index.css[22m
+[2m15:16:49[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/WorkspaceHomePage.tsx, /src/index.css[22m
+[2m15:17:19[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m15:17:38[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m15:19:50[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/WorkspaceHomePage.tsx, /src/index.css[22m
+[2m15:20:04[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m15:20:18[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m15:21:25[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m15:25:43[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m15:26:21[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/WorkspaceHomeTopBar.tsx, /src/index.css[22m
+[2m15:28:46[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/App.tsx, /src/index.css[22m
+[2m15:30:16[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m15:31:56[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m15:43:39[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/App.tsx, /src/index.css[22m
+[2m15:44:49[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/VersionHistoryComparePage.tsx, /src/index.css[22m
+[2m15:47:42[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m15:53:58[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/VersionHistoryComparePage.tsx, /src/index.css[22m
+[2m15:54:39[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m

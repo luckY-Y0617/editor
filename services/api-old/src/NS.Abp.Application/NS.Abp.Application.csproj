@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <Configurations>Debug;Release;</Configurations>
+        <Platforms>AnyCPU</Platforms>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\..\framework\NS.Framework.SqlSugar\NS.Framework.SqlSugar.csproj" />
+      <ProjectReference Include="..\..\framework\NS.Framework.SqlSugar.Abstractions\NS.Framework.SqlSugar.Abstractions.csproj" />
+      <ProjectReference Include="..\..\modules\auditlogging\NS.Module.AuditLogging.Application\NS.Module.AuditLogging.Application.csproj" />
+      <ProjectReference Include="..\..\modules\auditlogging\ClayMo.Module.AuditLogging\ClayMo.Module.AuditLogging.Application\ClayMo.Module.AuditLogging.Application.csproj" />
+      <ProjectReference Include="..\..\modules\identity\NS.Module.Identity.Application\NS.Module.Identity.Application.csproj" />
+      <ProjectReference Include="..\..\modules\identity\ClayMo.Module.Identity\ClayMo.Module.Identity.Application.Contracts\ClayMo.Module.Identity.Application.Contracts.csproj" />
+      <ProjectReference Include="..\..\modules\identity\ClayMo.Module.Identity\ClayMo.Module.Identity.Application\ClayMo.Module.Identity.Application.csproj" />
+      <ProjectReference Include="..\..\modules\tenantmanagement\NS.Module.TenantManagement.Application\NS.Module.TenantManagement.Application.csproj" />
+      <ProjectReference Include="..\..\modules\kb\NS.Module.Knowledge.Application\NS.Module.Knowledge.Application.csproj" />
+      <ProjectReference Include="..\..\modules\tenantmanagement\NS.Module.TenantManagement.Domain\NS.Module.TenantManagement.Domain.csproj" />
+      <ProjectReference Include="..\NS.Abp.Application.Contracts\NS.Abp.Application.Contracts.csproj" />
+      <ProjectReference Include="..\NS.Abp.Domain\NS.Abp.Domain.csproj" />
+    </ItemGroup>
+
+</Project>

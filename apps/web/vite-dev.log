@@ -1,0 +1,137 @@
+
+> knowledge-editor-shell@0.1.0 dev
+> vite --host 0.0.0.0 --host 127.0.0.1
+
+
+  [32m[1mVITE[22m v4.5.14[39m  [2mready in [0m[1m169[22m[2m[0m ms[22m
+
+  [32m➜[39m  [1mLocal[22m:   [36mhttp://127.0.0.1:[1m5173[22m/[39m
+[2m05:59:56[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/EditorDragHandle.tsx, /src/index.css[22m
+[2m06:02:23[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/EditorDragHandle.tsx, /src/index.css[22m
+[2m06:04:22[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/TiptapEditor.tsx, /src/index.css[22m
+[2m06:04:30[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/TiptapEditor.tsx, /src/index.css[22m
+[2m06:24:23[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/EditorDragHandle.tsx, /src/index.css[22m
+[2m06:24:34[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/styles/tiptap.css[22m
+[2m06:25:48[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/EditorDragHandle.tsx, /src/index.css[22m
+[2m06:47:35[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/TiptapEditor.tsx, /src/index.css[22m
+[2m06:47:36[22m [36m[1m[vite][22m[39m [32m✨ new dependencies optimized: [33m@tiptap/extensions, @tiptap/extension-code-block-lowlight, highlight.js/lib/languages/bash, highlight.js/lib/languages/csharp, highlight.js/lib/languages/css, highlight.js/lib/languages/javascript, highlight.js/lib/languages/json, highlight.js/lib/languages/plaintext, highlight.js/lib/languages/sql, highlight.js/lib/languages/typescript, highlight.js/lib/languages/xml, lowlight[32m[39m
+[2m06:47:36[22m [36m[1m[vite][22m[39m [32m✨ optimized dependencies changed. reloading[39m
+[2m06:47:53[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/styles/tiptap.css[22m
+[2m06:52:13[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mdist/index.html[22m
+[2m06:59:52[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/styles/tiptap.css[22m
+[2m07:04:09[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/TiptapEditor.tsx, /src/index.css[22m
+[2m07:04:16[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/TiptapEditor.tsx, /src/index.css[22m
+[2m07:04:16[22m [36m[1m[vite][22m[39m [32m✨ new dependencies optimized: [33m@tiptap/extension-details[32m[39m
+[2m07:04:16[22m [36m[1m[vite][22m[39m [32m✨ optimized dependencies changed. reloading[39m
+[2m07:04:35[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/EditorFloatingMenu.tsx, /src/index.css[22m
+[2m07:04:39[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/EditorFloatingMenu.tsx, /src/index.css[22m
+[2m07:04:59[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/EditorFloatingMenu.tsx, /src/index.css[22m
+[2m07:05:06[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/EditorFloatingMenu.tsx, /src/index.css[22m
+[2m07:05:12[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/EditorDragHandle.tsx, /src/index.css[22m
+[2m07:05:28[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/styles/tiptap.css[22m
+[2m07:27:40[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/TiptapEditor.tsx, /src/index.css[22m
+[2m11:54:56[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/EditorBubbleMenu.tsx, /src/components/EditorToolbar.tsx[22m
+[2m11:55:07[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/EditorDragHandle.tsx, /src/index.css[22m
+[2m11:55:20[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/TiptapEditor.tsx, /src/index.css[22m
+[2m11:55:29[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/styles/tiptap.css[22m
+[2m11:58:11[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/EditorDragHandle.tsx, /src/index.css[22m
+[2m12:17:03[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m12:17:11[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mtailwind.config.ts[22m
+[2m12:17:27[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/KnowledgeEditorPage.tsx, /src/index.css[22m
+[2m12:18:41[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/EditorSidebar.tsx, /src/index.css[22m
+[2m12:19:58[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/EditorSidebar.tsx, /src/index.css[22m
+[2m12:20:31[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/SidebarDocumentTree.tsx, /src/index.css[22m
+[2m12:38:06[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m12:38:28[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/EditorSidebar.tsx, /src/index.css[22m
+[2m12:38:44[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/EditorSidebar.tsx, /src/index.css[22m
+[2m12:38:53[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/DocumentTitleEditor.tsx, /src/index.css[22m
+[2m12:40:42[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m12:41:57[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/EditorTopBar.tsx, /src/index.css[22m
+[2m12:42:26[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/EditorCanvas.tsx, /src/index.css[22m
+[2m12:42:45[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/DocumentMeta.tsx, /src/index.css[22m
+[2m12:43:07[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/EditorToolbar.tsx, /src/index.css[22m
+[2m12:43:26[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/ToolbarControls.tsx, /src/index.css[22m
+[2m12:44:37[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/styles/tiptap.css[22m
+[2m12:45:05[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/styles/tiptap.css[22m
+[2m12:45:12[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/styles/tiptap.css[22m
+[2m12:45:21[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/styles/tiptap.css[22m
+[2m12:46:01[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/OutlinePanel.tsx, /src/index.css[22m
+[2m12:46:19[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/AiAssistPanel.tsx, /src/index.css[22m
+[2m12:47:00[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/styles/tiptap.css[22m
+[2m13:58:20[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/EditorCanvas.tsx, /src/index.css[22m
+[2m13:58:27[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/DocumentTitleEditor.tsx, /src/index.css[22m
+[2m13:58:35[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/EditorToolbar.tsx, /src/index.css[22m
+[2m13:58:46[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/EditorFloatingMenu.tsx, /src/index.css[22m
+[2m13:58:53[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/styles/tiptap.css[22m
+[2m13:59:15[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/EditorBubbleMenu.tsx, /src/index.css[22m
+[2m13:59:29[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/ImageUrlPopover.tsx, /src/index.css[22m
+[2m13:59:45[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/LinkEditPopover.tsx, /src/index.css[22m
+[2m14:00:55[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/OutlinePanel.tsx, /src/index.css[22m
+[2m14:01:03[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/AiAssistPanel.tsx, /src/index.css[22m
+[2m14:01:36[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mdist/index.html[22m
+[2m14:03:51[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/TiptapEditor.tsx, /src/index.css[22m
+[2m14:04:03[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/styles/tiptap.css[22m
+[2m14:06:23[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m14:06:34[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/EditorSidebar.tsx, /src/index.css[22m
+[2m14:10:29[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/EditorTopBar.tsx, /src/index.css[22m
+[2m14:10:43[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/EditorCanvas.tsx, /src/index.css[22m
+[2m14:10:57[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/DocumentTitleEditor.tsx, /src/index.css[22m
+[2m14:11:27[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/EditorToolbar.tsx, /src/index.css[22m
+[2m14:12:56[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/EditorToolbar.tsx, /src/index.css[22m
+[2m14:13:37[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/OutlinePanel.tsx, /src/index.css[22m
+[2m14:14:03[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m15:17:06[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/KnowledgeEditorPage.tsx, /src/index.css[22m
+[2m15:17:28[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/EditorCanvas.tsx, /src/index.css[22m
+[2m15:17:45[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/OutlinePanel.tsx, /src/index.css[22m
+[2m15:18:34[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mdist/index.html[22m
+[2m15:22:55[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/EditorSidebar.tsx, /src/index.css[22m
+[2m15:23:28[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m15:26:12[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/EditorFloatingMenu.tsx, /src/index.css[22m
+[2m15:28:24[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/EditorCanvas.tsx, /src/index.css[22m
+[2m15:28:24[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/DocumentTitleEditor.tsx, /src/index.css[22m
+[2m15:28:24[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/OutlinePanel.tsx, /src/index.css[22m
+[2m15:28:24[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/AiAssistPanel.tsx, /src/index.css[22m
+[2m15:28:24[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/styles/tiptap.css[22m
+[2m15:30:23[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/EditorFloatingMenu.tsx, /src/index.css[22m
+[2m15:34:43[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/EditorCanvas.tsx, /src/index.css[22m
+[2m15:41:31[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m15:41:31[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/KnowledgeEditorPage.tsx, /src/index.css[22m
+[2m15:41:31[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/EditorCanvas.tsx, /src/index.css[22m
+[2m15:52:49[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m15:52:49[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/EditorToolbar.tsx, /src/index.css[22m
+[2m15:52:49[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/EditorBubbleMenu.tsx, /src/index.css[22m
+[2m15:52:49[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/EditorFloatingMenu.tsx, /src/index.css[22m
+[2m15:52:49[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/ImageUrlPopover.tsx, /src/index.css[22m
+[2m15:52:49[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/LinkEditPopover.tsx, /src/index.css[22m
+[2m15:52:49[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/OutlinePanel.tsx, /src/index.css[22m
+[2m15:52:49[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/AiAssistPanel.tsx, /src/index.css[22m
+[2m15:53:33[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/DocumentMeta.tsx, /src/index.css[22m
+[2m15:53:33[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/OutlinePanel.tsx, /src/index.css[22m
+[2m22:49:10[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/TiptapEditor.tsx, /src/index.css[22m
+[2m22:49:12[22m [36m[1m[vite][22m[39m [32m✨ new dependencies optimized: [33m@tiptap/core, @tiptap/pm/schema-list, @tiptap/pm/tables[32m[39m
+[2m22:49:12[22m [36m[1m[vite][22m[39m [32m✨ optimized dependencies changed. reloading[39m
+[2m23:27:44[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/TiptapEditor.tsx[22m
+[2m23:28:02[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/TiptapEditor.tsx, /src/index.css[22m
+[2m01:48:56[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/TiptapEditor.tsx[22m
+[2m02:04:41[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/EditorTopBar.tsx, /src/index.css[22m
+[2m02:04:54[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/DocumentMeta.tsx, /src/index.css[22m
+[2m02:05:23[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/EditorToolbar.tsx, /src/index.css[22m
+[2m02:05:37[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/EditorFloatingMenu.tsx, /src/index.css[22m
+[2m02:05:52[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/EditorDragHandle.tsx, /src/index.css[22m
+[2m02:06:07[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/OutlinePanel.tsx, /src/index.css[22m
+[2m02:06:21[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/TiptapEditor.tsx, /src/index.css[22m
+[2m02:06:37[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/EditorCanvas.tsx, /src/index.css[22m
+[2m02:06:49[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/EditorSidebar.tsx, /src/index.css[22m
+[2m02:07:04[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/EditorSidebar.tsx, /src/components/AiAssistPanel.tsx, /src/components/DocumentMeta.tsx[22m
+[2m02:10:09[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/EditorFloatingMenu.tsx, /src/index.css[22m
+[2m02:10:26[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/styles/tiptap.css[22m
+[2m02:16:57[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/ToolbarControls.tsx, /src/index.css[22m
+[2m02:17:14[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/TableToolbarGroup.tsx, /src/index.css[22m
+[2m02:17:29[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/EditorDragHandle.tsx, /src/index.css[22m
+[2m02:24:37[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/EditorBubbleMenu.tsx, /src/components/EditorToolbar.tsx[22m
+[2m02:39:21[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/EditorCanvas.tsx, /src/index.css[22m
+[2m02:41:59[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/EditorDragHandle.tsx, /src/index.css[22m
+[2m02:42:57[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/styles/tiptap.css[22m
+[2m02:43:12[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/EditorDragHandle.tsx, /src/index.css[22m
+[2m02:45:18[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/styles/tiptap.css[22m
+[2m02:46:00[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mdist/index.html[22m

@@ -1,0 +1,41 @@
+
+> knowledge-editor-shell@0.1.0 dev D:\editor
+> vite --host 0.0.0.0 "--host" "0.0.0.0" "--port" "5175"
+
+
+  [32m[1mVITE[22m v4.5.14[39m  [2mready in [0m[1m168[22m[2m[0m ms[22m
+
+  [32m➜[39m  [1mLocal[22m:   [36mhttp://localhost:[1m5175[22m/[39m
+  [32m➜[39m  [1mNetwork[22m: [36mhttp://192.168.1.8:[1m5175[22m/[39m
+[2m22:08:34[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/EditorSidebar.tsx, /src/index.css[22m
+[2m22:08:34[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/EditorTopBar.tsx, /src/index.css[22m
+[2m22:08:34[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/EditorCanvas.tsx, /src/index.css[22m
+[2m22:08:34[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/DocumentTitleEditor.tsx, /src/index.css[22m
+[2m22:08:45[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/DocumentMeta.tsx, /src/index.css[22m
+[2m22:09:04[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/OutlinePanel.tsx, /src/index.css[22m
+[2m22:09:04[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/KnowledgeEditorPage.tsx, /src/index.css[22m
+[2m22:09:47[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/EditorCanvas.tsx, /src/index.css[22m
+[2m22:10:12[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/EditorToolbar.tsx, /src/index.css[22m
+[2m22:10:12[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m22:10:12[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/styles/tiptap.css[22m
+[2m22:12:30[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/EditorCanvas.tsx, /src/index.css[22m
+[2m22:12:30[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m22:12:30[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/styles/tiptap.css[22m
+[2m22:14:02[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m22:23:05[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/EditorCanvas.tsx, /src/index.css[22m
+[2m22:23:05[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m22:23:05[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/styles/tiptap.css[22m
+[2m22:23:05[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/ToolbarControls.tsx, /src/index.css[22m
+[2m22:32:39[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/EditorSidebar.tsx, /src/index.css[22m
+[2m22:32:54[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/OutlinePanel.tsx[22m
+[2m22:34:04[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/OutlinePanel.tsx, /src/index.css[22m
+[2m22:34:16[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/KnowledgeEditorPage.tsx, /src/index.css[22m
+[2m22:34:45[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/EditorSidebar.tsx, /src/index.css[22m
+[2m22:34:45[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m22:36:49[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m22:46:08[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m23:10:01[22m [36m[1m[vite][22m[39m changed tsconfig file detected: D:\editor\apps\web\tsconfig.json - Clearing cache and forcing full-reload to ensure TypeScript is compiled with updated config values.
+[2m23:10:01[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mtailwind.config.ts[22m
+[2m23:10:01[22m [36m[1m[vite][22m[39m changed tsconfig file detected: D:\editor\tsconfig.json - Clearing cache and forcing full-reload to ensure TypeScript is compiled with updated config values.
+[2m23:10:01[22m [36m[1m[vite][22m[39m [32mvite.config.ts changed, restarting server...[39m
+[2m23:10:02[22m [36m[1m[vite][22m[39m server restarted.

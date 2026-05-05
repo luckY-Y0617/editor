@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\..\framework\NS.Framework.Authentication\NS.Framework.Authentication.csproj" />
+      <ProjectReference Include="..\..\framework\NS.Framework.Authorization\NS.Framework.Authorization.csproj" />
+      <ProjectReference Include="..\..\framework\NS.Framework.Core\NS.Framework.Core.csproj" />
+      <ProjectReference Include="..\..\framework\NS.Framework.SqlSugar.Abstractions\NS.Framework.SqlSugar.Abstractions.csproj" />
+      <ProjectReference Include="..\..\modules\auditlogging\NS.Module.AuditLogging.SqlSugar\NS.Module.AuditLogging.SqlSugar.csproj" />
+      <ProjectReference Include="..\..\modules\identity\NS.Module.Identity.Domain.Shared\NS.Module.Identity.Domain.Shared.csproj" />
+      <ProjectReference Include="..\..\modules\identity\NS.Module.Identity.Domain\NS.Module.Identity.Domain.csproj" />
+      <ProjectReference Include="..\..\modules\identity\NS.Module.Identity.SqlSugar\NS.Module.Identity.SqlSugar.csproj" />
+      <ProjectReference Include="..\..\modules\identity\ClayMo.Module.Identity\ClayMo.Module.Identity.SqlSugar\ClayMo.Module.Identity.SqlSugar.csproj" />
+      <ProjectReference Include="..\..\framework\NS.Framework.SqlSugar\NS.Framework.SqlSugar.csproj" />
+      <ProjectReference Include="..\..\modules\auditlogging\ClayMo.Module.AuditLogging\ClayMo.Module.AuditLogging.SqlSugar\ClayMo.Module.AuditLogging.SqlSugar.csproj" />
+      <ProjectReference Include="..\..\modules\tenantmanagement\NS.Module.TenantManagement.SqlSugar\NS.Module.TenantManagement.SqlSugar.csproj" />
+      <ProjectReference Include="..\..\modules\kb\NS.Module.Knowledge.SqlSugar\NS.Module.Knowledge.SqlSugar.csproj" />
+      <ProjectReference Include="..\NS.Abp.Domain\NS.Abp.Domain.csproj" />
+    </ItemGroup>
+
+</Project>

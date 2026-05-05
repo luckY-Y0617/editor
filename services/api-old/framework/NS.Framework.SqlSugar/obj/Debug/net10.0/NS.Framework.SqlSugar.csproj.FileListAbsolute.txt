@@ -1,0 +1,17 @@
+D:\editor\services\api\framework\NS.Framework.SqlSugar\bin\Debug\net10.0\NS.Framework.SqlSugar.deps.json
+D:\editor\services\api\framework\NS.Framework.SqlSugar\bin\Debug\net10.0\NS.Framework.SqlSugar.dll
+D:\editor\services\api\framework\NS.Framework.SqlSugar\bin\Debug\net10.0\NS.Framework.SqlSugar.pdb
+D:\editor\services\api\framework\NS.Framework.SqlSugar\bin\Debug\net10.0\NS.Framework.Core.dll
+D:\editor\services\api\framework\NS.Framework.SqlSugar\bin\Debug\net10.0\NS.Framework.SqlSugar.Abstractions.dll
+D:\editor\services\api\framework\NS.Framework.SqlSugar\bin\Debug\net10.0\NS.Framework.Core.pdb
+D:\editor\services\api\framework\NS.Framework.SqlSugar\bin\Debug\net10.0\NS.Framework.SqlSugar.Abstractions.pdb
+D:\editor\services\api\framework\NS.Framework.SqlSugar\obj\Debug\net10.0\NS.Framework.SqlSugar.csproj.AssemblyReference.cache
+D:\editor\services\api\framework\NS.Framework.SqlSugar\obj\Debug\net10.0\NS.Framework.SqlSugar.GeneratedMSBuildEditorConfig.editorconfig
+D:\editor\services\api\framework\NS.Framework.SqlSugar\obj\Debug\net10.0\NS.Framework.SqlSugar.AssemblyInfoInputs.cache
+D:\editor\services\api\framework\NS.Framework.SqlSugar\obj\Debug\net10.0\NS.Framework.SqlSugar.AssemblyInfo.cs
+D:\editor\services\api\framework\NS.Framework.SqlSugar\obj\Debug\net10.0\NS.Framework.SqlSugar.csproj.CoreCompileInputs.cache
+D:\editor\services\api\framework\NS.Framework.SqlSugar\obj\Debug\net10.0\NS.Frame.3C491A32.Up2Date
+D:\editor\services\api\framework\NS.Framework.SqlSugar\obj\Debug\net10.0\NS.Framework.SqlSugar.dll
+D:\editor\services\api\framework\NS.Framework.SqlSugar\obj\Debug\net10.0\refint\NS.Framework.SqlSugar.dll
+D:\editor\services\api\framework\NS.Framework.SqlSugar\obj\Debug\net10.0\NS.Framework.SqlSugar.pdb
+D:\editor\services\api\framework\NS.Framework.SqlSugar\obj\Debug\net10.0\ref\NS.Framework.SqlSugar.dll

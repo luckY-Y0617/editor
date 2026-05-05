@@ -1,0 +1,823 @@
+import {
+  AlertTriangle,
+  CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  CircleOff,
+  MessageSquare,
+  Pin,
+  RotateCcw,
+  Send,
+  X,
+} from "lucide-react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { AtlasIcon } from "./AtlasIcon";
+import { activityTimeline, backlinks, relatedDocuments, versionTrail } from "../data/editorMockData";
+import chevronRightSvg from "../assets/svg/icons/chevron-right.svg";
+import fileIcon from "../assets/svg/icons/file.svg";
+import linkIcon from "../assets/svg/icons/link.svg";
+import type { AnchorMatchResult } from "../lib/commentAnchorMatching";
+import type { AnchorRelocationResult } from "../lib/commentAnchorRelocation";
+import { isCommentBodySubmittable } from "../lib/commentComposerModel";
+import type { CommentLoadState } from "../lib/commentProductionState";
+import type {
+  CommentThread,
+  CreateCommentThreadRequest,
+  KnowledgeDocument,
+  OutlineItem,
+  PendingCommentComposer,
+} from "../types/editor";
+
+type OutlinePanelProps = {
+  activeCommentThreadId?: string | null;
+  activeDocument: KnowledgeDocument;
+  commentLifecycleErrors?: Record<string, string>;
+  commentLifecyclePending?: Record<string, true>;
+  commentLoadState?: CommentLoadState;
+  commentMatchResults?: Record<string, AnchorMatchResult>;
+  commentRelocationResults?: Record<string, AnchorRelocationResult>;
+  commentThreads?: CommentThread[];
+  outlineItems: OutlineItem[];
+  pendingCommentComposer?: PendingCommentComposer | null;
+  saveStatusLabel: string;
+  textLength: number;
+  updatedAtLabel: string;
+  onCancelPendingComment?: () => void;
+  onCommentThreadClick?: (thread: CommentThread) => void;
+  onCreateCommentThread?: (request: CreateCommentThreadRequest) => void;
+  onPendingCommentBodyChange?: (body: string) => void;
+  onOutlineItemClick: (item: OutlineItem) => void;
+  onReopenCommentThread?: (threadId: string) => void;
+  onRetryLoadComments?: () => void;
+  onResolveCommentThread?: (threadId: string) => void;
+};
+
+type OverviewTab = "overview" | "comments" | "info" | "activity";
+type CollapsibleSection = "documentMap" | "versionTrail" | "backlinks";
+
+export function OutlinePanel({
+  activeCommentThreadId,
+  activeDocument,
+  commentLifecycleErrors = {},
+  commentLifecyclePending = {},
+  commentLoadState = { status: "idle" },
+  commentMatchResults = {},
+  commentRelocationResults = {},
+  commentThreads = [],
+  onCancelPendingComment,
+  onCommentThreadClick,
+  onCreateCommentThread,
+  onPendingCommentBodyChange,
+  onOutlineItemClick,
+  onReopenCommentThread,
+  onRetryLoadComments,
+  onResolveCommentThread,
+  outlineItems,
+  pendingCommentComposer,
+  saveStatusLabel,
+  textLength,
+  updatedAtLabel,
+}: OutlinePanelProps) {
+  const [activeTab, setActiveTab] = useState<OverviewTab>("overview");
+  const [collapsedSections, setCollapsedSections] = useState<Record<CollapsibleSection, boolean>>({
+    documentMap: false,
+    versionTrail: false,
+    backlinks: false,
+  });
+  const readingMinutes = Math.max(1, Math.ceil(textLength / 850));
+  const tags = activeDocument.tags?.length ? activeDocument.tags : [];
+
+  useEffect(() => {
+    if (activeCommentThreadId || pendingCommentComposer) {
+      setActiveTab("comments");
+    }
+  }, [activeCommentThreadId, pendingCommentComposer]);
+
+  const toggleSection = (section: CollapsibleSection) => {
+    setCollapsedSections((currentSections) => ({
+      ...currentSections,
+      [section]: !currentSections[section],
+    }));
+  };
+
+  return (
+    <aside className="atlas-overview-panel hidden h-full w-[324px] shrink-0 overflow-y-auto border-l border-[var(--ns-border)] bg-[rgba(248,244,236,0.95)] xl:block">
+      <div className="atlas-tabs sticky top-0 z-10 grid h-14 grid-cols-[1fr_1fr_1fr_1fr_auto] border-b border-[var(--ns-border)] bg-[rgba(248,244,236,0.96)] text-[11px] font-semibold uppercase tracking-normal text-[var(--ns-slate-700)]">
+        <button
+          className={["atlas-tab", activeTab === "overview" ? "is-active" : ""].join(" ")}
+          onClick={() => setActiveTab("overview")}
+          type="button"
+        >
+          Overview
+        </button>
+        <button
+          className={["atlas-tab", activeTab === "comments" ? "is-active" : ""].join(" ")}
+          onClick={() => setActiveTab("comments")}
+          type="button"
+        >
+          Comments
+        </button>
+        <button
+          className={["atlas-tab", activeTab === "info" ? "is-active" : ""].join(" ")}
+          onClick={() => setActiveTab("info")}
+          type="button"
+        >
+          Info
+        </button>
+        <button
+          className={["atlas-tab", activeTab === "activity" ? "is-active" : ""].join(" ")}
+          onClick={() => setActiveTab("activity")}
+          type="button"
+        >
+          Activity
+        </button>
+        <button className="grid w-11 place-items-center text-[var(--ns-slate-500)]" title="Pin panel" type="button">
+          <Pin className="h-3.5 w-3.5" />
+        </button>
+      </div>
+
+      <div className="px-5 py-5">
+        {activeTab === "overview" ? (
+          <>
+            <PanelSection
+              collapsed={collapsedSections.documentMap}
+              onToggle={() => toggleSection("documentMap")}
+              title="Document Map"
+            >
+              {outlineItems.length > 0 ? (
+                <nav className="space-y-1" aria-label="Document map">
+                  {outlineItems.map((item, index) => (
+                    <button
+                      className={["atlas-outline-item", index === 0 ? "is-active" : ""].join(" ")}
+                      key={item.id}
+                      onClick={() => onOutlineItemClick(item)}
+                      style={{ paddingLeft: `${10 + Math.max(0, item.level - 2) * 16}px` }}
+                      title={item.text}
+                      type="button"
+                    >
+                      <span className="w-5 shrink-0 text-right tabular-nums">{index + 1}.</span>
+                      <span className="min-w-0 flex-1 truncate">{item.text}</span>
+                    </button>
+                  ))}
+                </nav>
+              ) : (
+                <div className="border border-dashed border-[var(--ns-border)] bg-white/45 px-3 py-4 text-sm leading-6 text-[var(--ns-slate-500)]">
+                  Headings appear here as the document takes shape.
+                </div>
+              )}
+            </PanelSection>
+
+            <PanelSection title="Related Documents" action="View All">
+              <div className="space-y-2">
+                {relatedDocuments.map((document) => (
+                  <button className="atlas-related-item" key={`${document.code}-${document.title}`} type="button">
+                    <AtlasIcon className="h-4 w-4 text-[var(--ns-slate-500)]" src={fileIcon} />
+                    <span className="font-semibold text-[var(--ns-navy-800)]">{document.code}</span>
+                    <span className="min-w-0 flex-1 truncate">{document.title}</span>
+                  </button>
+                ))}
+              </div>
+            </PanelSection>
+
+            <PanelSection
+              collapsed={collapsedSections.versionTrail}
+              onToggle={() => toggleSection("versionTrail")}
+              title="Version Trail"
+            >
+              <VersionTrail />
+            </PanelSection>
+
+            <PanelSection
+              collapsed={collapsedSections.backlinks}
+              count={7}
+              onToggle={() => toggleSection("backlinks")}
+              title="Backlinks"
+            >
+              <div className="space-y-3">
+                {backlinks.map((item) => (
+                  <button className="atlas-backlink" key={`${item.code}-${item.title}`} type="button">
+                    <div className="flex items-center gap-2">
+                      <AtlasIcon className="h-4 w-4 text-[var(--ns-slate-500)]" src={linkIcon} />
+                      <span className="font-semibold text-[var(--ns-blue-600)]">{item.code}</span>
+                      <span className="min-w-0 flex-1 truncate text-[var(--ns-navy-800)]">{item.title}</span>
+                      <AtlasIcon className="h-4 w-4 text-[var(--ns-slate-500)]" src={chevronRightSvg} />
+                    </div>
+                    <p className="mt-2 line-clamp-2 text-left text-xs leading-5 text-[var(--ns-slate-700)]">
+                      {item.excerpt}
+                    </p>
+                  </button>
+                ))}
+              </div>
+            </PanelSection>
+          </>
+        ) : null}
+
+        {activeTab === "comments" ? (
+          <CommentsPanel
+            activeCommentThreadId={activeCommentThreadId}
+            commentLifecycleErrors={commentLifecycleErrors}
+            commentLifecyclePending={commentLifecyclePending}
+            commentLoadState={commentLoadState}
+            commentMatchResults={commentMatchResults}
+            commentRelocationResults={commentRelocationResults}
+            commentThreads={commentThreads}
+            onCancelPendingComment={onCancelPendingComment}
+            onCommentThreadClick={onCommentThreadClick}
+            onCreateCommentThread={onCreateCommentThread}
+            onPendingCommentBodyChange={onPendingCommentBodyChange}
+            onReopenCommentThread={onReopenCommentThread}
+            onRetryLoadComments={onRetryLoadComments}
+            onResolveCommentThread={onResolveCommentThread}
+            pendingCommentComposer={pendingCommentComposer}
+          />
+        ) : null}
+
+        {activeTab === "info" ? (
+          <>
+            <PanelSection title="Document Info">
+              <dl className="atlas-info-list">
+                <InfoRow label="Status">
+                  <span className="inline-flex items-center gap-2">
+                    <span className="h-1.5 w-1.5 rounded-full bg-[#3f8c86]" />
+                    Published
+                  </span>
+                </InfoRow>
+                <InfoRow label="Owner">Alice Kim</InfoRow>
+                <InfoRow label="Last updated">{updatedAtLabel}</InfoRow>
+                <InfoRow label="Version">3.2</InfoRow>
+                <InfoRow label="Word count">{textLength.toLocaleString("en-US")}</InfoRow>
+                <InfoRow label="Reading time">{readingMinutes} min</InfoRow>
+                <InfoRow label="Save status">{saveStatusLabel}</InfoRow>
+              </dl>
+            </PanelSection>
+
+            <PanelSection title="Tags">
+              {tags.length > 0 ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {tags.map((tag) => (
+                    <span className="atlas-info-tag" key={tag}>
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs leading-5 text-[var(--ns-slate-500)]">No tags</p>
+              )}
+            </PanelSection>
+          </>
+        ) : null}
+
+        {activeTab === "activity" ? (
+          <PanelSection title="Activity Trail">
+            <div className="atlas-activity-list">
+              {activityTimeline.map((item, index) => (
+                <div className="atlas-activity-item" key={`${item.title}-${item.date}`}>
+                  <span className={["atlas-version-dot", index === 0 ? "is-active" : ""].join(" ")} />
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="min-w-0 flex-1 truncate font-semibold text-[var(--ns-navy-800)]">
+                        {item.title}
+                      </span>
+                      <span className="shrink-0 text-[var(--ns-slate-500)]">{item.date}</span>
+                    </div>
+                    <p className="mt-1 text-xs leading-5 text-[var(--ns-slate-700)]">{item.detail}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </PanelSection>
+        ) : null}
+      </div>
+    </aside>
+  );
+}
+
+function CommentsPanel({
+  activeCommentThreadId,
+  commentLifecycleErrors,
+  commentLifecyclePending,
+  commentLoadState,
+  commentMatchResults,
+  commentRelocationResults,
+  commentThreads,
+  onCancelPendingComment,
+  onCommentThreadClick,
+  onCreateCommentThread,
+  onPendingCommentBodyChange,
+  onReopenCommentThread,
+  onRetryLoadComments,
+  onResolveCommentThread,
+  pendingCommentComposer,
+}: {
+  activeCommentThreadId?: string | null;
+  commentLifecycleErrors: Record<string, string>;
+  commentLifecyclePending: Record<string, true>;
+  commentLoadState: CommentLoadState;
+  commentMatchResults: Record<string, AnchorMatchResult>;
+  commentRelocationResults: Record<string, AnchorRelocationResult>;
+  commentThreads: CommentThread[];
+  pendingCommentComposer?: PendingCommentComposer | null;
+  onCancelPendingComment?: () => void;
+  onCommentThreadClick?: (thread: CommentThread) => void;
+  onCreateCommentThread?: (request: CreateCommentThreadRequest) => void;
+  onPendingCommentBodyChange?: (body: string) => void;
+  onReopenCommentThread?: (threadId: string) => void;
+  onRetryLoadComments?: () => void;
+  onResolveCommentThread?: (threadId: string) => void;
+}) {
+  const openCount = commentThreads.filter((thread) => thread.status === "open").length;
+  const staleCount = commentThreads.filter((thread) => thread.anchorStatus === "stale").length;
+  const orphanedCount = commentThreads.filter((thread) => thread.anchorStatus === "orphaned").length;
+  const isLoading = commentLoadState.status === "loading";
+  const loadError = commentLoadState.status === "error" ? commentLoadState.error : null;
+
+  return (
+    <PanelSection count={commentThreads.length} title="Comment Threads">
+      {pendingCommentComposer ? (
+        <NewCommentComposer
+          composer={pendingCommentComposer}
+          onCancel={() => onCancelPendingComment?.()}
+          onBodyChange={(body) => onPendingCommentBodyChange?.(body)}
+          onSubmit={(body) => {
+            onCreateCommentThread?.({
+              anchor: pendingCommentComposer.anchor,
+              body,
+            });
+          }}
+        />
+      ) : null}
+
+      {isLoading ? (
+        <div
+          className={["border border-[var(--ns-border)] bg-white/45 px-3 py-4 text-sm leading-6 text-[var(--ns-slate-700)]", pendingCommentComposer ? "mt-4" : ""].join(" ")}
+          role="status"
+        >
+          Loading comments...
+        </div>
+      ) : loadError ? (
+        <div
+          className={["border border-[rgba(185,77,95,0.24)] bg-[rgba(185,77,95,0.08)] px-3 py-3 text-sm leading-6 text-[#8e3b4a]", pendingCommentComposer ? "mt-4" : ""].join(" ")}
+          role="alert"
+        >
+          <p className="font-semibold">Comments failed to load.</p>
+          <p className="mt-1 text-xs leading-5">{loadError}</p>
+          <button
+            className="mt-3 inline-flex h-7 items-center gap-1.5 border border-[rgba(185,77,95,0.28)] bg-white/70 px-2 text-[11px] font-semibold text-[#8e3b4a] hover:bg-white"
+            onClick={onRetryLoadComments}
+            type="button"
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            Retry
+          </button>
+        </div>
+      ) : commentThreads.length > 0 ? (
+        <div className={["space-y-3", pendingCommentComposer ? "mt-4" : ""].join(" ")}>
+          <div className="flex items-center gap-2 text-xs leading-5 text-[var(--ns-slate-700)]">
+            <MessageSquare className="h-3.5 w-3.5 shrink-0 text-[var(--ns-blue-600)]" />
+            <span>{openCount} open</span>
+            <span className="text-[var(--ns-stone-300)]" aria-hidden="true">
+              {"\u00B7"}
+            </span>
+            <span>{commentThreads.length - openCount} resolved</span>
+            {staleCount || orphanedCount ? (
+              <>
+                <span className="text-[var(--ns-stone-300)]" aria-hidden="true">
+                  {"\u00B7"}
+                </span>
+                <span>{staleCount} stale</span>
+                <span className="text-[var(--ns-stone-300)]" aria-hidden="true">
+                  {"\u00B7"}
+                </span>
+                <span>{orphanedCount} orphaned</span>
+              </>
+            ) : null}
+          </div>
+
+          {commentThreads.map((thread, index) => (
+            <CommentThreadItem
+              active={thread.id === activeCommentThreadId}
+              index={commentThreads.length - index}
+              key={thread.id}
+              lifecycleError={commentLifecycleErrors[thread.id] ?? null}
+              lifecyclePending={Boolean(commentLifecyclePending[thread.id])}
+              matchResult={commentMatchResults[thread.id]}
+              onClick={() => onCommentThreadClick?.(thread)}
+              onReopen={() => onReopenCommentThread?.(thread.id)}
+              onResolve={() => onResolveCommentThread?.(thread.id)}
+              relocationResult={commentRelocationResults[thread.id]}
+              thread={thread}
+            />
+          ))}
+        </div>
+      ) : !pendingCommentComposer ? (
+        <div className="border border-dashed border-[var(--ns-border)] bg-white/45 px-3 py-4 text-sm leading-6 text-[var(--ns-slate-500)]">
+          No comments yet. Select text and use the comment button to start a thread.
+        </div>
+      ) : null}
+    </PanelSection>
+  );
+}
+
+function NewCommentComposer({
+  composer,
+  onBodyChange,
+  onCancel,
+  onSubmit,
+}: {
+  composer: PendingCommentComposer;
+  onBodyChange: (body: string) => void;
+  onCancel: () => void;
+  onSubmit: (body: string) => void;
+}) {
+  const body = composer.body ?? "";
+  const isSubmitting = Boolean(composer.isSubmitting);
+  const canSubmit = isCommentBodySubmittable(body) && !isSubmitting;
+  const errorId = `comment-create-error-${composer.documentId}`;
+
+  return (
+    <section className="border border-[rgba(15,92,156,0.28)] bg-white/70 p-3 shadow-[0_1px_0_rgba(31,41,55,0.03)]">
+      <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-normal text-[var(--ns-blue-600)]">
+        <MessageSquare className="h-3.5 w-3.5" />
+        New Comment
+      </div>
+      <blockquote className="mt-2 border-l-2 border-[rgba(15,92,156,0.24)] pl-2 text-xs leading-5 text-[var(--ns-slate-700)]">
+        {composer.excerpt}
+      </blockquote>
+      <textarea
+        aria-describedby={composer.error ? errorId : undefined}
+        aria-invalid={composer.error ? true : undefined}
+        autoFocus
+        className="mt-3 min-h-[92px] w-full resize-y border border-[var(--ns-border)] bg-white/80 px-2.5 py-2 text-sm leading-5 text-[var(--ns-navy-800)] outline-none transition placeholder:text-[var(--ns-slate-500)] focus:border-[rgba(15,92,156,0.42)] focus:ring-1 focus:ring-[rgba(15,92,156,0.14)]"
+        disabled={isSubmitting}
+        onChange={(event) => onBodyChange(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Escape" && !isSubmitting) {
+            event.preventDefault();
+            onCancel();
+          }
+        }}
+        placeholder="Write a comment..."
+        value={body}
+      />
+      {composer.error ? (
+        <p className="mt-2 text-xs leading-5 text-[#8e3b4a]" id={errorId} role="alert">
+          {composer.error}
+        </p>
+      ) : null}
+      <div className="mt-2 flex items-center justify-end gap-2">
+        <button
+          className="inline-flex h-7 items-center gap-1.5 border border-[var(--ns-border)] bg-white/70 px-2 text-[11px] font-semibold text-[var(--ns-slate-700)] hover:border-[rgba(15,92,156,0.28)] hover:text-[var(--ns-blue-600)]"
+          disabled={isSubmitting}
+          onClick={onCancel}
+          type="button"
+        >
+          <X className="h-3.5 w-3.5" />
+          Cancel
+        </button>
+        <button
+          aria-busy={isSubmitting}
+          className="inline-flex h-7 items-center gap-1.5 border border-[rgba(15,92,156,0.32)] bg-[rgba(15,92,156,0.08)] px-2 text-[11px] font-semibold text-[var(--ns-blue-600)] disabled:cursor-not-allowed disabled:border-[var(--ns-border)] disabled:bg-white/50 disabled:text-[var(--ns-slate-500)]"
+          disabled={!canSubmit}
+          onClick={() => {
+            if (canSubmit) {
+              onSubmit(body);
+            }
+          }}
+          type="button"
+        >
+          <Send className="h-3.5 w-3.5" />
+          {isSubmitting ? "Submitting" : "Comment"}
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function CommentThreadItem({
+  active,
+  index,
+  lifecycleError,
+  lifecyclePending,
+  matchResult,
+  onClick,
+  onReopen,
+  onResolve,
+  relocationResult,
+  thread,
+}: {
+  active: boolean;
+  index: number;
+  lifecycleError?: string | null;
+  lifecyclePending?: boolean;
+  matchResult?: AnchorMatchResult;
+  onClick: () => void;
+  onReopen: () => void;
+  onResolve: () => void;
+  relocationResult?: AnchorRelocationResult;
+  thread: CommentThread;
+}) {
+  const firstComment = thread.comments[0];
+  const runtimeMatch = useMemo(
+    () => matchResult ?? createFallbackMatchResult(thread.anchorStatus),
+    [matchResult, thread.anchorStatus],
+  );
+  const anchorJson = useMemo(
+    () =>
+      JSON.stringify(
+        {
+          anchor: thread.anchor,
+          runtimeMatch,
+          relocationResult,
+        },
+        null,
+        2,
+      ),
+    [relocationResult, runtimeMatch, thread.anchor],
+  );
+  const createdAt = formatThreadTime(thread.createdAt);
+  const anchorStatusMeta = getAnchorStatusMeta(runtimeMatch, relocationResult);
+  const AnchorStatusIcon = anchorStatusMeta.icon;
+
+  return (
+    <article
+      className={[
+        "border bg-white/55 p-3 text-left shadow-[0_1px_0_rgba(31,41,55,0.03)] transition",
+        getThreadCardStateClass(runtimeMatch.status),
+        active
+          ? "border-[rgba(15,92,156,0.34)] ring-1 ring-[rgba(15,92,156,0.16)]"
+          : "border-[var(--ns-border)] hover:border-[rgba(15,92,156,0.24)]",
+      ].join(" ")}
+    >
+      <button className="block w-full text-left" onClick={onClick} type="button">
+        <div className="flex items-start gap-2">
+          <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center border border-[var(--ns-border)] bg-[rgba(248,244,236,0.72)] text-[10px] font-bold text-[var(--ns-blue-600)]">
+            {index}
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-normal">
+              <span className={thread.status === "open" ? "text-[var(--ns-blue-600)]" : "text-[var(--ns-slate-500)]"}>
+                {thread.status}
+              </span>
+              <span className="text-[var(--ns-stone-300)]" aria-hidden="true">
+                {"\u00B7"}
+              </span>
+              <span className={["inline-flex items-center gap-1", anchorStatusMeta.className].join(" ")}>
+                <AnchorStatusIcon className="h-3 w-3" />
+                {anchorStatusMeta.label}
+              </span>
+              <span className="text-[var(--ns-stone-300)]" aria-hidden="true">
+                {"\u00B7"}
+              </span>
+              <span className="truncate text-[var(--ns-slate-500)]">{createdAt}</span>
+            </div>
+            <p className="mt-1 line-clamp-2 text-sm font-semibold leading-5 text-[var(--ns-navy-800)]">
+              {thread.anchor.display.excerpt}
+            </p>
+          </div>
+        </div>
+      </button>
+
+      <p className="mt-2 text-xs leading-5 text-[var(--ns-slate-700)]">
+        {firstComment?.body ?? "No comment body"}
+      </p>
+
+      {runtimeMatch.status !== "active" || runtimeMatch.confidence !== "exact" ? (
+        <div className={["mt-2 border px-2 py-1.5 text-xs leading-5", anchorStatusMeta.noticeClassName].join(" ")}>
+          {anchorStatusMeta.detail}
+        </div>
+      ) : null}
+
+      <div className="mt-3 flex items-center justify-between gap-2">
+        <span className={["text-[11px] uppercase tracking-normal", anchorStatusMeta.className].join(" ")}>
+          {anchorStatusMeta.label}
+        </span>
+        {thread.status === "open" ? (
+          <button
+            aria-busy={lifecyclePending}
+            className="inline-flex h-7 items-center gap-1.5 border border-[var(--ns-border)] bg-white/70 px-2 text-[11px] font-semibold text-[var(--ns-slate-700)] hover:border-[rgba(15,92,156,0.28)] hover:text-[var(--ns-blue-600)] disabled:cursor-not-allowed disabled:bg-white/45 disabled:text-[var(--ns-slate-500)]"
+            disabled={lifecyclePending}
+            onClick={onResolve}
+            type="button"
+          >
+            <CheckCircle2 className="h-3.5 w-3.5" />
+            {lifecyclePending ? "Resolving" : "Resolve"}
+          </button>
+        ) : (
+          <button
+            aria-busy={lifecyclePending}
+            className="inline-flex h-7 items-center gap-1.5 border border-[var(--ns-border)] bg-white/70 px-2 text-[11px] font-semibold text-[var(--ns-slate-700)] hover:border-[rgba(15,92,156,0.28)] hover:text-[var(--ns-blue-600)] disabled:cursor-not-allowed disabled:bg-white/45 disabled:text-[var(--ns-slate-500)]"
+            disabled={lifecyclePending}
+            onClick={onReopen}
+            type="button"
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            {lifecyclePending ? "Reopening" : "Reopen"}
+          </button>
+        )}
+      </div>
+
+      {lifecycleError ? (
+        <p className="mt-2 border border-[rgba(185,77,95,0.24)] bg-[rgba(185,77,95,0.08)] px-2 py-1.5 text-xs leading-5 text-[#8e3b4a]" role="alert">
+          {lifecycleError}
+        </p>
+      ) : null}
+
+      <details className="mt-3 text-xs text-[var(--ns-slate-700)]">
+        <summary className="cursor-pointer font-semibold text-[var(--ns-blue-600)]">Anchor JSON</summary>
+        <pre className="mt-2 max-h-44 overflow-auto border border-[var(--ns-border)] bg-[rgba(251,248,241,0.72)] p-2 text-[10px] leading-4 text-[var(--ns-navy-800)]">
+          {anchorJson}
+        </pre>
+      </details>
+    </article>
+  );
+}
+
+function formatThreadTime(value: string) {
+  try {
+    return new Intl.DateTimeFormat("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+      month: "short",
+      day: "numeric",
+    }).format(new Date(value));
+  } catch {
+    return "now";
+  }
+}
+
+function getThreadCardStateClass(anchorStatus: CommentThread["anchorStatus"]) {
+  if (anchorStatus === "orphaned") {
+    return "bg-[rgba(185,77,95,0.07)]";
+  }
+
+  if (anchorStatus === "stale") {
+    return "bg-[rgba(226,196,104,0.13)]";
+  }
+
+  return "";
+}
+
+function getAnchorStatusMeta(matchResult: AnchorMatchResult, relocationResult?: AnchorRelocationResult) {
+  if (matchResult.status === "orphaned") {
+    return {
+      icon: CircleOff,
+      label: "Anchor lost",
+      className: "text-[#b94d5f]",
+      noticeClassName: "border-[rgba(185,77,95,0.24)] bg-[rgba(185,77,95,0.08)] text-[#8e3b4a]",
+      detail: "The mapped range is no longer valid, so selecting this thread will not move the editor cursor.",
+    };
+  }
+
+  if (matchResult.status === "stale") {
+    const confidence = relocationResult?.confidence ?? matchResult.confidence;
+    const isMediumConfidence = confidence === "medium";
+
+    return {
+      icon: AlertTriangle,
+      label: isMediumConfidence ? "Needs review" : "Anchor may be inaccurate",
+      className: "text-[#8b6d1f]",
+      noticeClassName: "border-[rgba(181,124,32,0.24)] bg-[rgba(226,196,104,0.14)] text-[#6f571a]",
+      detail: "The range still maps, but the current text differs from the original quoted text.",
+    };
+  }
+
+  if (relocationResult?.status === "active" && relocationResult.confidence === "high") {
+    return {
+      icon: CheckCircle2,
+      label: "Attached - relocated with high confidence",
+      className: "text-[var(--ns-blue-600)]",
+      noticeClassName: "border-[rgba(15,92,156,0.18)] bg-[rgba(15,92,156,0.06)] text-[var(--ns-blue-600)]",
+      detail: "The range was reconstructed from block identity and quote evidence.",
+    };
+  }
+
+  if (matchResult.confidence === "high") {
+    return {
+      icon: CheckCircle2,
+      label: "Attached - text changed slightly",
+      className: "text-[var(--ns-blue-600)]",
+      noticeClassName: "border-[rgba(15,92,156,0.18)] bg-[rgba(15,92,156,0.06)] text-[var(--ns-blue-600)]",
+      detail: "The range still maps with a minor text change.",
+    };
+  }
+
+  return {
+    icon: CheckCircle2,
+    label: "Attached",
+    className: "text-[var(--ns-blue-600)]",
+    noticeClassName: "border-[var(--ns-border)] bg-white/50 text-[var(--ns-slate-700)]",
+    detail: "The mapped range still matches the original quote.",
+  };
+}
+
+function createFallbackMatchResult(anchorStatus: CommentThread["anchorStatus"]): AnchorMatchResult {
+  if (anchorStatus === "orphaned") {
+    return {
+      status: "orphaned",
+      confidence: "none",
+      reason: "invalid_range",
+    };
+  }
+
+  if (anchorStatus === "stale") {
+    return {
+      status: "stale",
+      confidence: "low",
+      reason: "major_text_change",
+    };
+  }
+
+  return {
+    status: "active",
+    confidence: "exact",
+    reason: "exact_match",
+    similarity: 1,
+    editDistance: 0,
+  };
+}
+
+function VersionTrail() {
+  return (
+    <div className="atlas-version-list">
+      {versionTrail.map((item, index) => (
+        <div className="atlas-version-item" key={`${item.version}-${item.date}`}>
+          <span className={["atlas-version-dot", index === 0 ? "is-active" : ""].join(" ")} />
+          <div className="min-w-0">
+            <div className="flex items-center gap-3 text-xs">
+              <span className="font-semibold text-[var(--ns-blue-600)]">{item.version}</span>
+              <span className="text-[var(--ns-navy-800)]">{item.date}</span>
+              <span className="ml-auto text-[var(--ns-blue-600)]">{item.status}</span>
+            </div>
+            <div className="mt-1 text-xs text-[var(--ns-slate-500)]">{item.author}</div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function InfoRow({ children, label }: { children: ReactNode; label: string }) {
+  return (
+    <div>
+      <dt>{label}</dt>
+      <dd>{children}</dd>
+    </div>
+  );
+}
+
+function PanelSection({
+  action,
+  children,
+  collapsed,
+  count,
+  onToggle,
+  title,
+}: {
+  action?: string;
+  children: ReactNode;
+  collapsed?: boolean;
+  count?: number;
+  onToggle?: () => void;
+  title: string;
+}) {
+  const collapsible = Boolean(onToggle);
+
+  return (
+    <section className="atlas-panel-section">
+      <div className="mb-3 flex items-center justify-between gap-2 text-[11px] font-semibold uppercase tracking-normal text-[var(--ns-navy-800)]">
+        {collapsible ? (
+          <button
+            aria-expanded={!collapsed}
+            className="atlas-section-toggle"
+            onClick={onToggle}
+            type="button"
+          >
+            <span>{title}</span>
+          </button>
+        ) : (
+          <span>{title}</span>
+        )}
+        <div className="flex shrink-0 items-center gap-2">
+          {action ? (
+            <button className="text-[10px] font-bold text-[var(--ns-blue-600)] underline underline-offset-2" type="button">
+              {action}
+            </button>
+          ) : null}
+          {typeof count === "number" ? (
+            <span className="text-xs tracking-normal text-[var(--ns-navy-800)]">{count}</span>
+          ) : null}
+          {collapsible ? (
+            collapsed ? (
+              <ChevronRight className="h-3.5 w-3.5 text-[var(--ns-slate-500)]" />
+            ) : (
+              <ChevronDown className="h-3.5 w-3.5 text-[var(--ns-slate-500)]" />
+            )
+          ) : !action ? (
+            <ChevronDown className="h-3.5 w-3.5 text-[var(--ns-slate-500)]" />
+          ) : null}
+        </div>
+      </div>
+      {collapsed ? null : children}
+    </section>
+  );
+}

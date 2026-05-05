@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <PackageReference Include="AutoMapper" Version="14.0.0" />
+      <PackageReference Include="SqlSugarCore" Version="5.1.4.208-preview26" />
+      <PackageReference Include="Volo.Abp.AutoMapper" Version="10.0.0" />
+      <PackageReference Include="Volo.Abp.Core" Version="10.0.0" />
+      <PackageReference Include="Volo.Abp.Ddd.Application" Version="10.0.0" />
+        <ProjectReference Include="..\..\..\framework\NS.Framework.Authentication\NS.Framework.Authentication.csproj" />
+        <ProjectReference Include="..\..\..\framework\NS.Framework.AspNetCore\NS.Framework.AspNetCore.csproj" />
+        <ProjectReference Include="..\..\..\framework\NS.Framework.Authorization\NS.Framework.Authorization.csproj" />
+        <ProjectReference Include="..\..\..\framework\NS.Framework.Core\NS.Framework.Core.csproj" />
+        <ProjectReference Include="..\..\..\framework\NS.Framework.SqlSugar.Abstractions\NS.Framework.SqlSugar.Abstractions.csproj" />
+        <ProjectReference Include="..\..\ClayMo.Framework.Authentication\ClayMo.Framework.Authentication.csproj" />
+        <ProjectReference Include="..\..\ClayMo.Framework.Authorization\ClayMo.Framework.Authorization.csproj" />
+        <ProjectReference Include="..\..\ClayMo.Framework.Ddd.Application\ClayMo.Framework.Ddd.Application.csproj" />
+        <ProjectReference Include="..\..\kb\NS.Module.Knowledge.Domain.Shared\NS.Module.Knowledge.Domain.Shared.csproj" />
+        <ProjectReference Include="..\ClayMo.Framework.Identity.Application.Contracts\ClayMo.Framework.Identity.Application.Contracts.csproj" />
+        <ProjectReference Include="..\ClayMo.Framework.Identity.Domain.Shared\ClayMo.Framework.Identity.Domain.Shared.csproj" />
+        <ProjectReference Include="..\ClayMo.Framework.Identity.Domain\ClayMo.Framework.Identity.Domain.csproj" />
+        <ProjectReference Include="..\NS.Module.Identity.Application.Contracts\NS.Module.Identity.Application.Contracts.csproj" />
+        <ProjectReference Include="..\NS.Module.Identity.Domain.Shared\NS.Module.Identity.Domain.Shared.csproj" />
+        <ProjectReference Include="..\NS.Module.Identity.Domain\NS.Module.Identity.Domain.csproj" />
+
+    </ItemGroup>
+
+    <ItemGroup>
+        <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    </ItemGroup>
+
+</Project>
+

@@ -1,0 +1,17 @@
+D:\editor\services\api\modules\tenantmanagement\NS.Module.TenantManagement.Application.Contracts\bin\Debug\net10.0\NS.Module.TenantManagement.Application.Contracts.deps.json
+D:\editor\services\api\modules\tenantmanagement\NS.Module.TenantManagement.Application.Contracts\bin\Debug\net10.0\NS.Module.TenantManagement.Application.Contracts.dll
+D:\editor\services\api\modules\tenantmanagement\NS.Module.TenantManagement.Application.Contracts\bin\Debug\net10.0\NS.Module.TenantManagement.Application.Contracts.pdb
+D:\editor\services\api\modules\tenantmanagement\NS.Module.TenantManagement.Application.Contracts\bin\Debug\net10.0\NS.Framework.SqlSugar.Abstractions.dll
+D:\editor\services\api\modules\tenantmanagement\NS.Module.TenantManagement.Application.Contracts\bin\Debug\net10.0\NS.Module.TenantManagement.Domain.Shared.dll
+D:\editor\services\api\modules\tenantmanagement\NS.Module.TenantManagement.Application.Contracts\bin\Debug\net10.0\NS.Framework.SqlSugar.Abstractions.pdb
+D:\editor\services\api\modules\tenantmanagement\NS.Module.TenantManagement.Application.Contracts\bin\Debug\net10.0\NS.Module.TenantManagement.Domain.Shared.pdb
+D:\editor\services\api\modules\tenantmanagement\NS.Module.TenantManagement.Application.Contracts\obj\Debug\net10.0\NS.Module.TenantManagement.Application.Contracts.csproj.AssemblyReference.cache
+D:\editor\services\api\modules\tenantmanagement\NS.Module.TenantManagement.Application.Contracts\obj\Debug\net10.0\NS.Module.TenantManagement.Application.Contracts.GeneratedMSBuildEditorConfig.editorconfig
+D:\editor\services\api\modules\tenantmanagement\NS.Module.TenantManagement.Application.Contracts\obj\Debug\net10.0\NS.Module.TenantManagement.Application.Contracts.AssemblyInfoInputs.cache
+D:\editor\services\api\modules\tenantmanagement\NS.Module.TenantManagement.Application.Contracts\obj\Debug\net10.0\NS.Module.TenantManagement.Application.Contracts.AssemblyInfo.cs
+D:\editor\services\api\modules\tenantmanagement\NS.Module.TenantManagement.Application.Contracts\obj\Debug\net10.0\NS.Module.TenantManagement.Application.Contracts.csproj.CoreCompileInputs.cache
+D:\editor\services\api\modules\tenantmanagement\NS.Module.TenantManagement.Application.Contracts\obj\Debug\net10.0\NS.Modul.279217D8.Up2Date
+D:\editor\services\api\modules\tenantmanagement\NS.Module.TenantManagement.Application.Contracts\obj\Debug\net10.0\NS.Module.TenantManagement.Application.Contracts.dll
+D:\editor\services\api\modules\tenantmanagement\NS.Module.TenantManagement.Application.Contracts\obj\Debug\net10.0\refint\NS.Module.TenantManagement.Application.Contracts.dll
+D:\editor\services\api\modules\tenantmanagement\NS.Module.TenantManagement.Application.Contracts\obj\Debug\net10.0\NS.Module.TenantManagement.Application.Contracts.pdb
+D:\editor\services\api\modules\tenantmanagement\NS.Module.TenantManagement.Application.Contracts\obj\Debug\net10.0\ref\NS.Module.TenantManagement.Application.Contracts.dll

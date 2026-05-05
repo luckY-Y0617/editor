@@ -1,0 +1,12 @@
+D:\editor\services\api\framework\NS.Framework.Core\bin\Debug\net10.0\NS.Framework.Core.deps.json
+D:\editor\services\api\framework\NS.Framework.Core\bin\Debug\net10.0\NS.Framework.Core.dll
+D:\editor\services\api\framework\NS.Framework.Core\bin\Debug\net10.0\NS.Framework.Core.pdb
+D:\editor\services\api\framework\NS.Framework.Core\obj\Debug\net10.0\NS.Framework.Core.csproj.AssemblyReference.cache
+D:\editor\services\api\framework\NS.Framework.Core\obj\Debug\net10.0\NS.Framework.Core.GeneratedMSBuildEditorConfig.editorconfig
+D:\editor\services\api\framework\NS.Framework.Core\obj\Debug\net10.0\NS.Framework.Core.AssemblyInfoInputs.cache
+D:\editor\services\api\framework\NS.Framework.Core\obj\Debug\net10.0\NS.Framework.Core.AssemblyInfo.cs
+D:\editor\services\api\framework\NS.Framework.Core\obj\Debug\net10.0\NS.Framework.Core.csproj.CoreCompileInputs.cache
+D:\editor\services\api\framework\NS.Framework.Core\obj\Debug\net10.0\NS.Framework.Core.dll
+D:\editor\services\api\framework\NS.Framework.Core\obj\Debug\net10.0\refint\NS.Framework.Core.dll
+D:\editor\services\api\framework\NS.Framework.Core\obj\Debug\net10.0\NS.Framework.Core.pdb
+D:\editor\services\api\framework\NS.Framework.Core\obj\Debug\net10.0\ref\NS.Framework.Core.dll
