@@ -30,9 +30,29 @@ import {
   isUuid,
 } from "../lib/apiClient";
 import {
+  createDocumentShareLink,
+  getBootstrap,
+  getDocumentShareLinks,
+  revokeShareLink,
+  type BootstrapResponse,
+  type CreateShareLinkResponse,
+  type ShareLinkAudience,
+  type ShareLinkDto,
+  type ShareLinkRole,
+} from "../lib/appApi";
+import {
+  createShareLinkRequest,
+  createWorkspaceShareLinkRequest,
+  getShareLinkCapability,
+  resolveShareTarget,
+  toAbsoluteShareUrl,
+  toSharePermissionMutationError,
+  type ShareTargetResolution,
+} from "../lib/documentShareLinksModel";
+import { getShareDocumentIdFromHash } from "../lib/hashRouting";
+import {
   permissionRoleSummaries,
   recentAccessEvents,
-  shareDocumentContext,
   workspaceAccessMembers,
   type EffectiveDocumentAccess,
   type RecentAccessEvent,
@@ -53,8 +73,6 @@ const sharePatternStyle = {
 
 const shareBreadcrumbs = ["Atlas Library", "01. Foundations", "Mission & Vision", "Share"];
 const shareTabs = ["People", "Groups", "Access Settings"];
-const permissionApiDocumentId = getConfiguredPermissionDocumentId();
-const permissionApiWorkspaceId = getConfiguredPermissionWorkspaceId();
 
 type PermissionApiStatus = "unconfigured" | "loading" | "ready" | "forbidden" | "error";
 type PermissionGrantSubjectType = "user" | "group";
@@ -127,34 +145,6 @@ type AccessRequestsResponse = {
   requests: AccessRequestDto[];
 };
 
-type ShareLinkDto = {
-  id: string;
-  workspaceId: string;
-  resourceType: string;
-  resourceId: string;
-  roleKey: "viewer" | "commenter";
-  audience: ShareLinkAudience;
-  subjectEmail: string | null;
-  createdBy: string | null;
-  createdAt: string;
-  expiresAt: string | null;
-  revokedAt: string | null;
-  hasPassword: boolean;
-};
-
-type ShareLinksResponse = {
-  links: ShareLinkDto[];
-};
-
-type CreateShareLinkResponse = {
-  link: ShareLinkDto;
-  token: string;
-  url: string;
-};
-
-type ShareLinkRole = "viewer" | "commenter";
-type ShareLinkAudience = "workspace" | "external" | "public";
-
 type EmailInviteDto = {
   id: string;
   workspaceId: string;
@@ -209,6 +199,9 @@ type PolicyDraft = {
 
 export function DocumentSharePermissionsPage() {
   const [activeTab, setActiveTab] = useState(shareTabs[0]);
+  const shareTarget = useSharePermissionTarget();
+  const permissionApiDocumentId = shareTarget.documentId;
+  const permissionApiWorkspaceId = shareTarget.workspaceId;
   const { permissions, reload: reloadPermissions, status } = useResourcePermissions(permissionApiDocumentId);
   const { groups, status: groupStatus } = useWorkspaceGroups(permissionApiWorkspaceId);
   const {
@@ -232,7 +225,7 @@ export function DocumentSharePermissionsPage() {
       <WorkspaceHomeTopBar />
       <ShareBreadcrumbs />
       <div className="share-permissions-body min-h-0 flex-1 overflow-hidden">
-        <DocumentContextPanel />
+        <DocumentContextPanel context={shareTarget.documentContext} resolution={shareTarget.resolution} status={shareTarget.status} />
         <section className="share-permissions-main editor-scrollbar min-w-0 overflow-y-auto">
           <div className="share-permissions-main-inner">
             <header className="share-permissions-heading">
@@ -307,6 +300,69 @@ export function DocumentSharePermissionsPage() {
   );
 }
 
+function useSharePermissionTarget() {
+  const apiBaseUrl = useMemo(() => getConfiguredApiBaseUrl(), []);
+  const configuredDocument = useMemo(() => getConfiguredPermissionDocumentTarget(), []);
+  const configuredWorkspaceId = useMemo(() => getConfiguredPermissionWorkspaceId(), []);
+  const [bootstrap, setBootstrap] = useState<BootstrapResponse | null>(null);
+  const [bootstrapStatus, setBootstrapStatus] = useState<PermissionApiStatus>(() =>
+    apiBaseUrl ? "loading" : "unconfigured",
+  );
+
+  useEffect(() => {
+    if (!apiBaseUrl) {
+      setBootstrap(null);
+      setBootstrapStatus("unconfigured");
+      return;
+    }
+
+    const controller = new AbortController();
+    setBootstrapStatus("loading");
+    getBootstrap(controller.signal)
+      .then((response) => {
+        setBootstrap(response);
+        setBootstrapStatus("ready");
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return;
+        }
+
+        setBootstrap(null);
+        setBootstrapStatus(isForbiddenError(error) ? "forbidden" : "error");
+      });
+
+    return () => controller.abort();
+  }, [apiBaseUrl]);
+
+  const resolution = resolveShareTarget({
+    apiConfigured: Boolean(apiBaseUrl),
+    bootstrapDocumentId: bootstrap?.activeDocumentId,
+    bootstrapWorkspaceId: bootstrap?.workspace.id,
+    configuredDocumentId: configuredDocument.documentId,
+    configuredDocumentSource: configuredDocument.source,
+    configuredWorkspaceId,
+  });
+  const needsBootstrapForTarget = Boolean(apiBaseUrl && !configuredDocument.documentId);
+  const status: PermissionApiStatus = !apiBaseUrl
+    ? "unconfigured"
+    : needsBootstrapForTarget && bootstrapStatus === "loading"
+      ? "loading"
+      : resolution.documentId
+        ? "ready"
+        : bootstrapStatus === "forbidden" || bootstrapStatus === "error"
+          ? bootstrapStatus
+          : "unconfigured";
+
+  return {
+    documentContext: createShareDocumentContext(bootstrap, resolution, status),
+    documentId: resolution.documentId,
+    resolution,
+    status,
+    workspaceId: resolution.workspaceId,
+  };
+}
+
 function ShareBreadcrumbs() {
   return (
     <header className="share-permissions-breadcrumb-row">
@@ -326,7 +382,15 @@ function ShareBreadcrumbs() {
   );
 }
 
-function DocumentContextPanel() {
+function DocumentContextPanel({
+  context,
+  resolution,
+  status,
+}: {
+  context: ShareDocumentContext;
+  resolution: ShareTargetResolution;
+  status: PermissionApiStatus;
+}) {
   return (
     <aside className="share-permissions-context editor-scrollbar overflow-y-auto">
       <div className="share-permissions-ruler" aria-hidden="true">
@@ -344,41 +408,45 @@ function DocumentContextPanel() {
             <FileText className="h-6 w-6" />
           </span>
           <div className="min-w-0">
-            <h3>{shareDocumentContext.title}</h3>
-            <p>{shareDocumentContext.location}</p>
-            <StatusBadge label={shareDocumentContext.status} />
+            <h3>{context.title}</h3>
+            <p>{context.location}</p>
+            <StatusBadge label={context.status} />
           </div>
         </section>
 
         <ContextMeta icon={<UserRound className="h-4 w-4" />} label="Owner">
-          <Avatar initials={shareDocumentContext.owner.initials} tone="green" />
-          {shareDocumentContext.owner.name}
+          <Avatar initials={context.owner.initials} tone="green" />
+          {context.owner.name}
         </ContextMeta>
         <ContextMeta icon={<CalendarDays className="h-4 w-4" />} label="Updated">
-          {shareDocumentContext.updatedAt}
+          {context.updatedAt}
         </ContextMeta>
 
         <dl className="share-permissions-context-stats">
           <div>
             <dt>Version</dt>
-            <dd>{shareDocumentContext.version}</dd>
+            <dd>{context.version}</dd>
           </div>
           <div>
             <dt>Readers</dt>
-            <dd>{shareDocumentContext.readers}</dd>
+            <dd>{context.readers}</dd>
           </div>
           <div>
             <dt>Tags</dt>
             <dd>
-              {shareDocumentContext.tags.map((tag) => (
+              {context.tags.length ? context.tags.map((tag) => (
                 <span key={tag}>{tag}</span>
-              ))}
+              )) : <span>{statusLabel(status)}</span>}
               <button title="Tag management is planned for a later phase" type="button">
                 <Plus className="h-3.5 w-3.5" />
               </button>
             </dd>
           </div>
         </dl>
+        <div className="share-permissions-context-note">
+          <strong>Share target</strong>
+          <span>{resolution.documentId ? `${resolution.source} document` : resolution.reason ?? statusLabel(status)}</span>
+        </div>
 
         <div className="share-permissions-context-map" aria-hidden="true">
           <AtlasIcon className="h-20 w-20 opacity-30" src={compassMarkUrl} />
@@ -1112,7 +1180,7 @@ function ShareSettingsPanel({
             <div className="share-permissions-generated-link">
               <span>{shareLinks.created.url}</span>
               <button
-                onClick={() => void navigator.clipboard?.writeText(shareLinks.created?.url ?? "")}
+                onClick={shareLinks.copyGeneratedUrl}
                 title="Copy generated link"
                 type="button"
               >
@@ -1121,7 +1189,7 @@ function ShareSettingsPanel({
               </button>
               <div className="share-permissions-generated-actions">
                 <button
-                  onClick={() => void navigator.clipboard?.writeText(shareLinks.created?.token ?? "")}
+                  onClick={shareLinks.copyGeneratedToken}
                   title="Copy one-time token"
                   type="button"
                 >
@@ -1136,6 +1204,9 @@ function ShareSettingsPanel({
                 active link lists.
               </small>
             </div>
+          ) : null}
+          {!shareLinks.canUse && shareLinks.capabilityReason ? (
+            <div className="share-permissions-inline-status is-muted">{shareLinks.capabilityReason}</div>
           ) : null}
           <div className="share-permissions-link-options">
             <button
@@ -1161,6 +1232,7 @@ function ShareSettingsPanel({
             className="share-permissions-inline-action"
             disabled={!shareLinks.canUse || shareLinks.operation === "creating"}
             onClick={shareLinks.createInternalLink}
+            title={shareLinks.capabilityReason ?? "Create a workspace-member share link"}
             type="button"
           >
             {shareLinks.operation === "creating" ? "Creating" : "Create internal link"}
@@ -1246,17 +1318,35 @@ function ShareSettingsPanel({
                     </small>
                   </span>
                   <button
+                    className={shareLinks.revokeCandidateId === link.id ? "is-danger" : ""}
                     disabled={shareLinks.operation === link.id}
-                    onClick={() => shareLinks.revokeLink(link.id)}
+                    onClick={() => {
+                      if (shareLinks.revokeCandidateId === link.id) {
+                        shareLinks.revokeLink(link.id);
+                        return;
+                      }
+
+                      shareLinks.requestRevokeLink(link.id);
+                    }}
+                    title={
+                      shareLinks.revokeCandidateId === link.id
+                        ? "Click again to revoke this share link"
+                        : "Prepare to revoke this share link"
+                    }
                     type="button"
                   >
-                    Revoke
+                    {shareLinks.operation === link.id
+                      ? "Revoking"
+                      : shareLinks.revokeCandidateId === link.id
+                        ? "Confirm"
+                        : "Revoke"}
                   </button>
                 </div>
               ))}
             </div>
           )}
           {shareLinks.error ? <div className="share-permissions-inline-status is-error">{shareLinks.error}</div> : null}
+          {shareLinks.message ? <div className="share-permissions-inline-status">{shareLinks.message}</div> : null}
         </Panel>
 
         <Panel title="Email invites" icon={<UserPlus className="h-5 w-5" />}>
@@ -1666,8 +1756,16 @@ function useShareLinks(documentId: string | null, reloadPermissions?: () => Abor
   const [created, setCreated] = useState<CreateShareLinkResponse | null>(null);
   const [operation, setOperation] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [revokeCandidateId, setRevokeCandidateId] = useState<string | null>(null);
   const isConfigured = Boolean(apiBaseUrl && documentId);
-  const canUse = isConfigured && status === "ready";
+  const capability = getShareLinkCapability({
+    apiConfigured: Boolean(apiBaseUrl),
+    documentId,
+    operation,
+    status,
+  });
+  const canUse = isConfigured && capability.canUse;
   const publicExpiryIso = toApiDateTime(publicExpiresAt);
   const canCreatePublicLink = Boolean(publicExpiryIso && new Date(publicExpiryIso).getTime() > Date.now());
   const minimumPublicExpiry = toDateTimeLocalValue(new Date(Date.now() + 60_000).toISOString());
@@ -1681,21 +1779,8 @@ function useShareLinks(documentId: string | null, reloadPermissions?: () => Abor
 
     const controller = new AbortController();
     setStatus("loading");
-    void fetch(`${apiBaseUrl}/permissions/resources/document/${documentId}/share-links`, {
-      headers: createPermissionHeaders(),
-      signal: controller.signal,
-    })
-      .then(async (response) => {
-        if (response.status === 401 || response.status === 403) {
-          setStatus("forbidden");
-          return;
-        }
-
-        if (!response.ok) {
-          throw new Error(`Share link API returned ${response.status}`);
-        }
-
-        const body = (await response.json()) as ShareLinksResponse;
+    void getDocumentShareLinks(documentId, controller.signal)
+      .then((body) => {
         setLinks(body.links);
         setStatus("ready");
       })
@@ -1705,7 +1790,8 @@ function useShareLinks(documentId: string | null, reloadPermissions?: () => Abor
         }
 
         setLinks(null);
-        setStatus("error");
+        setStatus(isForbiddenError(errorValue) ? "forbidden" : "error");
+        setError(toSharePermissionMutationError(errorValue, "Could not load share links."));
       });
 
     return controller;
@@ -1731,24 +1817,24 @@ function useShareLinks(documentId: string | null, reloadPermissions?: () => Abor
 
     setOperation(audience === "public" ? "creating-public" : audience === "external" ? "creating-external" : "creating");
     setError(null);
-    void fetch(`${apiBaseUrl}/permissions/resources/document/${documentId}/share-links`, {
-      body: JSON.stringify({
-        roleKey: audience === "public" ? "viewer" : role,
+    setMessage(null);
+    void createDocumentShareLink(
+      documentId,
+      createShareLinkRequest({
         audience,
         expiresAt: options.expiresAt ?? (audience === "external" ? defaultInviteExpiry() : null),
+        password: options.password,
+        roleKey: role,
         subjectEmail: audience === "external" ? options.subjectEmail : null,
-        password: audience === "public" ? options.password : null,
       }),
-      headers: createPermissionHeaders("application/json"),
-      method: "POST",
-    })
-      .then(async (response) => {
-        if (!response.ok) {
-          throw new Error(`Create share link API returned ${response.status}`);
-        }
-
-        const body = (await response.json()) as CreateShareLinkResponse;
-        setCreated(body);
+    )
+      .then((body) => {
+        setCreated({
+          ...body,
+          url: toAbsoluteShareUrl(body.url, apiBaseUrl),
+        });
+        setMessage("Share link created. Copy the URL or token now.");
+        setRevokeCandidateId(null);
         if (audience === "external") {
           setExternalEmail("");
         }
@@ -1759,21 +1845,56 @@ function useShareLinks(documentId: string | null, reloadPermissions?: () => Abor
         loadLinks();
         reloadPermissions?.();
       })
-      .catch(() => {
-        setError("Could not create link.");
+      .catch((errorValue: unknown) => {
+        setError(toSharePermissionMutationError(errorValue, "Could not create link."));
       })
       .finally(() => {
         setOperation(null);
       });
   };
 
-  const createInternalLink = () => createLink("workspace");
+  const createInternalLink = () => {
+    if (!apiBaseUrl || !documentId || !canUse || operation) {
+      return;
+    }
+
+    setOperation("creating");
+    setError(null);
+    setMessage(null);
+    void createDocumentShareLink(documentId, createWorkspaceShareLinkRequest(role))
+      .then((body) => {
+        setCreated({
+          ...body,
+          url: toAbsoluteShareUrl(body.url, apiBaseUrl),
+        });
+        setMessage("Internal share link created. Copy the URL or token now.");
+        setRevokeCandidateId(null);
+        loadLinks();
+        reloadPermissions?.();
+      })
+      .catch((errorValue: unknown) => {
+        setError(toSharePermissionMutationError(errorValue, "Could not create internal link."));
+      })
+      .finally(() => {
+        setOperation(null);
+      });
+  };
   const createExternalLink = () => createLink("external", { subjectEmail: externalEmail.trim() });
   const createPublicLink = () =>
     createLink("public", {
       expiresAt: publicExpiryIso,
       password: publicPassword.trim() || null,
     });
+
+  const requestRevokeLink = (linkId: string) => {
+    if (!apiBaseUrl || !canUse || operation) {
+      return;
+    }
+
+    setRevokeCandidateId((current) => (current === linkId ? null : linkId));
+    setError(null);
+    setMessage(null);
+  };
 
   const revokeLink = (linkId: string) => {
     if (!apiBaseUrl || !canUse || operation) {
@@ -1782,42 +1903,50 @@ function useShareLinks(documentId: string | null, reloadPermissions?: () => Abor
 
     setOperation(linkId);
     setError(null);
-    void fetch(`${apiBaseUrl}/permissions/share-links/${linkId}`, {
-      headers: createPermissionHeaders(),
-      method: "DELETE",
-    })
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error(`Revoke share link API returned ${response.status}`);
-        }
-
+    setMessage(null);
+    void revokeShareLink(linkId)
+      .then(() => {
         setLinks((current) => current?.filter((link) => link.id !== linkId) ?? current);
+        setRevokeCandidateId(null);
+        setMessage("Share link revoked.");
         reloadPermissions?.();
       })
-      .catch(() => {
-        setError("Could not revoke link.");
+      .catch((errorValue: unknown) => {
+        setError(toSharePermissionMutationError(errorValue, "Could not revoke link."));
       })
       .finally(() => {
         setOperation(null);
       });
   };
 
+  const copyGeneratedUrl = () => copyShareValue(created?.url ?? "", setMessage, setError, "URL copied.");
+  const copyGeneratedToken = () => copyShareValue(created?.token ?? "", setMessage, setError, "Token copied.");
+
   return {
     canUse,
     canCreatePublicLink,
+    capabilityReason: capability.reason,
+    copyGeneratedToken,
+    copyGeneratedUrl,
     createExternalLink,
     createInternalLink,
     createPublicLink,
     created,
-    dismissCreated: () => setCreated(null),
+    dismissCreated: () => {
+      setCreated(null);
+      setMessage(null);
+    },
     error,
     externalEmail,
     links,
+    message,
     minimumPublicExpiry,
     operation,
     publicExpiresAt,
     publicPassword,
+    requestRevokeLink,
     revokeLink,
+    revokeCandidateId,
     role,
     setExternalEmail,
     setPublicExpiresAt,
@@ -2260,16 +2389,26 @@ function defaultInviteExpiry() {
   return new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 }
 
-function getConfiguredPermissionDocumentId() {
+function getConfiguredPermissionDocumentTarget(): {
+  documentId: string | null;
+  source: "configured" | "hash" | "query" | null;
+} {
+  const hashDocumentId = typeof window === "undefined" ? null : getShareDocumentIdFromHash(window.location.hash);
+  if (hashDocumentId) {
+    return { documentId: hashDocumentId, source: "hash" };
+  }
+
   const params = typeof window === "undefined" ? null : new URLSearchParams(window.location.search);
   const queryDocumentId = params?.get("documentId");
   if (queryDocumentId && isUuid(queryDocumentId)) {
-    return queryDocumentId;
+    return { documentId: queryDocumentId, source: "query" };
   }
 
   const env = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env;
   const envDocumentId = env?.VITE_NORTHSTAR_SHARE_DOCUMENT_ID;
-  return envDocumentId && isUuid(envDocumentId) ? envDocumentId : null;
+  return envDocumentId && isUuid(envDocumentId)
+    ? { documentId: envDocumentId, source: "configured" }
+    : { documentId: null, source: null };
 }
 
 function getConfiguredPermissionWorkspaceId() {
@@ -2278,6 +2417,67 @@ function getConfiguredPermissionWorkspaceId() {
 
 function createPermissionHeaders(contentType?: string) {
   return createApiHeaders(contentType);
+}
+
+function createShareDocumentContext(
+  bootstrap: BootstrapResponse | null,
+  resolution: ShareTargetResolution,
+  status: PermissionApiStatus,
+): ShareDocumentContext {
+  const document = bootstrap?.documents.find((candidate) => candidate.id === resolution.documentId);
+  if (document) {
+    const folder = bootstrap?.folders.find((candidate) => candidate.id === document.folderId);
+    return {
+      location: [bootstrap?.workspace.name, folder?.title].filter(Boolean).join(" / ") || "Current workspace",
+      owner: {
+        initials: "NS",
+        name: "Workspace permissions",
+      },
+      readers: "Live permission model",
+      status: document.status?.toLowerCase() === "published" ? "Published" : "Draft",
+      tags: document.tags,
+      title: document.title,
+      updatedAt: formatDate(document.updatedAt),
+      version: "Live",
+    };
+  }
+
+  if (resolution.documentId) {
+    return {
+      location: "Document resolved by id",
+      owner: {
+        initials: "NS",
+        name: "Workspace permissions",
+      },
+      readers: "Live permission model",
+      status: "Draft",
+      tags: [],
+      title: `Document ${resolution.documentId.slice(0, 8)}`,
+      updatedAt: statusLabel(status),
+      version: "Live",
+    };
+  }
+
+  return {
+    location: resolution.reason ?? statusLabel(status),
+    owner: {
+      initials: "NS",
+      name: "No document selected",
+    },
+    readers: "Not connected",
+    status: "Draft",
+    tags: [],
+    title: "Share target unavailable",
+    updatedAt: statusLabel(status),
+    version: "None",
+  };
+}
+
+function isForbiddenError(error: unknown) {
+  return typeof error === "object" &&
+    error !== null &&
+    "status" in error &&
+    ((error as { status?: number }).status === 401 || (error as { status?: number }).status === 403);
 }
 
 function statusLabel(status: PermissionApiStatus) {
@@ -2324,6 +2524,35 @@ function formatShareLinkMetadata(link: ShareLinkDto) {
   ].filter(Boolean);
 
   return parts.join(" / ");
+}
+
+function copyShareValue(
+  value: string,
+  setMessage: (message: string | null) => void,
+  setError: (message: string | null) => void,
+  successMessage: string,
+) {
+  if (!value.trim()) {
+    setError("Nothing to copy.");
+    setMessage(null);
+    return;
+  }
+
+  if (!navigator.clipboard?.writeText) {
+    setError("Clipboard is unavailable. Select and copy the value manually.");
+    setMessage(null);
+    return;
+  }
+
+  navigator.clipboard.writeText(value)
+    .then(() => {
+      setMessage(successMessage);
+      setError(null);
+    })
+    .catch(() => {
+      setError("Clipboard was blocked. Select and copy the value manually.");
+      setMessage(null);
+    });
 }
 
 function formatDate(value: string) {

@@ -28,6 +28,7 @@ import {
   getOrganizationProfile,
   getSpaceMap,
   getWorkspaceNotificationPreferences,
+  updateWorkspaceNotificationPreference,
   updateOrganizationProfile,
   type BootstrapResponse,
   type KnowledgeMapResponse,
@@ -38,16 +39,20 @@ import {
 } from "../lib/appApi";
 import {
   createSettingsHash,
+  getOrganizationSettingsPanelFromHash,
   getSettingsFiltersFromHash,
-  type WorkspaceSettingsScope,
   type WorkspaceSettingsTab,
 } from "../lib/hashRouting";
 import {
   applyOrganizationReadApiStatus,
+  createOrganizationSettingsNavGroups,
+  createPersonalSettingsNavGroups,
   createWorkspaceSettingsTabRows,
+  createSettingsNavGroups,
   getOrganizationMemberManagementActions,
   getOrganizationWorkspaceProvisioningActions,
   getRecommendedOrganizationSettingsSlice,
+  normalizeSettingsPanel,
   prepareOrganizationProfileUpdateRequest,
   toOrganizationSettingsAssessmentRows,
   toOrganizationMemberInventoryRows,
@@ -63,8 +68,15 @@ import {
   toNotificationSettingsModel,
   toSecuritySettingsRows,
   toSpaceSettingsSummary,
+  toSettingsCapabilityInventoryRows,
+  toWorkspaceNotificationPreferenceModel,
+  prepareWorkspaceNotificationPreferenceRequest,
+  toWorkspaceNotificationPreferenceMutationError,
   toWorkspaceGeneralSettings,
+  type SettingsNavGroup,
   type OrganizationReadApiStatus,
+  type WorkspaceNotificationPreferenceMode,
+  type WorkspaceNotificationPreferenceMutationStatus,
   type WorkspaceSettingsStatus,
 } from "../lib/workspaceSettingsModel";
 import { getDisplayLanguageOptions, t, type DisplayLocale, useDisplayLanguage } from "../lib/i18n";
@@ -86,7 +98,7 @@ const settingsPatternStyle = {
 } as CSSProperties;
 
 export function WorkspaceSettingsPage() {
-  const { locale, setLocale } = useDisplayLanguage();
+  const { locale } = useDisplayLanguage();
   const [hash, setHash] = useState(window.location.hash);
   const filters = getSettingsFiltersFromHash(hash);
   const bootstrap = useSettingsBootstrap();
@@ -95,28 +107,105 @@ export function WorkspaceSettingsPage() {
   const map = useSettingsSpaceMap(selectedSpaceId, bootstrap.status);
   const preferences = useSettingsNotificationPreferences(workspaceId);
   const security = useSettingsSecurityState();
-  const organization = useSettingsOrganizationData(bootstrap.data?.workspace.organizationId ?? null);
-  const tabRows = useMemo(
-    () => createWorkspaceSettingsTabRows(filters.tab, { scope: filters.scope, spaceId: selectedSpaceId }),
-    [filters.scope, filters.tab, selectedSpaceId],
-  );
+  const activePanel = useMemo(() => normalizeSettingsPanel(filters), [filters.panel, filters.scope, filters.tab]);
+  const settingsNavGroups = useMemo(() => createSettingsNavGroups(), []);
   const general = bootstrap.data ? toWorkspaceGeneralSettings(bootstrap.data, filters.spaceId) : null;
   const spaceSummary = bootstrap.data ? toSpaceSettingsSummary(bootstrap.data, map.data, filters.spaceId) : null;
-  const libraryGeneral = bootstrap.data ? toLibraryGeneralSettings(bootstrap.data, map.data, selectedSpaceId) : null;
-  const libraryCollections = useMemo(() => toLibrarySettingsCollectionRows(map.data, selectedSpaceId), [map.data, selectedSpaceId]);
-  const libraryDocuments = useMemo(() => toLibrarySettingsDocumentSummary(map.data, selectedSpaceId), [map.data, selectedSpaceId]);
-  const libraryNotifications = useMemo(
-    () => toLibraryNotificationPreferenceRows(preferences.preferences, map.data, preferences.status, selectedSpaceId),
-    [map.data, preferences.preferences, preferences.status, selectedSpaceId],
+
+  useEffect(() => {
+    const syncHash = () => setHash(window.location.hash);
+    window.addEventListener("hashchange", syncHash);
+    return () => window.removeEventListener("hashchange", syncHash);
+  }, []);
+
+  return (
+    <SettingsPageFrame activeSidebarItem="settings">
+      <header className="permission-admin-heading">
+        <div className="min-w-0">
+          <h1>{t(locale, "settings.heading")}</h1>
+          <p>{getSettingsCenterHeadingStatus(bootstrap.status, locale)}</p>
+        </div>
+        <div className="permission-admin-heading-metrics workspace-settings-context-strip" aria-label={t(locale, "settings.contextSummary")}>
+          <SettingsMetric
+            label={t(locale, "settings.scopeWorkspace")}
+            value={general?.workspaceName ?? statusLabel(bootstrap.status, locale)}
+          />
+          <SettingsMetric label={t(locale, "common.api")} value={getConfiguredApiBaseUrl() ? t(locale, "common.configured") : t(locale, "common.notConnected")} />
+        </div>
+      </header>
+
+      <div className="workspace-settings-layout">
+        <SettingsSecondaryNav
+          activePanelId={activePanel.id}
+          groups={settingsNavGroups}
+          locale={locale}
+        />
+        <div className="workspace-settings-detail">
+          {activePanel.id === "workspace-general" ? (
+            <GeneralSettingsTab
+              general={general}
+              locale={locale}
+              mapStatus={map.status}
+              spaceSummary={spaceSummary}
+              status={bootstrap.status}
+            />
+          ) : null}
+          {activePanel.id === "workspace-notifications" ? (
+            <NotificationsSettingsTab preferences={preferences} workspaceId={workspaceId ?? null} />
+          ) : null}
+          {activePanel.id === "workspace-access-identity" ? <AccessIdentitySettingsTab /> : null}
+          {activePanel.id === "workspace-integrations" ? <IntegrationsSettingsTab /> : null}
+          {activePanel.id === "workspace-security" ? <SecuritySettingsTab security={security} /> : null}
+          {activePanel.id === "deferred-plan" ? <DeferredSettingsTab tab="plan" /> : null}
+          {activePanel.id === "deferred-developer" ? <DeferredSettingsTab tab="developer" /> : null}
+        </div>
+      </div>
+    </SettingsPageFrame>
   );
-  const settingsBoundaries = useMemo(() => toSettingsBoundaryRows(selectedSpaceId), [selectedSpaceId]);
-  const organizationAssessmentRows = useMemo(
-    () => applyOrganizationReadApiStatus(toOrganizationSettingsAssessmentRows(), {
-      members: organization.membersStatus,
-      profile: organization.profileStatus,
-    }),
-    [organization.membersStatus, organization.profileStatus],
+}
+
+export function PersonalSettingsPage() {
+  const { locale, setLocale } = useDisplayLanguage();
+  const settingsNavGroups = useMemo(() => createPersonalSettingsNavGroups(), []);
+
+  return (
+    <SettingsPageFrame activeSidebarItem={null}>
+      <header className="permission-admin-heading">
+        <div className="min-w-0">
+          <h1>{t(locale, "settings.personalSettingsHeading")}</h1>
+          <p>{t(locale, "settings.personalSettingsReady")}</p>
+        </div>
+        <div className="permission-admin-heading-metrics workspace-settings-context-strip" aria-label={t(locale, "settings.contextSummary")}>
+          <SettingsMetric label={t(locale, "settings.scopePersonal")} value={t(locale, "settings.preferences")} />
+          <SettingsMetric label={t(locale, "common.api")} value={t(locale, "common.notConnected")} />
+        </div>
+      </header>
+      <div className="workspace-settings-layout">
+        <SettingsSecondaryNav
+          activePanelId="personal-preferences"
+          groups={settingsNavGroups}
+          locale={locale}
+        />
+        <div className="workspace-settings-detail">
+          <PersonalPreferencesPanel locale={locale} setLocale={setLocale} />
+        </div>
+      </div>
+    </SettingsPageFrame>
   );
+}
+
+export function OrganizationSettingsPage() {
+  const { locale } = useDisplayLanguage();
+  const [hash, setHash] = useState(window.location.hash);
+  const bootstrap = useSettingsBootstrap();
+  const organization = useSettingsOrganizationData(bootstrap.data?.workspace.organizationId ?? null);
+  const activeOrganizationPanel = getOrganizationSettingsPanelFromHash(hash);
+  const activePanelId = activeOrganizationPanel === "members"
+    ? "organization-members"
+    : activeOrganizationPanel === "workspaces"
+      ? "organization-workspaces"
+      : "organization-profile";
+  const settingsNavGroups = useMemo(() => createOrganizationSettingsNavGroups(), []);
   const organizationOverview = useMemo(() => toOrganizationOverviewModel(organization.profile), [organization.profile]);
   const organizationWorkspaces = useMemo(
     () => toOrganizationWorkspaceInventoryRows(organization.profile, bootstrap.data?.workspace.id ?? null),
@@ -151,10 +240,62 @@ export function WorkspaceSettingsPage() {
   }, []);
 
   return (
+    <SettingsPageFrame activeSidebarItem={null}>
+      <header className="permission-admin-heading">
+        <div className="min-w-0">
+          <h1>{t(locale, "settings.organizationSettingsHeading")}</h1>
+          <p>{t(locale, "settings.organizationSettingsReady")}</p>
+        </div>
+        <div className="permission-admin-heading-metrics workspace-settings-context-strip" aria-label={t(locale, "settings.contextSummary")}>
+          <SettingsMetric
+            label={t(locale, "settings.scopeOrganization")}
+            value={organizationOverview?.name ?? statusLabel(organization.profileStatus === "not-found" ? "error" : organization.profileStatus, locale)}
+          />
+          <SettingsMetric label={t(locale, "common.api")} value={getConfiguredApiBaseUrl() ? t(locale, "common.configured") : t(locale, "common.notConnected")} />
+        </div>
+      </header>
+
+      <div className="workspace-settings-layout">
+        <SettingsSecondaryNav
+          activePanelId={activePanelId}
+          groups={settingsNavGroups}
+          locale={locale}
+        />
+        <div className="workspace-settings-detail">
+          {activePanelId === "organization-profile" ? (
+            <OrganizationOverviewTab
+              capability={organizationProfileEditCapability}
+              errorMessage={organization.profileMutationError}
+              model={organizationOverview}
+              onSave={organization.updateProfile}
+              state={organizationOverviewState}
+            />
+          ) : null}
+          {activePanelId === "organization-workspaces" ? (
+            <OrganizationWorkspacesTab rows={organizationWorkspaces} state={organizationWorkspacesState} />
+          ) : null}
+          {activePanelId === "organization-members" ? (
+            <OrganizationMembersTab rows={organizationMembers} state={organizationMembersState} />
+          ) : null}
+        </div>
+      </div>
+    </SettingsPageFrame>
+  );
+}
+
+function SettingsPageFrame({
+  activeSidebarItem,
+  children,
+}: {
+  activeSidebarItem: "home" | "libraries" | "members" | "search" | "settings" | "updates" | null;
+  children: ReactNode;
+}) {
+  const { locale } = useDisplayLanguage();
+  return (
     <main className="workspace-settings-shell permission-admin-shell flex h-screen flex-col overflow-hidden" style={settingsPatternStyle}>
       <WorkspaceHomeTopBar />
       <div className="permission-admin-body flex min-h-0 flex-1 overflow-hidden">
-        <WorkspaceHomeSidebar activeItem="settings" showCollections={false} />
+        <WorkspaceHomeSidebar activeItem={activeSidebarItem} showCollections={false} />
         <section className="permission-admin-feed workspace-settings-feed editor-scrollbar min-w-0 flex-1 overflow-y-auto">
           <div className="workspace-home-mobile-nav md:hidden" aria-label="Workspace navigation">
             <a href="#home">{t(locale, "nav.home")}</a>
@@ -162,131 +303,10 @@ export function WorkspaceSettingsPage() {
             <a href="#search">{t(locale, "nav.search")}</a>
             <a href="#updates">{t(locale, "nav.updates")}</a>
             <a href="#workspace-members">{t(locale, "nav.members")}</a>
-            <a aria-current="page" href="#settings">{t(locale, "nav.settings")}</a>
+            <a aria-current={activeSidebarItem === "settings" ? "page" : undefined} href="#settings">{t(locale, "nav.settings")}</a>
           </div>
           <div className="permission-admin-feed-inner workspace-settings-inner">
-            <header className="permission-admin-heading">
-              <div className="min-w-0">
-                <h1>{getSettingsScopeHeading(locale, filters.scope)}</h1>
-                <p>{getSettingsHeadingStatus(bootstrap.status, locale, filters.scope)}</p>
-              </div>
-              <div className="permission-admin-heading-metrics" aria-label="Settings summary">
-                <SettingsMetric
-                  label={t(locale, "common.workspace")}
-                  value={(filters.scope === "library" ? libraryGeneral?.workspaceName : general?.workspaceName) ?? statusLabel(bootstrap.status, locale)}
-                />
-                <SettingsMetric
-                  label={t(locale, "common.currentLibrary")}
-                  value={(filters.scope === "library" ? libraryGeneral?.spaceName : general?.activeSpaceName) ?? statusLabel(map.status, locale)}
-                />
-                <SettingsMetric label={t(locale, "common.api")} value={getConfiguredApiBaseUrl() ? t(locale, "common.configured") : t(locale, "common.notConnected")} />
-              </div>
-            </header>
-
-            <nav className="workspace-settings-scope-switch" aria-label="Settings scope">
-              <a
-                className={filters.scope === "workspace" ? "is-active" : ""}
-                href={createSettingsHash({ scope: "workspace", tab: "general" })}
-              >
-                {t(locale, "settings.scopeWorkspace")}
-              </a>
-              <a
-                className={filters.scope === "library" ? "is-active" : ""}
-                href={createSettingsHash({ scope: "library", spaceId: selectedSpaceId, tab: "general" })}
-              >
-                {t(locale, "settings.scopeLibrary")}
-              </a>
-              <a
-                className={filters.scope === "organization" ? "is-active" : ""}
-                href={createSettingsHash({ scope: "organization", tab: "overview" })}
-              >
-                {t(locale, "settings.scopeOrganization")}
-              </a>
-            </nav>
-
-            <nav className="permission-admin-tabs workspace-settings-tabs" aria-label="Workspace settings tabs">
-              {tabRows.map((tab) => {
-                const tabLabel = getSettingsTabDisplayLabel(locale, tab.id);
-                return tab.disabled ? (
-                  <button disabled key={tab.id} title={`${tabLabel}: ${getSettingsStatusDisplayLabel(locale, tab.status)}`} type="button">
-                    {tabLabel}
-                  </button>
-                ) : (
-                  <a
-                    className={filters.tab === tab.id ? "is-active" : ""}
-                    href={tab.href}
-                    key={tab.id}
-                    title={`${tabLabel}: ${getSettingsStatusDisplayLabel(locale, tab.status)}`}
-                  >
-                    {tabLabel}
-                  </a>
-                );
-              })}
-            </nav>
-
-            <SettingsTabStatusGrid locale={locale} tabs={tabRows} />
-
-            {filters.scope === "workspace" && filters.tab === "general" ? (
-              <GeneralSettingsTab
-                general={general}
-                locale={locale}
-                mapStatus={map.status}
-                setLocale={setLocale}
-                spaceSummary={spaceSummary}
-                status={bootstrap.status}
-              />
-            ) : null}
-            {filters.scope === "workspace" && filters.tab === "members" ? <MembersSettingsTab /> : null}
-            {filters.scope === "workspace" && filters.tab === "notifications" ? <NotificationsSettingsTab preferences={preferences} /> : null}
-            {filters.scope === "workspace" && filters.tab === "permissions" ? <PermissionsSettingsTab /> : null}
-            {filters.scope === "workspace" && filters.tab === "integrations" ? <IntegrationsSettingsTab /> : null}
-            {filters.scope === "workspace" && filters.tab === "security" ? <SecuritySettingsTab security={security} /> : null}
-            {filters.scope === "workspace" && (filters.tab === "plan" || filters.tab === "developer") ? (
-              <DeferredSettingsTab tab={filters.tab} />
-            ) : null}
-            {filters.scope === "library" && filters.tab === "general" ? (
-              <LibraryGeneralSettingsTab general={libraryGeneral} mapStatus={map.status} status={bootstrap.status} />
-            ) : null}
-            {filters.scope === "library" && filters.tab === "collections" ? (
-              <LibraryCollectionsSettingsTab
-                libraryHref={libraryGeneral?.libraryHref ?? "#libraries"}
-                mapStatus={map.status}
-                rows={libraryCollections}
-              />
-            ) : null}
-            {filters.scope === "library" && filters.tab === "documents" ? (
-              <LibraryDocumentsSettingsTab
-                libraryHref={libraryGeneral?.libraryHref ?? "#libraries"}
-                mapStatus={map.status}
-                summary={libraryDocuments}
-              />
-            ) : null}
-            {filters.scope === "library" && filters.tab === "permissions" ? <LibraryPermissionsSettingsTab /> : null}
-            {filters.scope === "library" && filters.tab === "notifications" ? (
-              <LibraryNotificationsSettingsTab
-                preferenceStatus={preferences.status}
-                rows={libraryNotifications}
-              />
-            ) : null}
-            {filters.scope === "library" && filters.tab === "advanced" ? <LibraryAdvancedSettingsTab /> : null}
-            {filters.scope === "organization" && filters.tab === "overview" ? (
-              <OrganizationOverviewTab
-                capability={organizationProfileEditCapability}
-                errorMessage={organization.profileMutationError}
-                model={organizationOverview}
-                onSave={organization.updateProfile}
-                state={organizationOverviewState}
-              />
-            ) : null}
-            {filters.scope === "organization" && filters.tab === "workspaces" ? (
-              <OrganizationWorkspacesTab rows={organizationWorkspaces} state={organizationWorkspacesState} />
-            ) : null}
-            {filters.scope === "organization" && filters.tab === "members" ? (
-              <OrganizationMembersTab rows={organizationMembers} state={organizationMembersState} />
-            ) : null}
-            {filters.scope === "organization" && filters.tab === "assessment" ? (
-              <OrganizationAssessmentTab boundaries={settingsBoundaries} rows={organizationAssessmentRows} />
-            ) : null}
+            {children}
           </div>
         </section>
       </div>
@@ -294,18 +314,70 @@ export function WorkspaceSettingsPage() {
   );
 }
 
+function SettingsSecondaryNav({
+  activePanelId,
+  groups,
+  locale,
+}: {
+  activePanelId: string;
+  groups: SettingsNavGroup[];
+  locale: DisplayLocale;
+}) {
+  return (
+    <aside className="workspace-settings-secondary-nav" aria-label={t(locale, "settings.secondaryNavigation")}>
+      {groups.map((group) => (
+        <div className="workspace-settings-secondary-group" key={group.id}>
+          <strong>{getSettingsSectionLabel(locale, group.id)}</strong>
+          <div>
+            {group.items.map((item) => {
+              const label = getSettingsPanelLabel(locale, item.id);
+              return (
+                <a
+                  aria-current={activePanelId === item.id ? "page" : undefined}
+                  className={activePanelId === item.id ? "is-active" : ""}
+                  href={item.href}
+                  key={item.id}
+                  title={`${label}: ${getSettingsStatusDisplayLabel(locale, item.status)}`}
+                >
+                  <span>{label}</span>
+                  <small>{getSettingsStatusDisplayLabel(locale, item.status)}</small>
+                </a>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </aside>
+  );
+}
+
+function PersonalPreferencesPanel({
+  locale,
+  setLocale,
+}: {
+  locale: DisplayLocale;
+  setLocale: (locale: DisplayLocale) => void;
+}) {
+  return (
+    <section className="permission-admin-section">
+      <SectionTitle title={t(locale, "settings.preferences")} />
+      <div className="workspace-settings-card-grid is-two">
+        <LanguageRegionCard locale={locale} setLocale={setLocale} />
+      </div>
+    </section>
+  );
+}
+
 function GeneralSettingsTab({
   general,
   locale,
   mapStatus,
-  setLocale,
   spaceSummary,
   status,
 }: {
   general: ReturnType<typeof toWorkspaceGeneralSettings> | null;
   locale: DisplayLocale;
   mapStatus: SettingsDataStatus;
-  setLocale: (locale: DisplayLocale) => void;
   spaceSummary: ReturnType<typeof toSpaceSettingsSummary>;
   status: SettingsDataStatus;
 }) {
@@ -313,9 +385,6 @@ function GeneralSettingsTab({
     return (
       <section className="permission-admin-section">
         <SectionTitle title={t(locale, "settings.general")} />
-        <div className="workspace-settings-card-grid is-two">
-          <LanguageRegionCard locale={locale} setLocale={setLocale} />
-        </div>
         <SettingsEmptyState label={getUnavailableLabel(status, t(locale, "settings.heading"), locale)} />
       </section>
     );
@@ -339,6 +408,32 @@ function GeneralSettingsTab({
                 [t(locale, "settings.update"), t(locale, "settings.updateDeferred")],
               ]}
             />
+            <p className="workspace-settings-note">{t(locale, "settings.workspaceProfileReadOnlyHelp")}</p>
+          </SettingsCard>
+          <SettingsCard
+            icon={<Boxes className="h-4 w-4" />}
+            status="reused"
+            title={t(locale, "settings.currentLibrarySummary")}
+          >
+            {spaceSummary ? (
+              <>
+                <DefinitionList
+                  rows={[
+                    [t(locale, "settings.name"), spaceSummary.spaceName],
+                    [t(locale, "settings.spaceId"), spaceSummary.spaceId],
+                    [t(locale, "nav.currentLibraryCollections"), String(spaceSummary.collectionCount)],
+                    [t(locale, "library.documents"), String(spaceSummary.documentCount)],
+                    ["Map status", statusLabel(mapStatus, locale)],
+                  ]}
+                />
+                <p className="workspace-settings-note">{t(locale, "settings.libraryOperationsSurfaceHelp")}</p>
+                <div className="workspace-settings-card-actions">
+                  <a href={spaceSummary.libraryHref}>{t(locale, "settings.openLibrary")}</a>
+                </div>
+              </>
+            ) : (
+              <SettingsEmptyState label={getUnavailableLabel(mapStatus, t(locale, "settings.currentLibrarySummary"), locale)} />
+            )}
           </SettingsCard>
           <SettingsCard
             icon={<BookOpen className="h-4 w-4" />}
@@ -350,41 +445,14 @@ function GeneralSettingsTab({
                 <a href={space.href} key={space.id} title={space.name}>
                   <span>
                     <strong>{space.name}</strong>
-                    <small>{space.isCurrent ? t(locale, "settings.currentLibraryLabel") : space.id}</small>
+                    <small>{space.isCurrent ? t(locale, "settings.currentLibraryLabel") : t(locale, "settings.manageInLibrary")}</small>
                   </span>
                   <ChevronRight className="h-4 w-4" />
                 </a>
               ))}
             </div>
           </SettingsCard>
-          <LanguageRegionCard locale={locale} setLocale={setLocale} />
         </div>
-      </section>
-
-      <section className="permission-admin-section">
-        <SectionTitle title={t(locale, "settings.spaceSettingsEntry")} />
-        {spaceSummary ? (
-          <SettingsCard
-            icon={<Boxes className="h-4 w-4" />}
-            status="live"
-            title={spaceSummary.spaceName}
-          >
-            <DefinitionList
-              rows={[
-                [t(locale, "settings.spaceId"), spaceSummary.spaceId],
-                [t(locale, "nav.currentLibraryCollections"), String(spaceSummary.collectionCount)],
-                [t(locale, "library.documents"), String(spaceSummary.documentCount)],
-                [t(locale, "settings.update"), t(locale, "settings.updateDeferred")],
-                ["Map status", statusLabel(mapStatus, locale)],
-              ]}
-            />
-            <div className="workspace-settings-card-actions">
-              <a href={spaceSummary.libraryHref}>{t(locale, "settings.openLibrary")}</a>
-            </div>
-          </SettingsCard>
-        ) : (
-          <SettingsEmptyState label={getUnavailableLabel(mapStatus, t(locale, "settings.spaceSettingsEntry"), locale)} />
-        )}
       </section>
     </>
   );
@@ -420,6 +488,7 @@ function LanguageRegionCard({
         </label>
         <p className="workspace-settings-note">{t(locale, "settings.displayLanguageHelp")}</p>
         <p className="workspace-settings-note">{t(locale, "settings.languageLocalBacked")}</p>
+        <p className="workspace-settings-note">{t(locale, "settings.personalPreferenceLocalHelp")}</p>
       </div>
       <DefinitionList
         rows={[
@@ -497,7 +566,8 @@ function LibraryCollectionsSettingsTab({
   return (
     <section className="permission-admin-section">
       <SectionTitle title={t(locale, "settings.collections")} />
-      <SettingsCard icon={<Layers3 className="h-4 w-4" />} status={mapStatus === "ready" ? "live" : "unavailable"} title={t(locale, "settings.collectionOrder")}>
+      <SettingsCard icon={<Layers3 className="h-4 w-4" />} status={mapStatus === "ready" ? "reused" : "unavailable"} title={t(locale, "settings.collectionSummary")}>
+        <p className="workspace-settings-note">{t(locale, "settings.libraryOperationsSurfaceHelp")}</p>
         {mapStatus === "ready" && rows.length > 0 ? (
           <div className="workspace-settings-link-list">
             {rows.map((row) => (
@@ -505,7 +575,7 @@ function LibraryCollectionsSettingsTab({
                 <span>
                   <strong>{row.title}</strong>
                   <small>
-                    {t(locale, "settings.position")} {row.position} · {row.documentCount} {t(locale, "library.documents")} · sort {row.sortOrder}
+                    {t(locale, "settings.position")} {row.position} | {row.documentCount} {t(locale, "library.documents")} | {t(locale, "settings.sortOrder")} {row.sortOrder}
                   </small>
                 </span>
                 <ChevronRight className="h-4 w-4" />
@@ -546,14 +616,15 @@ function LibraryDocumentsSettingsTab({
       </section>
       <section className="permission-admin-section">
         <SectionTitle title={t(locale, "settings.recentDocuments")} />
-        <SettingsCard icon={<FileText className="h-4 w-4" />} status={mapStatus === "ready" ? "live" : "unavailable"} title={t(locale, "settings.documents")}>
+        <SettingsCard icon={<FileText className="h-4 w-4" />} status={mapStatus === "ready" ? "reused" : "unavailable"} title={t(locale, "settings.documentSummary")}>
+          <p className="workspace-settings-note">{t(locale, "settings.libraryOperationsSurfaceHelp")}</p>
           {mapStatus === "ready" && summary.recentDocuments.length > 0 ? (
             <div className="workspace-settings-link-list">
               {summary.recentDocuments.map((document) => (
                 <a href={document.href} key={document.id} title={document.title}>
                   <span>
                     <strong>{document.title}</strong>
-                    <small>{document.collectionTitle} · {document.status} · {new Date(document.updatedAt).toLocaleDateString(locale)}</small>
+                    <small>{document.collectionTitle} | {document.status} | {new Date(document.updatedAt).toLocaleDateString(locale)}</small>
                   </span>
                   <ChevronRight className="h-4 w-4" />
                 </a>
@@ -563,7 +634,7 @@ function LibraryDocumentsSettingsTab({
             <SettingsEmptyState label={mapStatus === "ready" ? t(locale, "settings.noDocuments") : getUnavailableLabel(mapStatus, t(locale, "settings.documents"), locale)} />
           )}
           <div className="workspace-settings-card-actions">
-            <a href={libraryHref}>{t(locale, "settings.newDocumentInLibrary")}</a>
+            <a href={libraryHref}>{t(locale, "settings.openLibrary")}</a>
           </div>
         </SettingsCard>
       </section>
@@ -578,8 +649,8 @@ function LibraryPermissionsSettingsTab() {
       <SectionTitle title={t(locale, "settings.permissions")} />
       <div className="workspace-settings-card-grid is-three">
         <SettingsLinkCard href="#workspace-members" icon={<UsersRound className="h-4 w-4" />} status="reused" title={t(locale, "settings.members")} />
-        <SettingsLinkCard href="#permissions" icon={<ShieldCheck className="h-4 w-4" />} status="reused" title="Document Permissions" />
-        <SettingsLinkCard href="#updates?tab=access" icon={<Bell className="h-4 w-4" />} status="reused" title="Access Requests" />
+        <SettingsLinkCard href="#permissions" icon={<ShieldCheck className="h-4 w-4" />} status="reused" title={t(locale, "settings.documentPermissions")} />
+        <SettingsLinkCard href="#updates?tab=access" icon={<Bell className="h-4 w-4" />} status="reused" title={t(locale, "settings.accessRequests")} />
         <SettingsCard icon={<LockKeyhole className="h-4 w-4" />} status="deferred" title={t(locale, "settings.libraryHeading")}>
           <p className="workspace-settings-note">{t(locale, "settings.libraryLevelPermissions")}</p>
         </SettingsCard>
@@ -662,6 +733,9 @@ function OrganizationOverviewTab({
   const [draftSlug, setDraftSlug] = useState(model?.slug ?? "");
   const [clientErrors, setClientErrors] = useState<{ name?: string; slug?: string }>({});
   const isSaving = capability.mutationStatus === "saving";
+  const nameErrorId = "organization-profile-name-error";
+  const slugErrorId = "organization-profile-slug-error";
+  const slugHelpId = "organization-profile-slug-help";
 
   useEffect(() => {
     if (!isEditing) {
@@ -713,18 +787,32 @@ function OrganizationOverviewTab({
       {model ? (
         <div className="workspace-settings-card-grid is-two">
           <SettingsCard icon={<Database className="h-4 w-4" />} status="live" title={model.name}>
-            <DefinitionList
-              rows={[
-                [t(locale, "settings.readOnlyStatus"), t(locale, "settings.liveReadOnly")],
-                [t(locale, "settings.name"), model.name],
-                [t(locale, "settings.organizationId"), model.id],
-                [t(locale, "settings.slug"), model.slug],
-                [t(locale, "settings.statusLabel"), model.status],
-                [t(locale, "settings.visibleWorkspaces"), String(model.visibleWorkspaceCount)],
-                [t(locale, "settings.createdAt"), model.createdAt],
-                [t(locale, "settings.updatedAt"), model.updatedAt],
-              ]}
-            />
+            <div className="workspace-settings-profile-summary">
+              <div>
+                <span className="workspace-settings-profile-eyebrow">{t(locale, "settings.orgProfile")}</span>
+                <strong>{model.name}</strong>
+                <p id={slugHelpId}>{t(locale, "settings.slugHelp")}</p>
+              </div>
+              <code className="workspace-settings-profile-slug">{model.slug}</code>
+            </div>
+            <dl className="workspace-settings-profile-meta">
+              <div>
+                <dt>{t(locale, "settings.organizationId")}</dt>
+                <dd>{model.id}</dd>
+              </div>
+              <div>
+                <dt>{t(locale, "settings.statusLabel")}</dt>
+                <dd>{model.status}</dd>
+              </div>
+              <div>
+                <dt>{t(locale, "settings.visibleWorkspaces")}</dt>
+                <dd>{model.visibleWorkspaceCount}</dd>
+              </div>
+              <div>
+                <dt>{t(locale, "settings.updatedAt")}</dt>
+                <dd>{model.updatedAt}</dd>
+              </div>
+            </dl>
             <div className="workspace-settings-card-actions">
               {capability.canEditOrganizationProfile ? (
                 <button
@@ -752,31 +840,35 @@ function OrganizationOverviewTab({
               <p className="workspace-settings-note">{getOrganizationProfileEditDisabledReason(locale, capability.editDisabledReason)}</p>
             ) : null}
             {isEditing ? (
-              <div className="workspace-settings-inline-edit-panel">
+              <div className="workspace-settings-inline-edit-panel" aria-busy={isSaving}>
                 <label>
                   <span>{t(locale, "settings.organizationName")}</span>
                   <input
+                    aria-describedby={clientErrors.name ? nameErrorId : undefined}
+                    aria-invalid={clientErrors.name ? "true" : "false"}
                     disabled={isSaving}
                     onChange={(event) => setDraftName(event.currentTarget.value)}
                     value={draftName}
                   />
-                  {clientErrors.name ? <small>{clientErrors.name}</small> : null}
+                  {clientErrors.name ? <small id={nameErrorId}>{clientErrors.name}</small> : null}
                 </label>
                 <label>
                   <span>{t(locale, "settings.organizationSlug")}</span>
                   <input
+                    aria-describedby={clientErrors.slug ? slugErrorId : slugHelpId}
+                    aria-invalid={clientErrors.slug ? "true" : "false"}
                     disabled={isSaving}
                     onChange={(event) => setDraftSlug(event.currentTarget.value)}
                     value={draftSlug}
                   />
-                  {clientErrors.slug ? <small>{clientErrors.slug}</small> : null}
+                  {clientErrors.slug ? <small id={slugErrorId}>{clientErrors.slug}</small> : null}
                 </label>
                 <p className="workspace-settings-note">{t(locale, "settings.slugHelp")}</p>
                 {errorMessage && capability.mutationStatus === "error" ? (
-                  <p className="workspace-settings-inline-error">{errorMessage}</p>
+                  <p className="workspace-settings-inline-error" role="alert">{errorMessage}</p>
                 ) : null}
                 {capability.mutationStatus === "success" ? (
-                  <p className="workspace-settings-inline-success">{t(locale, "settings.profileUpdated")}</p>
+                  <p className="workspace-settings-inline-success" aria-live="polite">{t(locale, "settings.profileUpdated")}</p>
                 ) : null}
                 <div className="workspace-settings-card-actions">
                   <button
@@ -800,7 +892,7 @@ function OrganizationOverviewTab({
                 </div>
               </div>
             ) : capability.mutationStatus === "success" ? (
-              <p className="workspace-settings-inline-success">{t(locale, "settings.profileUpdated")}</p>
+              <p className="workspace-settings-inline-success" aria-live="polite">{t(locale, "settings.profileUpdated")}</p>
             ) : null}
           </SettingsCard>
           <SettingsCard icon={<ShieldCheck className="h-4 w-4" />} status="live" title={t(locale, "settings.readRule")}>
@@ -1007,29 +1099,35 @@ function OrganizationAssessmentTab({
   );
 }
 
-function MembersSettingsTab() {
+function AccessIdentitySettingsTab() {
   const { locale } = useDisplayLanguage();
   return (
     <section className="permission-admin-section">
-      <SectionTitle title={t(locale, "settings.members")} />
-      <div className="workspace-settings-card-grid is-two">
+      <SectionTitle title={t(locale, "settings.accessIdentity")} />
+      <div className="workspace-settings-card-grid is-three">
         <SettingsCard icon={<UsersRound className="h-4 w-4" />} status="reused" title={t(locale, "settings.members")}>
-          <p className="workspace-settings-note">
-            Member list, add member, role update, remove member, busy states, and backend error display stay on the existing Members surface.
-          </p>
+          <p className="workspace-settings-note">{t(locale, "settings.membersSurfaceHelp")}</p>
           <div className="workspace-settings-card-actions">
-            <a href="#workspace-members">{t(locale, "common.open")} {t(locale, "settings.members")}</a>
+            <a href="#workspace-members">{t(locale, "settings.openMembersSurface")}</a>
           </div>
         </SettingsCard>
-        <SettingsCard icon={<ShieldCheck className="h-4 w-4" />} status="reused" title="Role Boundaries">
+        <SettingsCard icon={<ShieldCheck className="h-4 w-4" />} status="reused" title={t(locale, "settings.roleBoundaries")}>
           <DefinitionList
             rows={[
-              ["Viewer", "Management actions disabled by existing capability model"],
-              ["Admin / Owner", "Mutations remain checked by backend permission service"],
-              ["Last owner", "Protected by existing backend constraints"],
+              ["Viewer", t(locale, "settings.viewerManagementDisabled")],
+              ["Admin / Owner", t(locale, "settings.backendPermissionChecked")],
+              ["Last owner", t(locale, "settings.lastOwnerProtected")],
             ]}
           />
         </SettingsCard>
+        <SettingsCard icon={<LockKeyhole className="h-4 w-4" />} status="reused" title={t(locale, "settings.shareLinksPublicLinks")}>
+          <p className="workspace-settings-note">{t(locale, "settings.resourceShareSurfaceHelp")}</p>
+          <div className="workspace-settings-card-actions">
+            <a href="#permissions">{t(locale, "common.open")}</a>
+          </div>
+        </SettingsCard>
+        <SettingsLinkCard href="#updates?tab=access" icon={<Bell className="h-4 w-4" />} status="reused" title={t(locale, "settings.accessRequests")} />
+        <SettingsLinkCard href="#workspace-groups" icon={<Boxes className="h-4 w-4" />} status="reused" title={t(locale, "settings.groups")} />
       </div>
     </section>
   );
@@ -1037,22 +1135,80 @@ function MembersSettingsTab() {
 
 function NotificationsSettingsTab({
   preferences,
+  workspaceId,
 }: {
   preferences: ReturnType<typeof useSettingsNotificationPreferences>;
+  workspaceId: string | null;
 }) {
   const { locale } = useDisplayLanguage();
   const model = useMemo(
     () => toNotificationSettingsModel(preferences.preferences, preferences.status),
     [preferences.preferences, preferences.status],
   );
+  const workspacePreference = useMemo(
+    () => toWorkspaceNotificationPreferenceModel(
+      preferences.preferences,
+      preferences.status,
+      preferences.mutationStatus,
+    ),
+    [preferences.mutationStatus, preferences.preferences, preferences.status],
+  );
   const watchedRows = model.resourceRows.filter((row) => row.state === "watched");
   const mutedRows = model.resourceRows.filter((row) => row.state === "muted");
+  const setWorkspacePreference = (mode: WorkspaceNotificationPreferenceMode) => {
+    const request = prepareWorkspaceNotificationPreferenceRequest(workspaceId, mode);
+    if (!request) {
+      return;
+    }
+
+    void preferences.updatePreference(request);
+  };
 
   return (
     <section className="permission-admin-section">
       <SectionTitle title={t(locale, "settings.notifications")} />
       <div className="workspace-settings-card-grid is-two">
-        <SettingsCard icon={<Bell className="h-4 w-4" />} status="live" title="Resource Preferences">
+        <SettingsCard
+          icon={<Bell className="h-4 w-4" />}
+          status={workspacePreference.canUpdate ? "live" : "unavailable"}
+          title={t(locale, "settings.workspaceNotificationPreference")}
+        >
+          <p className="workspace-settings-note">{t(locale, "settings.notificationPreferenceHelp")}</p>
+          <div className="workspace-settings-segmented-control" role="group" aria-label={t(locale, "settings.workspaceNotificationPreference")}>
+            {(["default", "watched", "muted"] as const).map((mode) => (
+              <button
+                aria-pressed={workspacePreference.mode === mode}
+                className={workspacePreference.mode === mode ? "is-active" : ""}
+                disabled={!workspacePreference.canUpdate || workspacePreference.mutationStatus === "saving"}
+                key={mode}
+                onClick={() => setWorkspacePreference(mode)}
+                type="button"
+              >
+                {getWorkspaceNotificationPreferenceModeLabel(locale, mode)}
+              </button>
+            ))}
+          </div>
+          {workspacePreference.updatedAt ? (
+            <p className="workspace-settings-note">{t(locale, "settings.updatedAt")}: {new Date(workspacePreference.updatedAt).toLocaleString(locale)}</p>
+          ) : null}
+          {!workspacePreference.canUpdate ? (
+            <p className="workspace-settings-note">{getWorkspaceNotificationPreferenceDisabledReasonLabel(locale, workspacePreference.disabledReason)}</p>
+          ) : null}
+          {preferences.mutationStatus === "saving" ? (
+            <p className="workspace-settings-inline-status" aria-live="polite">{t(locale, "settings.savingPreference")}</p>
+          ) : null}
+          {preferences.mutationStatus === "success" ? (
+            <p className="workspace-settings-inline-success" aria-live="polite">{t(locale, "settings.preferenceUpdated")}</p>
+          ) : null}
+          {preferences.mutationStatus === "error" && preferences.mutationError ? (
+            <p className="workspace-settings-inline-error" role="alert">{preferences.mutationError}</p>
+          ) : null}
+        </SettingsCard>
+        <SettingsCard
+          icon={<Bell className="h-4 w-4" />}
+          status={model.preferenceStatus === "ready" ? "live" : "unavailable"}
+          title={t(locale, "settings.resourcePreferences")}
+        >
           <p className="workspace-settings-note">{notificationStatusLabel(model.preferenceStatus)}</p>
           <PreferenceResourceRows label="Watched" rows={watchedRows} />
           <PreferenceResourceRows label="Muted" rows={mutedRows} />
@@ -1062,7 +1218,7 @@ function NotificationsSettingsTab({
             rows={[
               [t(locale, "settings.categoryPreferences"), getSettingsStatusDisplayLabel(locale, model.categoryPreferenceStatus)],
               [t(locale, "settings.emailDigest"), getSettingsStatusDisplayLabel(locale, model.emailDigestStatus)],
-              ["Boundary", "No new notification/email backend semantics in this round"],
+              [t(locale, "settings.boundary"), t(locale, "settings.notificationBoundaryHelp")],
             ]}
           />
         </SettingsCard>
@@ -1078,13 +1234,11 @@ function PermissionsSettingsTab() {
       <SectionTitle title={t(locale, "settings.permissions")} />
       <div className="workspace-settings-card-grid is-three">
         <SettingsLinkCard href="#workspace-members" icon={<UsersRound className="h-4 w-4" />} status="reused" title={t(locale, "settings.members")} />
-        <SettingsLinkCard href="#workspace-groups" icon={<Boxes className="h-4 w-4" />} status="reused" title="Groups" />
-        <SettingsLinkCard href="#permissions" icon={<ShieldCheck className="h-4 w-4" />} status="reused" title="Document Permissions" />
-        <SettingsLinkCard href="#updates?tab=access" icon={<Bell className="h-4 w-4" />} status="reused" title="Access Requests" />
-        <SettingsCard icon={<LockKeyhole className="h-4 w-4" />} status="reused" title="Share Links / Public Links">
-          <p className="workspace-settings-note">
-            Existing share-link surfaces remain the only entry point. Public-link behavior is not changed here.
-          </p>
+        <SettingsLinkCard href="#workspace-groups" icon={<Boxes className="h-4 w-4" />} status="reused" title={t(locale, "settings.groups")} />
+        <SettingsLinkCard href="#permissions" icon={<ShieldCheck className="h-4 w-4" />} status="reused" title={t(locale, "settings.documentPermissions")} />
+        <SettingsLinkCard href="#updates?tab=access" icon={<Bell className="h-4 w-4" />} status="reused" title={t(locale, "settings.accessRequests")} />
+        <SettingsCard icon={<LockKeyhole className="h-4 w-4" />} status="reused" title={t(locale, "settings.shareLinksPublicLinks")}>
+          <p className="workspace-settings-note">{t(locale, "settings.resourceShareSurfaceHelp")}</p>
         </SettingsCard>
       </div>
     </section>
@@ -1353,11 +1507,15 @@ function useSettingsNotificationPreferences(workspaceId: string | null) {
   const apiBaseUrl = useMemo(() => getConfiguredApiBaseUrl(), []);
   const [preferences, setPreferences] = useState<PermissionNotificationPreferenceDto[]>([]);
   const [status, setStatus] = useState<NotificationApiStatus>(() => (apiBaseUrl && workspaceId ? "loading" : "unconfigured"));
+  const [mutationStatus, setMutationStatus] = useState<WorkspaceNotificationPreferenceMutationStatus>("idle");
+  const [mutationError, setMutationError] = useState("");
 
   useEffect(() => {
     if (!apiBaseUrl || !workspaceId) {
       setPreferences([]);
       setStatus("unconfigured");
+      setMutationStatus("idle");
+      setMutationError("");
       return;
     }
 
@@ -1367,6 +1525,7 @@ function useSettingsNotificationPreferences(workspaceId: string | null) {
       .then((body) => {
         setPreferences(body.preferences);
         setStatus("ready");
+        setMutationError("");
       })
       .catch((error: unknown) => {
         if (error instanceof DOMException && error.name === "AbortError") {
@@ -1380,7 +1539,41 @@ function useSettingsNotificationPreferences(workspaceId: string | null) {
     return () => controller.abort();
   }, [apiBaseUrl, workspaceId]);
 
-  return { preferences, status };
+  const updatePreference = async (request: Parameters<typeof updateWorkspaceNotificationPreference>[0]) => {
+    if (!apiBaseUrl || !workspaceId) {
+      setMutationStatus("error");
+      setMutationError("API and workspace id are required to update notification preferences.");
+      return false;
+    }
+
+    setMutationStatus("saving");
+    setMutationError("");
+    try {
+      const updated = await updateWorkspaceNotificationPreference(request);
+      setPreferences((current) => upsertPreference(current, updated));
+      setStatus("ready");
+      setMutationStatus("success");
+      return true;
+    } catch (error) {
+      setMutationStatus("error");
+      setMutationError(toWorkspaceNotificationPreferenceMutationError(error));
+      return false;
+    }
+  };
+
+  return { mutationError, mutationStatus, preferences, status, updatePreference };
+}
+
+function upsertPreference(
+  preferences: PermissionNotificationPreferenceDto[],
+  updated: PermissionNotificationPreferenceDto,
+) {
+  const index = preferences.findIndex((preference) => preference.id === updated.id);
+  if (index === -1) {
+    return [...preferences, updated];
+  }
+
+  return preferences.map((preference, preferenceIndex) => (preferenceIndex === index ? updated : preference));
 }
 
 function useSettingsSecurityState() {
@@ -1537,32 +1730,54 @@ function getSelectedSpaceId(bootstrap: BootstrapResponse | null, requestedSpaceI
   return bootstrap.activeSpaceId || bootstrap.workspace.currentSpaceId || (bootstrap.spaces[0]?.id ?? null);
 }
 
-function getSettingsScopeHeading(locale: DisplayLocale, scope: WorkspaceSettingsScope) {
-  if (scope === "library") {
-    return t(locale, "settings.libraryHeading");
-  }
-
-  if (scope === "organization") {
-    return t(locale, "settings.organizationHeading");
-  }
-
-  return t(locale, "settings.heading");
-}
-
-function getSettingsHeadingStatus(status: SettingsDataStatus, locale: DisplayLocale, scope: WorkspaceSettingsScope) {
+function getSettingsCenterHeadingStatus(status: SettingsDataStatus, locale: DisplayLocale) {
   if (status === "ready") {
-    if (scope === "library") {
-      return t(locale, "settings.libraryHeading");
-    }
-
-    if (scope === "organization") {
-      return t(locale, "settings.organizationHeadingReady");
-    }
-
     return t(locale, "settings.headingReady");
   }
 
-  return getUnavailableLabel(status, getSettingsScopeHeading(locale, scope), locale);
+  return getUnavailableLabel(status, t(locale, "settings.heading"), locale);
+}
+
+function getSettingsSectionLabel(locale: DisplayLocale, sectionId: string) {
+  switch (sectionId) {
+    case "deferred":
+      return t(locale, "settings.scopeDeferred");
+    case "organization":
+      return t(locale, "settings.scopeOrganization");
+    case "personal":
+      return t(locale, "settings.scopePersonal");
+    case "workspace":
+    default:
+      return t(locale, "settings.scopeWorkspace");
+  }
+}
+
+function getSettingsPanelLabel(locale: DisplayLocale, panelId: string) {
+  switch (panelId) {
+    case "personal-preferences":
+      return t(locale, "settings.preferences");
+    case "workspace-notifications":
+      return t(locale, "settings.notifications");
+    case "workspace-access-identity":
+      return t(locale, "settings.accessIdentity");
+    case "workspace-security":
+      return t(locale, "settings.security");
+    case "workspace-integrations":
+      return t(locale, "settings.integrations");
+    case "organization-profile":
+      return t(locale, "settings.orgProfile");
+    case "organization-workspaces":
+      return t(locale, "settings.workspaces");
+    case "organization-members":
+      return t(locale, "settings.membersInventory");
+    case "deferred-plan":
+      return t(locale, "settings.plan");
+    case "deferred-developer":
+      return t(locale, "settings.developer");
+    case "workspace-general":
+    default:
+      return t(locale, "settings.general");
+  }
 }
 
 function getUnavailableLabel(status: SettingsDataStatus, noun: string, locale: DisplayLocale) {
@@ -1603,6 +1818,37 @@ function notificationStatusLabel(status: NotificationApiStatus) {
   }
 
   return "Configure the API and workspace id to load notification preferences.";
+}
+
+function getWorkspaceNotificationPreferenceModeLabel(
+  locale: DisplayLocale,
+  mode: WorkspaceNotificationPreferenceMode,
+) {
+  if (mode === "watched") {
+    return t(locale, "settings.workspaceNotificationWatched");
+  }
+
+  if (mode === "muted") {
+    return t(locale, "settings.workspaceNotificationMuted");
+  }
+
+  return t(locale, "settings.workspaceNotificationDefault");
+}
+
+function getWorkspaceNotificationPreferenceDisabledReasonLabel(locale: DisplayLocale, reason: string) {
+  if (reason === "Loading notification preferences.") {
+    return t(locale, "settings.loadingNotificationPreferences");
+  }
+
+  if (reason === "Notification preference access is unavailable for this user.") {
+    return t(locale, "settings.notificationPreferenceForbidden");
+  }
+
+  if (reason === "Notification preference API failed.") {
+    return t(locale, "settings.notificationPreferenceApiFailed");
+  }
+
+  return t(locale, "settings.preferenceUpdateUnavailable");
 }
 
 function statusLabel(status: SettingsDataStatus, locale: DisplayLocale) {
@@ -1691,6 +1937,123 @@ function getSettingsBoundaryLabel(locale: DisplayLocale, id: string) {
     default:
       return t(locale, "settings.scopeWorkspace");
   }
+}
+
+function getSettingsInventoryLabel(locale: DisplayLocale, id: string) {
+  switch (id) {
+    case "personal-language":
+      return t(locale, "settings.inventoryPersonalLanguage");
+    case "workspace-profile-update":
+      return t(locale, "settings.inventoryWorkspaceProfile");
+    case "workspace-members":
+      return t(locale, "settings.inventoryWorkspaceMembers");
+    case "workspace-notification-preferences":
+      return t(locale, "settings.inventoryWorkspaceNotifications");
+    case "resource-share":
+      return t(locale, "settings.inventoryResourceShare");
+    case "organization-profile":
+      return t(locale, "settings.inventoryOrganizationProfile");
+    case "organization-members":
+      return t(locale, "settings.inventoryOrganizationMembers");
+    case "organization-workspace-provisioning":
+      return t(locale, "settings.inventoryWorkspaceProvisioning");
+    case "library-collections-documents":
+      return t(locale, "settings.inventoryLibraryOperations");
+    case "system-instance-settings":
+      return t(locale, "settings.inventorySystemSettings");
+    default:
+      return id;
+  }
+}
+
+function getSettingsInventoryScopeLabel(
+  locale: DisplayLocale,
+  scope: ReturnType<typeof toSettingsCapabilityInventoryRows>[number]["scope"],
+) {
+  if (scope === "personal") {
+    return t(locale, "settings.scopePersonal");
+  }
+
+  if (scope === "resource") {
+    return t(locale, "settings.scopeResource");
+  }
+
+  return getSettingsBoundaryLabel(locale, scope);
+}
+
+function getSettingsInventoryBackendStatusLabel(
+  locale: DisplayLocale,
+  status: ReturnType<typeof toSettingsCapabilityInventoryRows>[number]["backendStatus"],
+) {
+  switch (status) {
+    case "conflict-marked":
+      return t(locale, "settings.inventoryConflictMarked");
+    case "live-mutation":
+      return t(locale, "settings.inventoryLiveMutation");
+    case "live-read":
+      return t(locale, "settings.inventoryLiveRead");
+    case "read-only":
+      return t(locale, "settings.inventoryReadOnly");
+    case "missing":
+    default:
+      return t(locale, "settings.inventoryMissing");
+  }
+}
+
+function getSettingsInventoryFrontendStatusLabel(
+  locale: DisplayLocale,
+  status: ReturnType<typeof toSettingsCapabilityInventoryRows>[number]["frontendStatus"],
+) {
+  switch (status) {
+    case "half-finished":
+      return t(locale, "settings.inventoryHalfFinished");
+    case "read-only":
+      return t(locale, "settings.inventoryReadOnly");
+    case "should-move":
+      return t(locale, "settings.inventoryShouldMove");
+    case "static":
+      return t(locale, "settings.inventoryStatic");
+    case "deferred":
+      return getSettingsStatusDisplayLabel(locale, "deferred");
+    case "live":
+    default:
+      return getSettingsStatusDisplayLabel(locale, "live");
+  }
+}
+
+function getSettingsInventoryRecommendationLabel(
+  locale: DisplayLocale,
+  recommendation: ReturnType<typeof toSettingsCapabilityInventoryRows>[number]["recommendation"],
+) {
+  switch (recommendation) {
+    case "defer":
+      return t(locale, "settings.inventoryDefer");
+    case "move":
+      return t(locale, "settings.inventoryMove");
+    case "remove-action-affordance":
+      return t(locale, "settings.inventoryRemoveAction");
+    case "split":
+      return t(locale, "settings.inventorySplit");
+    case "keep":
+    default:
+      return t(locale, "settings.inventoryKeep");
+  }
+}
+
+function toInventoryStatus(status: ReturnType<typeof toSettingsCapabilityInventoryRows>[number]["frontendStatus"]): WorkspaceSettingsStatus {
+  if (status === "live") {
+    return "live";
+  }
+
+  if (status === "should-move" || status === "read-only") {
+    return "reused";
+  }
+
+  if (status === "deferred") {
+    return "deferred";
+  }
+
+  return "assessment";
 }
 
 function getOrganizationCapabilityLabel(locale: DisplayLocale, id: string) {

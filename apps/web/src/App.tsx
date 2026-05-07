@@ -7,10 +7,10 @@ import { PermissionAdminSurfacesPage } from "./components/PermissionAdminSurface
 import { SearchDiscoveryPage } from "./components/SearchDiscoveryPage";
 import { VersionHistoryComparePage } from "./components/VersionHistoryComparePage";
 import { WorkspaceHomePage } from "./components/WorkspaceHomePage";
-import { WorkspaceSettingsPage } from "./components/WorkspaceSettingsPage";
+import { OrganizationSettingsPage, PersonalSettingsPage, WorkspaceSettingsPage } from "./components/WorkspaceSettingsPage";
 import { WorkspaceUpdatesPage } from "./components/WorkspaceUpdatesPage";
 import { getStoredAccessToken, subscribeToAuthChanges } from "./lib/apiClient";
-import { getEditorDocumentIdFromHash, getHashRoute } from "./lib/hashRouting";
+import { getEditorDocumentIdFromHash, getHashRoute, getSettingsRouteTarget } from "./lib/hashRouting";
 
 const protectedHashes = new Set([
   "#home",
@@ -20,6 +20,8 @@ const protectedHashes = new Set([
   "#search",
   "#discovery",
   "#settings",
+  "#personal-settings",
+  "#organization-settings",
   "#versions",
   "#compare",
   "#version-history",
@@ -74,7 +76,24 @@ export default function App() {
     return <SearchDiscoveryPage />;
   }
 
+  if (route === "#personal-settings") {
+    return <PersonalSettingsPage />;
+  }
+
+  if (route === "#organization-settings") {
+    return <OrganizationSettingsPage />;
+  }
+
   if (route === "#settings") {
+    const settingsRouteTarget = getSettingsRouteTarget(hash);
+    if (settingsRouteTarget === "personal") {
+      return <PersonalSettingsPage />;
+    }
+
+    if (settingsRouteTarget === "organization") {
+      return <OrganizationSettingsPage />;
+    }
+
     return <WorkspaceSettingsPage />;
   }
 

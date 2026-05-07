@@ -14,7 +14,9 @@ import {
 import { type CSSProperties, type ReactNode, useEffect, useMemo, useState } from "react";
 import { WorkspaceHomeSidebar } from "./WorkspaceHomeSidebar";
 import { WorkspaceHomeTopBar } from "./WorkspaceHomeTopBar";
+import { ApiClientError } from "../lib/apiClient";
 import { getCurrentUser } from "../lib/authClient";
+import { getBootstrap, type BootstrapResponse } from "../lib/appApi";
 import {
   PermissionAdminApiError,
   addWorkspaceMember,
@@ -43,8 +45,10 @@ import {
   getCurrentWorkspaceRole,
   getMemberActionCapability,
   getRoleChangeOptions,
+  resolvePermissionAdminWorkspace,
   toPermissionMutationError,
   type CurrentWorkspaceRole,
+  type PermissionAdminWorkspaceResolution,
 } from "../lib/permissionAdminModel";
 import coordinatePatternUrl from "../assets/svg/patterns/coordinate-ticks.svg";
 import routePatternUrl from "../assets/svg/patterns/route-line.svg";
@@ -54,7 +58,6 @@ type PermissionAdminTab = "members" | "groups" | "scim";
 type WorkspaceRoleOption = "admin" | "editor" | "viewer";
 
 const memberRoleOptions: WorkspaceRoleOption[] = ["admin", "editor", "viewer"];
-const permissionAdminWorkspaceId = getConfiguredPermissionAdminWorkspaceId();
 const permissionAdminPatternStyle = {
   "--permission-admin-coordinate-pattern": `url(${coordinatePatternUrl})`,
   "--permission-admin-route-pattern": `url(${routePatternUrl})`,
@@ -66,6 +69,8 @@ const permissionAdminPatternStyle = {
 
 export function PermissionAdminSurfacesPage({ initialTab = "members" }: { initialTab?: PermissionAdminTab }) {
   const [activeTab, setActiveTab] = useState<PermissionAdminTab>(initialTab);
+  const workspaceContext = usePermissionAdminWorkspaceContext();
+  const permissionAdminWorkspaceId = workspaceContext.resolution.workspaceId;
   const members = useWorkspaceMembers(permissionAdminWorkspaceId);
   const groups = useWorkspaceGroups(permissionAdminWorkspaceId);
   const scimDiscovery = useScimDiscovery(permissionAdminWorkspaceId);
@@ -97,6 +102,8 @@ export function PermissionAdminSurfacesPage({ initialTab = "members" }: { initia
               memberStatus={members.status}
               scimStatus={scimDiscovery.status}
               tokenStatus={scimTokens.status}
+              workspaceResolution={workspaceContext.resolution}
+              workspaceResolutionStatus={workspaceContext.status}
               workspaceId={permissionAdminWorkspaceId}
             />
 
@@ -196,6 +203,8 @@ function ConnectionSummary({
   memberStatus,
   scimStatus,
   tokenStatus,
+  workspaceResolution,
+  workspaceResolutionStatus,
   workspaceId,
 }: {
   apiBaseUrl: string;
@@ -203,13 +212,16 @@ function ConnectionSummary({
   memberStatus: PermissionAdminApiStatus;
   scimStatus: PermissionAdminApiStatus;
   tokenStatus: PermissionAdminApiStatus;
+  workspaceResolution: PermissionAdminWorkspaceResolution;
+  workspaceResolutionStatus: PermissionAdminApiStatus;
   workspaceId: string | null;
 }) {
   return (
     <section className="permission-admin-section">
       <div className="permission-admin-summary-grid">
         <PermissionMetric label="API" value={apiBaseUrl ? "Configured" : "Not connected"} />
-        <PermissionMetric label="Workspace ID" value={workspaceId ? "Configured" : "Missing"} />
+        <PermissionMetric label="Workspace ID" value={workspaceId ? "Configured" : statusLabel(workspaceResolutionStatus)} />
+        <PermissionMetric label="Workspace Source" value={workspaceResolution.source === "bootstrap" ? "Current workspace" : workspaceResolution.source === "configured" ? "Configured" : workspaceResolution.reason ?? "Missing"} />
         <PermissionMetric label="Members" value={statusLabel(memberStatus)} />
         <PermissionMetric label="Groups" value={statusLabel(groupStatus)} />
         <PermissionMetric label="SCIM" value={statusLabel(scimStatus)} />
@@ -217,6 +229,57 @@ function ConnectionSummary({
       </div>
     </section>
   );
+}
+
+function usePermissionAdminWorkspaceContext() {
+  const apiBaseUrl = useMemo(() => getConfiguredPermissionAdminApiBaseUrl(), []);
+  const configuredWorkspaceId = useMemo(() => getConfiguredPermissionAdminWorkspaceId(), []);
+  const [bootstrap, setBootstrap] = useState<BootstrapResponse | null>(null);
+  const [status, setStatus] = useState<PermissionAdminApiStatus>(() =>
+    apiBaseUrl && !configuredWorkspaceId ? "loading" : apiBaseUrl ? "ready" : "unconfigured",
+  );
+
+  useEffect(() => {
+    if (!apiBaseUrl) {
+      setBootstrap(null);
+      setStatus("unconfigured");
+      return undefined;
+    }
+
+    if (configuredWorkspaceId) {
+      setBootstrap(null);
+      setStatus("ready");
+      return undefined;
+    }
+
+    const controller = new AbortController();
+    setStatus("loading");
+    void getBootstrap(controller.signal)
+      .then((response) => {
+        setBootstrap(response);
+        setStatus("ready");
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return;
+        }
+
+        setBootstrap(null);
+        setStatus(error instanceof ApiClientError && (error.status === 401 || error.status === 403) ? "forbidden" : "error");
+      });
+
+    return () => controller.abort();
+  }, [apiBaseUrl, configuredWorkspaceId]);
+
+  return {
+    apiBaseUrl,
+    resolution: resolvePermissionAdminWorkspace({
+      apiConfigured: Boolean(apiBaseUrl),
+      bootstrapWorkspaceId: bootstrap?.workspace.id ?? null,
+      configuredWorkspaceId,
+    }),
+    status,
+  };
 }
 
 function WorkspaceMembersPanel({

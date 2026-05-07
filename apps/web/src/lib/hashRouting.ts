@@ -23,6 +23,23 @@ export type WorkspaceSettingsTab =
 
 export type WorkspaceSettingsScope = "library" | "organization" | "workspace";
 
+export type SettingsPanelId =
+  | "deferred-developer"
+  | "deferred-plan"
+  | "organization-members"
+  | "organization-profile"
+  | "organization-workspaces"
+  | "personal-preferences"
+  | "workspace-access-identity"
+  | "workspace-general"
+  | "workspace-integrations"
+  | "workspace-notifications"
+  | "workspace-security";
+
+export type SettingsRouteTarget = "organization" | "personal" | "workspace";
+
+export type OrganizationSettingsPanel = "members" | "profile" | "workspaces";
+
 const workspaceSettingsTabs = new Set<WorkspaceSettingsTab>([
   "developer",
   "general",
@@ -53,6 +70,8 @@ const postLoginRoutes = new Set([
   "#search",
   "#discovery",
   "#settings",
+  "#personal-settings",
+  "#organization-settings",
   "#versions",
   "#compare",
   "#version-history",
@@ -98,6 +117,17 @@ export function getEditorDocumentIdFromHash(hash: string) {
   const { params, route } = parseHashRoute(hash);
 
   if (route !== "#editor") {
+    return null;
+  }
+
+  const documentId = params.get("documentId");
+  return documentId && isUuid(documentId) ? documentId : null;
+}
+
+export function getShareDocumentIdFromHash(hash: string) {
+  const { params, route } = parseHashRoute(hash);
+
+  if (route !== "#share" && route !== "#permissions") {
     return null;
   }
 
@@ -161,10 +191,33 @@ export function createSearchHash(options: { folderId?: string | null; folderTitl
   return query ? `#search?${query}` : "#search";
 }
 
-export function createSettingsHash(options: { scope?: WorkspaceSettingsScope | null; spaceId?: string | null; tab?: WorkspaceSettingsTab | null } = {}) {
+const settingsPanelIds = new Set<SettingsPanelId>([
+  "deferred-developer",
+  "deferred-plan",
+  "organization-members",
+  "organization-profile",
+  "organization-workspaces",
+  "personal-preferences",
+  "workspace-access-identity",
+  "workspace-general",
+  "workspace-integrations",
+  "workspace-notifications",
+  "workspace-security",
+]);
+
+export function createSettingsHash(options: {
+  panel?: SettingsPanelId | null;
+  scope?: WorkspaceSettingsScope | null;
+  spaceId?: string | null;
+  tab?: WorkspaceSettingsTab | null;
+} = {}) {
   const params = new URLSearchParams();
   const scope = options.scope === "library" ? "library" : options.scope === "organization" ? "organization" : options.scope === "workspace" ? "workspace" : null;
   const tabs = scope === "library" ? librarySettingsTabs : scope === "organization" ? organizationSettingsTabs : workspaceSettingsTabs;
+
+  if (options.panel && settingsPanelIds.has(options.panel)) {
+    params.set("panel", options.panel);
+  }
 
   if (scope) {
     params.set("scope", scope);
@@ -182,10 +235,90 @@ export function createSettingsHash(options: { scope?: WorkspaceSettingsScope | n
   return query ? `#settings?${query}` : "#settings";
 }
 
-export function getSettingsFiltersFromHash(hash: string): { scope: WorkspaceSettingsScope; spaceId: string | null; tab: WorkspaceSettingsTab } {
+export function createPersonalSettingsHash() {
+  return "#personal-settings";
+}
+
+export function createOrganizationSettingsHash(options: { panel?: OrganizationSettingsPanel | null } = {}) {
+  const params = new URLSearchParams();
+  if (options.panel && ["members", "profile", "workspaces"].includes(options.panel)) {
+    params.set("panel", options.panel);
+  }
+
+  const query = params.toString();
+  return query ? `#organization-settings?${query}` : "#organization-settings";
+}
+
+export function getSettingsRouteTarget(hash: string): SettingsRouteTarget {
+  const { params, route } = parseHashRoute(hash);
+
+  if (route === "#personal-settings") {
+    return "personal";
+  }
+
+  if (route === "#organization-settings") {
+    return "organization";
+  }
+
+  if (route !== "#settings") {
+    return "workspace";
+  }
+
+  const panel = params.get("panel");
+  if (panel === "personal-preferences") {
+    return "personal";
+  }
+
+  if (panel?.startsWith("organization-") || params.get("scope") === "organization") {
+    return "organization";
+  }
+
+  return "workspace";
+}
+
+export function getOrganizationSettingsPanelFromHash(hash: string): OrganizationSettingsPanel {
+  const { params, route } = parseHashRoute(hash);
+
+  if (route === "#organization-settings") {
+    const panel = params.get("panel");
+    if (panel === "members" || panel === "workspaces") {
+      return panel;
+    }
+
+    return "profile";
+  }
+
+  if (route === "#settings") {
+    const panel = params.get("panel");
+    if (panel === "organization-members") {
+      return "members";
+    }
+
+    if (panel === "organization-workspaces") {
+      return "workspaces";
+    }
+
+    if (params.get("scope") === "organization") {
+      const tab = params.get("tab");
+      if (tab === "members" || tab === "workspaces") {
+        return tab;
+      }
+    }
+  }
+
+  return "profile";
+}
+
+export function getSettingsFiltersFromHash(hash: string): {
+  panel: SettingsPanelId | null;
+  scope: WorkspaceSettingsScope;
+  spaceId: string | null;
+  tab: WorkspaceSettingsTab;
+} {
   const { params, route } = parseHashRoute(hash);
   if (route !== "#settings") {
     return {
+      panel: null,
       scope: "workspace",
       spaceId: null,
       tab: "general",
@@ -196,10 +329,12 @@ export function getSettingsFiltersFromHash(hash: string): { scope: WorkspaceSett
   const scope: WorkspaceSettingsScope = requestedScope === "library" ? "library" : requestedScope === "organization" ? "organization" : "workspace";
   const tabs = scope === "library" ? librarySettingsTabs : scope === "organization" ? organizationSettingsTabs : workspaceSettingsTabs;
   const fallbackTab: WorkspaceSettingsTab = scope === "organization" ? "overview" : "general";
+  const panel = params.get("panel");
   const tab = params.get("tab");
   const spaceId = params.get("spaceId");
 
   return {
+    panel: panel && settingsPanelIds.has(panel as SettingsPanelId) ? (panel as SettingsPanelId) : null,
     scope,
     spaceId: spaceId && isUuid(spaceId) ? spaceId : null,
     tab: tab && tabs.has(tab as WorkspaceSettingsTab) ? (tab as WorkspaceSettingsTab) : fallbackTab,
@@ -248,6 +383,8 @@ export function normalizeInternalActionHash(value?: string | null) {
     "#share",
     "#permissions",
     "#settings",
+    "#personal-settings",
+    "#organization-settings",
     "#workspace-groups",
     "#workspace-members",
     "#members",

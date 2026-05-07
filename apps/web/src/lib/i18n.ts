@@ -81,15 +81,18 @@ type TranslationKey =
   | "settings.availableLibraries"
   | "settings.archiveWorkspace"
   | "settings.archiveWorkspaceDeferredReason"
+  | "settings.accessIdentity"
   | "settings.assessment"
   | "settings.categoryAndDigest"
   | "settings.categoryPreferences"
   | "settings.collectionOrder"
+  | "settings.collectionSummary"
   | "settings.collections"
   | "settings.contractReadiness"
   | "settings.createdAt"
   | "settings.currentRole"
   | "settings.currentLibraryLabel"
+  | "settings.currentLibrarySummary"
   | "settings.currentSpaceId"
   | "settings.currentSource"
   | "settings.dateFormat"
@@ -99,6 +102,8 @@ type TranslationKey =
   | "settings.developer"
   | "settings.displayLanguageHelp"
   | "settings.documents"
+  | "settings.documentPermissions"
+  | "settings.documentSummary"
   | "settings.email"
   | "settings.emailDigest"
   | "settings.editOrganizationProfile"
@@ -110,6 +115,9 @@ type TranslationKey =
   | "settings.archived"
   | "settings.dangerZone"
   | "settings.drafts"
+  | "settings.centerHeading"
+  | "settings.centerHeadingReady"
+  | "settings.contextSummary"
   | "settings.heading"
   | "settings.headingReady"
   | "settings.implementationDependencies"
@@ -122,6 +130,7 @@ type TranslationKey =
   | "settings.libraryNotificationsHelp"
   | "settings.manageInLibrary"
   | "settings.members"
+  | "settings.membersInventory"
   | "settings.name"
   | "settings.newDocumentInLibrary"
   | "settings.noCollections"
@@ -136,6 +145,8 @@ type TranslationKey =
   | "settings.organizationAssessmentHelp"
   | "settings.organizationHeading"
   | "settings.organizationHeadingReady"
+  | "settings.organizationSettingsHeading"
+  | "settings.organizationSettingsReady"
   | "settings.organizationLiveReadModel"
   | "settings.liveReadBacked"
   | "settings.organizationId"
@@ -155,6 +166,9 @@ type TranslationKey =
   | "settings.overview"
   | "settings.permissions"
   | "settings.plan"
+  | "settings.preferences"
+  | "settings.personalSettingsHeading"
+  | "settings.personalSettingsReady"
   | "settings.position"
   | "settings.proposedDto"
   | "settings.proposedEndpoint"
@@ -226,17 +240,101 @@ type TranslationKey =
   | "settings.ownerRequired"
   | "settings.removeMemberDeferredReason"
   | "settings.unconfigured"
+  | "settings.backendStatus"
+  | "settings.frontendStatus"
+  | "settings.informationArchitecture"
+  | "settings.inventoryConflictMarked"
+  | "settings.inventoryDefer"
+  | "settings.inventoryHalfFinished"
+  | "settings.inventoryKeep"
+  | "settings.inventoryLibraryOperations"
+  | "settings.inventoryLiveMutation"
+  | "settings.inventoryLiveRead"
+  | "settings.inventoryMissing"
+  | "settings.inventoryMove"
+  | "settings.inventoryOrganizationMembers"
+  | "settings.inventoryOrganizationProfile"
+  | "settings.inventoryPersonalLanguage"
+  | "settings.inventoryReadOnly"
+  | "settings.inventoryRemoveAction"
+  | "settings.inventoryResourceShare"
+  | "settings.inventoryShouldMove"
+  | "settings.inventorySplit"
+  | "settings.inventoryStatic"
+  | "settings.inventorySystemSettings"
+  | "settings.inventoryWorkspaceMembers"
+  | "settings.inventoryWorkspaceNotifications"
+  | "settings.inventoryWorkspaceProfile"
+  | "settings.inventoryWorkspaceProvisioning"
+  | "settings.accessRequests"
+  | "settings.backendPermissionChecked"
+  | "settings.boundary"
+  | "settings.groups"
+  | "settings.lastOwnerProtected"
+  | "settings.libraryOperations"
+  | "settings.libraryOperationsSurfaceHelp"
+  | "settings.membersSurfaceHelp"
+  | "settings.notificationBoundaryHelp"
+  | "settings.openMembersSurface"
+  | "settings.personalPreferenceLocalHelp"
+  | "settings.recommendedSettingsClosure"
+  | "settings.resourcePreferences"
+  | "settings.resourceShare"
+  | "settings.resourceShareSurfaceHelp"
+  | "settings.roleBoundaries"
+  | "settings.selectedCapabilities"
+  | "settings.shareLinksPublicLinks"
+  | "settings.sortOrder"
+  | "settings.viewerManagementDisabled"
+  | "settings.workspaceProfile"
+  | "settings.workspaceProfileReadOnlyHelp"
+  | "settings.loadingNotificationPreferences"
+  | "settings.notificationPreferenceApiFailed"
+  | "settings.notificationPreferenceForbidden"
+  | "settings.notificationPreferenceHelp"
+  | "settings.preferenceUpdated"
+  | "settings.preferenceUpdateUnavailable"
+  | "settings.recommendation"
+  | "settings.savingPreference"
+  | "settings.scope"
+  | "settings.scopePersonal"
+  | "settings.scopeResource"
+  | "settings.scopeDeferred"
+  | "settings.secondaryNavigation"
+  | "settings.workspaceNotificationDefault"
+  | "settings.workspaceNotificationMuted"
+  | "settings.workspaceNotificationPreference"
+  | "settings.workspaceNotificationWatched"
+  | "share.clipboardBlocked"
+  | "share.clipboardUnavailable"
+  | "share.createInternalLink"
+  | "share.internalLinkCreated"
+  | "share.linkCreated"
+  | "share.linkRevoked"
+  | "share.nothingToCopy"
+  | "share.openFromDocument"
+  | "share.operationInProgress"
+  | "share.shareApiUnavailable"
+  | "share.tokenCopied"
+  | "share.urlCopied"
   | "topbar.account"
   | "topbar.apiNotConfigured"
+  | "topbar.currentWorkspace"
   | "topbar.importJson"
   | "topbar.exportJson"
   | "topbar.libraries"
   | "topbar.mfaEnabled"
   | "topbar.mfaNotEnabled"
+  | "topbar.organizationSettings"
+  | "topbar.personalSettings"
   | "topbar.runSearch"
   | "topbar.saved"
   | "topbar.searchNorthstar"
+  | "topbar.signOut"
   | "topbar.signInRequired"
+  | "topbar.workspaceListUnavailable"
+  | "topbar.workspaceSwitcher"
+  | "topbar.workspaceSwitchingDeferred"
   | "topbar.workspaceHome"
   | "updates.all"
   | "updates.comments"
@@ -333,15 +431,18 @@ const messages: Record<DisplayLocale, Messages> = {
     "settings.availableLibraries": "Available Libraries",
     "settings.archiveWorkspace": "Archive workspace",
     "settings.archiveWorkspaceDeferredReason": "Workspace archive/delete semantics are deferred for organization scope.",
+    "settings.accessIdentity": "Access & identity",
     "settings.assessment": "Assessment",
     "settings.categoryAndDigest": "Category And Digest",
     "settings.categoryPreferences": "Category preferences",
     "settings.collectionOrder": "Collection order",
+    "settings.collectionSummary": "Collection summary",
     "settings.collections": "Collections",
     "settings.contractReadiness": "Contract readiness",
     "settings.createdAt": "Created at",
     "settings.currentRole": "Current role",
     "settings.currentLibraryLabel": "Current library",
+    "settings.currentLibrarySummary": "Current library summary",
     "settings.currentSpaceId": "Current space ID",
     "settings.currentSource": "Current source",
     "settings.currentWorkspace": "Current workspace",
@@ -355,8 +456,13 @@ const messages: Record<DisplayLocale, Messages> = {
     "settings.developer": "Developer",
     "settings.displayLanguageHelp": "Changes apply immediately to this browser session.",
     "settings.documents": "Documents",
+    "settings.documentPermissions": "Document permissions",
+    "settings.documentSummary": "Document summary",
     "settings.email": "Email",
     "settings.drafts": "Drafts",
+    "settings.centerHeading": "Settings",
+    "settings.centerHeadingReady": "Workspace, personal, and organization settings are grouped by ownership and task surface.",
+    "settings.contextSummary": "Settings context",
     "settings.emailDigest": "Email digest",
     "settings.editOrganizationProfile": "Edit organization profile",
     "settings.error": "Error",
@@ -375,6 +481,7 @@ const messages: Record<DisplayLocale, Messages> = {
     "settings.libraryNotificationsHelp": "Only watched or muted resources that match this library can be shown from the current preferences API.",
     "settings.manageInLibrary": "Manage in Library",
     "settings.members": "Members",
+    "settings.membersInventory": "Members inventory",
     "settings.name": "Name",
     "settings.newDocumentInLibrary": "New document in Library",
     "settings.noCollections": "No collections are available for this library.",
@@ -389,6 +496,8 @@ const messages: Record<DisplayLocale, Messages> = {
     "settings.organizationAssessmentHelp": "Assessment keeps broader organization mutations deferred while profile rename is owner-gated.",
     "settings.organizationHeading": "Organization Settings Assessment",
     "settings.organizationHeadingReady": "Organization profile is live-backed. Profile rename is owner-gated; broader administration remains deferred.",
+    "settings.organizationSettingsHeading": "Organization Settings",
+    "settings.organizationSettingsReady": "Organization profile and inventory live above the current workspace. Organization members and provisioning mutations remain deferred.",
     "settings.organizationLiveReadModel": "Organization Live Read Model",
     "settings.liveReadBacked": "Live-backed by the organization read-only API.",
     "settings.liveReadOnly": "Read-only live data",
@@ -410,6 +519,9 @@ const messages: Record<DisplayLocale, Messages> = {
     "settings.overview": "Overview",
     "settings.permissions": "Permissions",
     "settings.plan": "Plan",
+    "settings.preferences": "Preferences",
+    "settings.personalSettingsHeading": "Personal Settings",
+    "settings.personalSettingsReady": "Personal preferences apply to this browser session and are separate from workspace administration.",
     "settings.position": "Position",
     "settings.proposedDto": "Proposed DTO",
     "settings.proposedEndpoint": "Proposed endpoint",
@@ -478,17 +590,101 @@ const messages: Record<DisplayLocale, Messages> = {
     "settings.renameUnavailable": "Rename unavailable",
     "settings.ownerRequired": "Owner required / insufficient permission",
     "settings.unconfigured": "Unconfigured",
+    "settings.backendStatus": "Backend status",
+    "settings.frontendStatus": "Frontend status",
+    "settings.informationArchitecture": "Settings architecture",
+    "settings.inventoryConflictMarked": "Conflict-marked",
+    "settings.inventoryDefer": "Defer",
+    "settings.inventoryHalfFinished": "Half-finished",
+    "settings.inventoryKeep": "Keep in Settings",
+    "settings.inventoryLibraryOperations": "Library operations",
+    "settings.inventoryLiveMutation": "Live mutation",
+    "settings.inventoryLiveRead": "Live read",
+    "settings.inventoryMissing": "Missing contract",
+    "settings.inventoryMove": "Move to task surface",
+    "settings.inventoryOrganizationMembers": "Organization members inventory",
+    "settings.inventoryOrganizationProfile": "Organization profile",
+    "settings.inventoryPersonalLanguage": "Language and region",
+    "settings.inventoryReadOnly": "Read-only",
+    "settings.inventoryRemoveAction": "Remove action affordance",
+    "settings.inventoryResourceShare": "Resource share",
+    "settings.inventoryShouldMove": "Should move",
+    "settings.inventorySplit": "Split into personal settings",
+    "settings.inventoryStatic": "Static",
+    "settings.inventorySystemSettings": "System / instance settings",
+    "settings.inventoryWorkspaceMembers": "Workspace members",
+    "settings.inventoryWorkspaceNotifications": "Workspace notification preferences",
+    "settings.inventoryWorkspaceProfile": "Workspace profile",
+    "settings.inventoryWorkspaceProvisioning": "Workspace provisioning",
+    "settings.accessRequests": "Access requests",
+    "settings.backendPermissionChecked": "Mutations remain checked by the backend permission service.",
+    "settings.boundary": "Boundary",
+    "settings.groups": "Groups",
+    "settings.lastOwnerProtected": "Protected by existing backend constraints.",
+    "settings.libraryOperations": "Library operations",
+    "settings.libraryOperationsSurfaceHelp": "Routine collection and document work stays in Libraries; Settings shows summary and links only.",
+    "settings.membersSurfaceHelp": "Member list, add member, role update, remove member, busy states, and backend errors stay on the Members surface.",
+    "settings.notificationBoundaryHelp": "No new notification category or email digest backend semantics in this round.",
+    "settings.openMembersSurface": "Open Members surface",
+    "settings.personalPreferenceLocalHelp": "This is a personal browser preference shown here until a Personal Settings route exists.",
+    "settings.recommendedSettingsClosure": "Recommended settings closure",
+    "settings.resourcePreferences": "Resource preferences",
+    "settings.resourceShare": "Resource share",
+    "settings.resourceShareSurfaceHelp": "Share links remain resource-level actions from document or collection context; public-link behavior is unchanged here.",
+    "settings.roleBoundaries": "Role boundaries",
+    "settings.selectedCapabilities": "Selected capabilities",
+    "settings.shareLinksPublicLinks": "Share links / public links",
+    "settings.sortOrder": "sort",
+    "settings.viewerManagementDisabled": "Management actions are disabled by the existing capability model.",
+    "settings.workspaceProfile": "Workspace profile",
+    "settings.workspaceProfileReadOnlyHelp": "Workspace profile updates remain read-only because no workspace profile update API contract is exposed in the inspected backend.",
+    "settings.loadingNotificationPreferences": "Loading notification preferences.",
+    "settings.notificationPreferenceApiFailed": "Notification preference API failed.",
+    "settings.notificationPreferenceForbidden": "Notification preference access is unavailable for this user.",
+    "settings.notificationPreferenceHelp": "Choose the current workspace default for permission and activity notifications. Resource-specific watch and mute state remains listed below.",
+    "settings.preferenceUpdated": "Preference updated.",
+    "settings.preferenceUpdateUnavailable": "API and workspace id are required to update notification preferences.",
+    "settings.recommendation": "Recommendation",
+    "settings.savingPreference": "Saving preference...",
+    "settings.scope": "Scope",
+    "settings.scopeDeferred": "Deferred",
+    "settings.scopePersonal": "Personal",
+    "settings.scopeResource": "Resource",
+    "settings.secondaryNavigation": "Settings sections",
+    "settings.workspaceNotificationDefault": "Default",
+    "settings.workspaceNotificationMuted": "Mute workspace",
+    "settings.workspaceNotificationPreference": "Workspace notification default",
+    "settings.workspaceNotificationWatched": "Watch workspace",
+    "share.clipboardBlocked": "Clipboard access was blocked. Copy the link manually.",
+    "share.clipboardUnavailable": "Clipboard is unavailable in this browser.",
+    "share.createInternalLink": "Create internal link",
+    "share.internalLinkCreated": "Internal share link created. Copy the URL or token now.",
+    "share.linkCreated": "Share link created.",
+    "share.linkRevoked": "Share link revoked.",
+    "share.nothingToCopy": "Nothing to copy yet.",
+    "share.openFromDocument": "Open Share from a document to manage live permission links.",
+    "share.operationInProgress": "Finish the current share operation first.",
+    "share.shareApiUnavailable": "Share API unavailable for this document.",
+    "share.tokenCopied": "Token copied.",
+    "share.urlCopied": "URL copied.",
     "topbar.account": "Northstar account",
     "topbar.apiNotConfigured": "API not configured",
+    "topbar.currentWorkspace": "Current workspace",
     "topbar.exportJson": "Export workspace JSON",
     "topbar.importJson": "Import workspace JSON",
     "topbar.libraries": "Libraries",
     "topbar.mfaEnabled": "MFA enabled",
     "topbar.mfaNotEnabled": "MFA not enabled",
+    "topbar.organizationSettings": "Organization settings",
+    "topbar.personalSettings": "Personal settings",
     "topbar.runSearch": "Run search",
     "topbar.saved": "Saved",
     "topbar.searchNorthstar": "Search Northstar",
+    "topbar.signOut": "Sign out",
     "topbar.signInRequired": "Sign in required",
+    "topbar.workspaceListUnavailable": "Workspace list unavailable for this session.",
+    "topbar.workspaceSwitcher": "Workspace switcher",
+    "topbar.workspaceSwitchingDeferred": "Workspace switching is visible but not supported by this frontend route yet.",
     "topbar.workspaceHome": "Workspace Home",
     "updates.access": "Access / approvals",
     "updates.all": "All",
@@ -582,6 +778,7 @@ const messages: Record<DisplayLocale, Messages> = {
     "settings.availableLibraries": "可用资料库",
     "settings.archiveWorkspace": "归档工作区",
     "settings.archiveWorkspaceDeferredReason": "组织范围的工作区归档 / 删除语义暂未定义。",
+    "settings.accessIdentity": "\u8bbf\u95ee\u4e0e\u8eab\u4efd",
     "settings.assessment": "评估",
     "settings.categoryAndDigest": "分类与摘要",
     "settings.categoryPreferences": "分类偏好",
@@ -606,6 +803,9 @@ const messages: Record<DisplayLocale, Messages> = {
     "settings.documents": "文档",
     "settings.email": "邮箱",
     "settings.drafts": "草稿",
+    "settings.centerHeading": "\u8bbe\u7f6e",
+    "settings.centerHeadingReady": "\u5de5\u4f5c\u533a\u3001\u4e2a\u4eba\u548c\u7ec4\u7ec7\u8bbe\u7f6e\u5df2\u6309\u5f52\u5c5e\u8fb9\u754c\u548c\u4efb\u52a1\u8868\u9762\u5206\u7ec4\u3002",
+    "settings.contextSummary": "\u8bbe\u7f6e\u4e0a\u4e0b\u6587",
     "settings.emailDigest": "邮件摘要",
     "settings.editOrganizationProfile": "编辑组织资料",
     "settings.error": "错误",
@@ -624,6 +824,7 @@ const messages: Record<DisplayLocale, Messages> = {
     "settings.libraryNotificationsHelp": "当前偏好 API 只能显示与此资料库匹配的已关注或已静音资源。",
     "settings.manageInLibrary": "在资料库中管理",
     "settings.members": "成员",
+    "settings.membersInventory": "\u6210\u5458\u6e05\u5355",
     "settings.name": "名称",
     "settings.newDocumentInLibrary": "在资料库中新建文档",
     "settings.noCollections": "此资料库暂无集合。",
@@ -652,6 +853,8 @@ const messages: Record<DisplayLocale, Messages> = {
     "settings.orgGlobalMembers": "全局成员",
     "settings.orgProfile": "组织资料",
     "settings.organizationSlug": "组织 slug",
+    "settings.organizationSettingsHeading": "\u7ec4\u7ec7\u8bbe\u7f6e",
+    "settings.organizationSettingsReady": "\u7ec4\u7ec7\u8d44\u6599\u548c\u6e05\u5355\u5c5e\u4e8e\u5f53\u524d\u5de5\u4f5c\u533a\u4e4b\u4e0a\u7684\u7ba1\u7406\u8fb9\u754c\u3002\u7ec4\u7ec7\u6210\u5458\u548c\u5de5\u4f5c\u533a\u5f00\u901a\u53d8\u66f4\u4ecd\u6682\u7f13\u3002",
     "settings.orgSsoScimOwnership": "SSO / SCIM 归属",
     "settings.orgWorkspaceProvisioning": "工作区开通",
     "settings.organizationReadOnlyHelp": "组织资料重命名仅限拥有者。其他组织变更仍然暂缓。",
@@ -659,6 +862,9 @@ const messages: Record<DisplayLocale, Messages> = {
     "settings.overview": "概览",
     "settings.permissions": "权限",
     "settings.plan": "套餐",
+    "settings.preferences": "\u504f\u597d",
+    "settings.personalSettingsHeading": "\u4e2a\u4eba\u8bbe\u7f6e",
+    "settings.personalSettingsReady": "\u4e2a\u4eba\u504f\u597d\u53ea\u5e94\u7528\u4e8e\u5f53\u524d\u6d4f\u89c8\u5668\u4f1a\u8bdd\uff0c\u4e0e\u5de5\u4f5c\u533a\u7ba1\u7406\u5206\u5f00\u3002",
     "settings.position": "位置",
     "settings.proposedDto": "Proposed DTO",
     "settings.proposedEndpoint": "Proposed endpoint",
@@ -727,17 +933,105 @@ const messages: Record<DisplayLocale, Messages> = {
     "settings.renameUnavailable": "暂不能重命名",
     "settings.ownerRequired": "需要拥有者权限 / 权限不足",
     "settings.unconfigured": "未配置",
+    "settings.backendStatus": "\u540e\u7aef\u72b6\u6001",
+    "settings.frontendStatus": "\u524d\u7aef\u72b6\u6001",
+    "settings.informationArchitecture": "\u8bbe\u7f6e\u4fe1\u606f\u67b6\u6784",
+    "settings.inventoryConflictMarked": "\u6709\u51b2\u7a81\u6807\u8bb0",
+    "settings.inventoryDefer": "\u6682\u7f13",
+    "settings.inventoryHalfFinished": "\u534a\u6210\u54c1",
+    "settings.inventoryKeep": "\u4fdd\u7559\u5728\u8bbe\u7f6e",
+    "settings.inventoryLibraryOperations": "\u8d44\u6599\u5e93\u64cd\u4f5c",
+    "settings.inventoryLiveMutation": "\u53ef\u771f\u5b9e\u53d8\u66f4",
+    "settings.inventoryLiveRead": "\u53ef\u771f\u5b9e\u8bfb\u53d6",
+    "settings.inventoryMissing": "\u7f3a\u5c11\u5408\u540c",
+    "settings.inventoryMove": "\u79fb\u5230\u4efb\u52a1\u754c\u9762",
+    "settings.inventoryOrganizationMembers": "\u7ec4\u7ec7\u6210\u5458\u6e05\u5355",
+    "settings.inventoryOrganizationProfile": "\u7ec4\u7ec7\u8d44\u6599",
+    "settings.inventoryPersonalLanguage": "\u8bed\u8a00\u4e0e\u533a\u57df",
+    "settings.inventoryReadOnly": "\u53ea\u8bfb",
+    "settings.inventoryRemoveAction": "\u79fb\u9664\u64cd\u4f5c\u5165\u53e3",
+    "settings.inventoryResourceShare": "\u8d44\u6e90\u5206\u4eab",
+    "settings.inventoryShouldMove": "\u5e94\u8fc1\u51fa",
+    "settings.inventorySplit": "\u62c6\u5230\u4e2a\u4eba\u8bbe\u7f6e",
+    "settings.inventoryStatic": "\u9759\u6001",
+    "settings.inventorySystemSettings": "\u7cfb\u7edf / \u5b9e\u4f8b\u8bbe\u7f6e",
+    "settings.inventoryWorkspaceMembers": "\u5de5\u4f5c\u533a\u6210\u5458",
+    "settings.inventoryWorkspaceNotifications": "\u5de5\u4f5c\u533a\u901a\u77e5\u504f\u597d",
+    "settings.inventoryWorkspaceProfile": "\u5de5\u4f5c\u533a\u8d44\u6599",
+    "settings.inventoryWorkspaceProvisioning": "\u5de5\u4f5c\u533a\u5f00\u901a",
+    "settings.accessRequests": "\u8bbf\u95ee\u8bf7\u6c42",
+    "settings.backendPermissionChecked": "\u53d8\u66f4\u4ecd\u7531\u540e\u7aef\u6743\u9650\u670d\u52a1\u68c0\u67e5\u3002",
+    "settings.boundary": "\u8fb9\u754c",
+    "settings.collectionSummary": "\u96c6\u5408\u6458\u8981",
+    "settings.currentLibrarySummary": "\u5f53\u524d\u8d44\u6599\u5e93\u6458\u8981",
+    "settings.documentPermissions": "\u6587\u6863\u6743\u9650",
+    "settings.documentSummary": "\u6587\u6863\u6458\u8981",
+    "settings.groups": "\u7ec4",
+    "settings.lastOwnerProtected": "\u73b0\u6709\u540e\u7aef\u7ea6\u675f\u4fdd\u62a4\u6700\u540e\u4e00\u4f4d\u62e5\u6709\u8005\u3002",
+    "settings.libraryOperations": "\u8d44\u6599\u5e93\u64cd\u4f5c",
+    "settings.libraryOperationsSurfaceHelp": "\u65e5\u5e38\u96c6\u5408\u548c\u6587\u6863\u5de5\u4f5c\u4fdd\u7559\u5728\u8d44\u6599\u5e93\u754c\u9762\uff1b\u8bbe\u7f6e\u4ec5\u663e\u793a\u6458\u8981\u548c\u94fe\u63a5\u3002",
+    "settings.membersSurfaceHelp": "\u6210\u5458\u5217\u8868\u3001\u6dfb\u52a0\u6210\u5458\u3001\u89d2\u8272\u66f4\u65b0\u3001\u79fb\u9664\u6210\u5458\u3001\u5fd9\u788c\u72b6\u6001\u548c\u540e\u7aef\u9519\u8bef\u90fd\u4fdd\u7559\u5728\u6210\u5458\u754c\u9762\u3002",
+    "settings.notificationBoundaryHelp": "\u672c\u8f6e\u4e0d\u65b0\u589e\u901a\u77e5\u5206\u7c7b\u6216\u90ae\u4ef6\u6458\u8981\u540e\u7aef\u8bed\u4e49\u3002",
+    "settings.openMembersSurface": "\u6253\u5f00\u6210\u5458\u754c\u9762",
+    "settings.personalPreferenceLocalHelp": "\u8fd9\u662f\u4e2a\u4eba\u6d4f\u89c8\u5668\u504f\u597d\uff1b\u5728\u72ec\u7acb\u4e2a\u4eba\u8bbe\u7f6e\u8def\u7531\u5b58\u5728\u524d\u6682\u65f6\u653e\u5728\u8fd9\u91cc\u3002",
+    "settings.recommendedSettingsClosure": "\u5efa\u8bae\u7684\u8bbe\u7f6e\u6536\u53e3",
+    "settings.resourcePreferences": "\u8d44\u6e90\u504f\u597d",
+    "settings.resourceShare": "\u8d44\u6e90\u5206\u4eab",
+    "settings.resourceShareSurfaceHelp": "\u5206\u4eab\u94fe\u63a5\u4ecd\u662f\u6587\u6863\u6216\u96c6\u5408\u4e0a\u4e0b\u6587\u4e2d\u7684\u8d44\u6e90\u7ea7\u64cd\u4f5c\uff1b\u8fd9\u91cc\u4e0d\u6539\u53d8 public-link \u884c\u4e3a\u3002",
+    "settings.roleBoundaries": "\u89d2\u8272\u8fb9\u754c",
+    "settings.selectedCapabilities": "\u9009\u4e2d\u80fd\u529b",
+    "settings.shareLinksPublicLinks": "\u5206\u4eab\u94fe\u63a5 / public links",
+    "settings.sortOrder": "\u6392\u5e8f",
+    "settings.viewerManagementDisabled": "\u73b0\u6709\u80fd\u529b\u6a21\u578b\u4f1a\u7981\u7528\u7ba1\u7406\u64cd\u4f5c\u3002",
+    "settings.workspaceProfile": "\u5de5\u4f5c\u533a\u8d44\u6599",
+    "settings.workspaceProfileReadOnlyHelp": "\u5df2\u68c0\u67e5\u7684\u540e\u7aef\u6ca1\u6709\u66b4\u9732\u5de5\u4f5c\u533a\u8d44\u6599\u66f4\u65b0 API \u5408\u540c\uff0c\u56e0\u6b64\u5de5\u4f5c\u533a\u8d44\u6599\u4fdd\u6301\u53ea\u8bfb\u3002",
+    "settings.loadingNotificationPreferences": "\u6b63\u5728\u52a0\u8f7d\u901a\u77e5\u504f\u597d\u3002",
+    "settings.notificationPreferenceApiFailed": "\u901a\u77e5\u504f\u597d API \u8bf7\u6c42\u5931\u8d25\u3002",
+    "settings.notificationPreferenceForbidden": "\u5f53\u524d\u7528\u6237\u65e0\u6cd5\u8bbf\u95ee\u901a\u77e5\u504f\u597d\u3002",
+    "settings.notificationPreferenceHelp": "\u9009\u62e9\u5f53\u524d\u5de5\u4f5c\u533a\u7684\u6743\u9650\u548c\u6d3b\u52a8\u901a\u77e5\u9ed8\u8ba4\u72b6\u6001\u3002\u8d44\u6e90\u7ea7\u5173\u6ce8\u548c\u9759\u97f3\u72b6\u6001\u4fdd\u7559\u5728\u4e0b\u65b9\u5217\u8868\u3002",
+    "settings.preferenceUpdated": "\u504f\u597d\u5df2\u66f4\u65b0\u3002",
+    "settings.preferenceUpdateUnavailable": "\u9700\u8981 API \u548c\u5de5\u4f5c\u533a ID \u624d\u80fd\u66f4\u65b0\u901a\u77e5\u504f\u597d\u3002",
+    "settings.recommendation": "\u5efa\u8bae",
+    "settings.savingPreference": "\u6b63\u5728\u4fdd\u5b58\u504f\u597d...",
+    "settings.scope": "\u8303\u56f4",
+    "settings.scopeDeferred": "\u6682\u7f13",
+    "settings.scopePersonal": "\u4e2a\u4eba",
+    "settings.scopeResource": "\u8d44\u6e90",
+    "settings.secondaryNavigation": "\u8bbe\u7f6e\u5206\u7ec4",
+    "settings.workspaceNotificationDefault": "\u9ed8\u8ba4",
+    "settings.workspaceNotificationMuted": "\u9759\u97f3\u5de5\u4f5c\u533a",
+    "settings.workspaceNotificationPreference": "\u5de5\u4f5c\u533a\u901a\u77e5\u9ed8\u8ba4\u503c",
+    "settings.workspaceNotificationWatched": "\u5173\u6ce8\u5de5\u4f5c\u533a",
+    "share.clipboardBlocked": "\u526a\u8d34\u677f\u8bbf\u95ee\u88ab\u963b\u6b62\uff0c\u8bf7\u624b\u52a8\u590d\u5236\u94fe\u63a5\u3002",
+    "share.clipboardUnavailable": "\u5f53\u524d\u6d4f\u89c8\u5668\u4e0d\u652f\u6301\u526a\u8d34\u677f\u3002",
+    "share.createInternalLink": "\u521b\u5efa\u5185\u90e8\u94fe\u63a5",
+    "share.internalLinkCreated": "\u5185\u90e8\u5206\u4eab\u94fe\u63a5\u5df2\u521b\u5efa\uff0c\u8bf7\u73b0\u5728\u590d\u5236 URL \u6216 token\u3002",
+    "share.linkCreated": "\u5206\u4eab\u94fe\u63a5\u5df2\u521b\u5efa\u3002",
+    "share.linkRevoked": "\u5206\u4eab\u94fe\u63a5\u5df2\u64a4\u9500\u3002",
+    "share.nothingToCopy": "\u6682\u65e0\u53ef\u590d\u5236\u5185\u5bb9\u3002",
+    "share.openFromDocument": "\u8bf7\u4ece\u6587\u6863\u6253\u5f00\u5206\u4eab\uff0c\u4ee5\u7ba1\u7406\u5b9e\u65f6\u6743\u9650\u94fe\u63a5\u3002",
+    "share.operationInProgress": "\u8bf7\u5148\u5b8c\u6210\u5f53\u524d\u5206\u4eab\u64cd\u4f5c\u3002",
+    "share.shareApiUnavailable": "\u5f53\u524d\u6587\u6863\u4e0d\u53ef\u7528\u5206\u4eab API\u3002",
+    "share.tokenCopied": "Token \u5df2\u590d\u5236\u3002",
+    "share.urlCopied": "URL \u5df2\u590d\u5236\u3002",
     "topbar.account": "Northstar 账户",
     "topbar.apiNotConfigured": "API 未配置",
+    "topbar.currentWorkspace": "\u5f53\u524d\u5de5\u4f5c\u533a",
     "topbar.exportJson": "导出工作区 JSON",
     "topbar.importJson": "导入工作区 JSON",
     "topbar.libraries": "资料库",
     "topbar.mfaEnabled": "已启用 MFA",
     "topbar.mfaNotEnabled": "未启用 MFA",
+    "topbar.organizationSettings": "\u7ec4\u7ec7\u8bbe\u7f6e",
+    "topbar.personalSettings": "\u4e2a\u4eba\u8bbe\u7f6e",
     "topbar.runSearch": "执行搜索",
     "topbar.saved": "已保存",
     "topbar.searchNorthstar": "搜索 Northstar",
+    "topbar.signOut": "\u9000\u51fa\u767b\u5f55",
     "topbar.signInRequired": "需要登录",
+    "topbar.workspaceListUnavailable": "\u5f53\u524d\u4f1a\u8bdd\u65e0\u6cd5\u8bfb\u53d6\u5de5\u4f5c\u533a\u5217\u8868\u3002",
+    "topbar.workspaceSwitcher": "\u5de5\u4f5c\u533a\u5207\u6362\u5668",
+    "topbar.workspaceSwitchingDeferred": "\u5de5\u4f5c\u533a\u5207\u6362\u53ef\u89c1\uff0c\u4f46\u5f53\u524d\u524d\u7aef\u8def\u7531\u5c1a\u4e0d\u652f\u6301\u771f\u5b9e\u5207\u6362\u3002",
     "topbar.workspaceHome": "工作区主页",
     "updates.access": "访问 / 审批",
     "updates.all": "全部",

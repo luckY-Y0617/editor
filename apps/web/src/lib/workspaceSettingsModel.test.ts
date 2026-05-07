@@ -9,17 +9,26 @@ import type {
 } from "./appApi";
 import {
   applyOrganizationReadApiStatus,
+  createOrganizationSettingsNavGroups,
+  createPersonalSettingsNavGroups,
+  createSettingsNavGroups,
   createWorkspaceSettingsTabRows,
   getOrganizationMemberManagementActions,
   getOrganizationWorkspaceProvisioningActions,
   prepareOrganizationProfileUpdateRequest,
+  prepareWorkspaceNotificationPreferenceRequest,
   getRecommendedOrganizationSettingsSlice,
+  getRecommendedSettingsClosureSlice,
+  normalizeSettingsPanel,
   toOrganizationSettingsAssessmentRows,
+  toSettingsCapabilityInventoryRows,
   toOrganizationMemberInventoryRows,
   toOrganizationOverviewModel,
   toOrganizationProfileEditCapability,
   toOrganizationReadSurfaceState,
   toOrganizationWorkspaceInventoryRows,
+  toWorkspaceNotificationPreferenceModel,
+  toWorkspaceNotificationPreferenceMutationError,
   toSettingsBoundaryRows,
   toLibraryGeneralSettings,
   toLibraryNotificationPreferenceRows,
@@ -152,6 +161,53 @@ const organizationMembers: OrganizationMembersResponse = {
 };
 
 describe("workspaceSettingsModel", () => {
+  test("models PC Settings secondary navigation without Current Library as a top-level scope", () => {
+    const groups = createSettingsNavGroups();
+
+    expect(groups.map((group) => group.id)).toEqual(["workspace", "deferred"]);
+    expect(groups.find((group) => group.id === "workspace")?.items.map((item) => item.id)).toEqual([
+      "workspace-general",
+      "workspace-notifications",
+      "workspace-access-identity",
+      "workspace-security",
+      "workspace-integrations",
+    ]);
+    const panelIds = groups.flatMap((group) => group.items.map((item) => item.id as string));
+    expect(panelIds.includes("library-general")).toBe(false);
+    expect(panelIds.includes("personal-preferences")).toBe(false);
+    expect(panelIds.includes("organization-profile")).toBe(false);
+
+    expect(createPersonalSettingsNavGroups().map((group) => group.id)).toEqual(["personal"]);
+    expect(createOrganizationSettingsNavGroups().find((group) => group.id === "organization")?.items.map((item) => item.id)).toEqual([
+      "organization-profile",
+      "organization-workspaces",
+      "organization-members",
+    ]);
+  });
+
+  test("normalizes legacy Settings hashes into the PC Settings IA panels", () => {
+    expect(normalizeSettingsPanel({ scope: "workspace", tab: "general" })).toEqual({
+      id: "workspace-general",
+      section: "workspace",
+    });
+    expect(normalizeSettingsPanel({ scope: "library", tab: "collections" })).toEqual({
+      id: "workspace-general",
+      section: "workspace",
+    });
+    expect(normalizeSettingsPanel({ scope: "workspace", tab: "members" })).toEqual({
+      id: "workspace-access-identity",
+      section: "workspace",
+    });
+    expect(normalizeSettingsPanel({ scope: "organization", tab: "overview" })).toEqual({
+      id: "workspace-general",
+      section: "workspace",
+    });
+    expect(normalizeSettingsPanel({ panel: "personal-preferences", scope: "workspace", tab: "general" })).toEqual({
+      id: "workspace-general",
+      section: "workspace",
+    });
+  });
+
   test("marks Plan and Developer as deferred settings tabs", () => {
     const rows = createWorkspaceSettingsTabRows("general");
 
@@ -194,17 +250,17 @@ describe("workspaceSettingsModel", () => {
 
     expect(rows).toEqual([
       {
-        href: "#settings?scope=workspace",
+        href: "#settings",
         id: "workspace",
         status: "live",
       },
       {
-        href: `#settings?scope=library&tab=general&spaceId=${firstSpaceId}`,
+        href: `#libraries?libraryId=${firstSpaceId}`,
         id: "library",
         status: "live",
       },
       {
-        href: "#settings?scope=organization&tab=overview",
+        href: "#organization-settings?panel=profile",
         id: "organization",
         status: "assessment",
       },
@@ -214,6 +270,76 @@ describe("workspaceSettingsModel", () => {
         status: "not-exposed",
       },
     ]);
+  });
+
+  test("classifies Settings capability ownership before enabling actions", () => {
+    const rows = toSettingsCapabilityInventoryRows();
+    const byId = new Map(rows.map((row) => [row.id, row]));
+
+    expect(byId.get("workspace-notification-preferences")).toMatchObject({
+      backendStatus: "live-mutation",
+      frontendStatus: "live",
+      recommendation: "keep",
+      scope: "workspace",
+    });
+    expect(byId.get("resource-share")).toMatchObject({
+      recommendation: "move",
+      scope: "resource",
+    });
+    expect(byId.get("system-instance-settings")).toMatchObject({
+      backendStatus: "missing",
+      recommendation: "remove-action-affordance",
+    });
+  });
+
+  test("recommends IA cleanup when workspace profile update contract is missing", () => {
+    const slice = getRecommendedSettingsClosureSlice();
+
+    expect(slice.title).toBe("Settings IA cleanup");
+    expect(slice.capabilityIds).toEqual([
+      "workspace-profile-update",
+      "workspace-members",
+      "resource-share",
+      "library-collections-documents",
+    ]);
+    expect(slice.reason).toContain("no inspected backend mutation contract");
+    expect(slice.reason).toContain("task surfaces");
+  });
+
+  test("models workspace notification preference update request and state", () => {
+    const preference: PermissionNotificationPreferenceDto = {
+      createdAt: "2026-05-01T00:00:00Z",
+      id: "preference-1",
+      muted: true,
+      resourceId: null,
+      resourceType: null,
+      updatedAt: "2026-05-02T00:00:00Z",
+      userId: "user-1",
+      watched: false,
+      workspaceId,
+    };
+
+    expect(toWorkspaceNotificationPreferenceModel([preference], "ready")).toMatchObject({
+      canUpdate: true,
+      mode: "muted",
+      mutationStatus: "idle",
+      updatedAt: "2026-05-02T00:00:00Z",
+    });
+    expect(toWorkspaceNotificationPreferenceModel([], "forbidden")).toMatchObject({
+      canUpdate: false,
+      mode: "default",
+    });
+    expect(prepareWorkspaceNotificationPreferenceRequest(` ${workspaceId} `, "watched")).toEqual({
+      muted: false,
+      resourceId: null,
+      resourceType: null,
+      watched: true,
+      workspaceId,
+    });
+    expect(prepareWorkspaceNotificationPreferenceRequest("", "muted")).toBe(null);
+    expect(toWorkspaceNotificationPreferenceMutationError(new Error("Backend validation failed."))).toBe(
+      "Backend validation failed.",
+    );
   });
 
   test("models organization contract readiness without enabling management", () => {
@@ -383,7 +509,7 @@ describe("workspaceSettingsModel", () => {
     const rows = toOrganizationWorkspaceInventoryRows(organizationProfile, workspaceId);
 
     expect(rows.map((row) => [row.name, row.switchStatus, row.settingsHref])).toEqual([
-      ["Northstar", "live", "#settings?scope=workspace"],
+      ["Northstar", "live", "#settings"],
       ["Research", "deferred", null],
     ]);
     expect(rows[0]?.isCurrentWorkspace).toBe(true);

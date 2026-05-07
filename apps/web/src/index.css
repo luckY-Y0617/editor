@@ -855,6 +855,150 @@
     margin-left: auto;
   }
 
+  .workspace-home-switcher,
+  .workspace-home-account-wrapper {
+    position: relative;
+  }
+
+  .workspace-home-switcher-button,
+  .workspace-home-account-button {
+    display: inline-flex;
+    height: 36px;
+    align-items: center;
+    gap: 0.5rem;
+    border: 0;
+    background: transparent;
+    color: #f5efe4;
+    font-size: 0.875rem;
+    font-weight: 750;
+    letter-spacing: 0;
+    transition: background 140ms ease;
+  }
+
+  .workspace-home-switcher-button {
+    padding: 0 0.75rem;
+  }
+
+  .workspace-home-account-button {
+    border-left: 1px solid rgba(255, 255, 255, 0.14);
+    padding: 0 0 0 0.75rem;
+  }
+
+  .workspace-home-switcher-button:hover,
+  .workspace-home-account-button:hover {
+    background: rgba(255, 255, 255, 0.07);
+  }
+
+  .workspace-home-dropdown {
+    position: absolute;
+    top: calc(100% + 10px);
+    z-index: 70;
+    min-width: 250px;
+    border: 1px solid rgba(33, 57, 82, 0.22);
+    border-radius: 4px;
+    background: rgba(255, 253, 248, 0.98);
+    box-shadow: 0 18px 48px rgba(7, 26, 45, 0.26);
+    color: var(--ns-navy-900);
+    padding: 0.55rem;
+  }
+
+  .workspace-home-workspace-dropdown {
+    left: 0;
+  }
+
+  .workspace-home-account-dropdown {
+    right: 0;
+  }
+
+  .workspace-home-dropdown-heading {
+    display: grid;
+    gap: 0.15rem;
+    border-bottom: 1px solid rgba(216, 208, 195, 0.88);
+    padding: 0.55rem 0.65rem 0.65rem;
+  }
+
+  .workspace-home-dropdown-heading span,
+  .workspace-home-dropdown p,
+  .workspace-home-dropdown a small {
+    color: var(--ns-slate-500);
+    font-size: 0.75rem;
+    line-height: 1.35;
+  }
+
+  .workspace-home-dropdown-heading strong {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--ns-navy-950);
+    font-size: 0.95rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .workspace-home-dropdown-list {
+    display: grid;
+    gap: 0.25rem;
+    padding-top: 0.45rem;
+  }
+
+  .workspace-home-dropdown a,
+  .workspace-home-dropdown button {
+    display: flex;
+    width: 100%;
+    min-width: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    border: 0;
+    border-radius: 3px;
+    background: transparent;
+    color: var(--ns-navy-900);
+    font-size: 0.875rem;
+    font-weight: 750;
+    padding: 0.6rem 0.65rem;
+    text-align: left;
+    text-decoration: none;
+  }
+
+  .workspace-home-dropdown a:hover,
+  .workspace-home-dropdown button:hover {
+    background: rgba(15, 92, 156, 0.08);
+  }
+
+  .workspace-home-dropdown a.is-disabled {
+    color: var(--ns-slate-500);
+    cursor: not-allowed;
+  }
+
+  .workspace-home-dropdown a.is-current {
+    background: rgba(15, 92, 156, 0.1);
+    color: var(--ns-blue-700);
+  }
+
+  .workspace-home-dropdown a > span {
+    display: grid;
+    min-width: 0;
+    gap: 0.1rem;
+  }
+
+  .workspace-home-dropdown a strong {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .workspace-home-dropdown a em {
+    flex-shrink: 0;
+    color: var(--ns-slate-500);
+    font-size: 0.72rem;
+    font-style: normal;
+    font-weight: 700;
+  }
+
+  .workspace-home-dropdown p {
+    margin: 0.45rem 0.65rem 0.2rem;
+  }
+
   .workspace-home-body {
     background:
       linear-gradient(90deg, rgba(216, 208, 195, 0.42) 0 1px, transparent 1px 100%) center top / 272px 100% repeat-x,
@@ -4494,6 +4638,11 @@
     color: #a84234;
   }
 
+  .share-permissions-inline-status.is-muted {
+    color: var(--ns-slate-500);
+    font-weight: 600;
+  }
+
   .share-permissions-field-row {
     display: grid;
     gap: 0.35rem;
@@ -5075,6 +5224,12 @@
     color: #a84234;
     font-size: 12px;
     font-weight: 800;
+  }
+
+  .share-permissions-share-link-row button.is-danger {
+    border: 1px solid rgba(168, 66, 52, 0.26);
+    border-radius: 4px;
+    background: rgba(168, 66, 52, 0.08);
   }
 
   .share-permissions-toggle-row {
@@ -6300,6 +6455,93 @@
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
+  .workspace-settings-context-strip {
+    grid-template-columns: repeat(2, minmax(150px, 1fr));
+  }
+
+  .workspace-settings-layout {
+    display: grid;
+    grid-template-columns: 230px minmax(0, 1fr);
+    gap: 24px;
+    align-items: start;
+    margin-top: 1.35rem;
+  }
+
+  .workspace-settings-secondary-nav {
+    position: sticky;
+    top: 1rem;
+    display: grid;
+    gap: 1rem;
+    min-width: 0;
+    border: 1px solid rgba(216, 208, 195, 0.88);
+    border-radius: 4px;
+    background: rgba(255, 253, 248, 0.58);
+    padding: 0.9rem;
+  }
+
+  .workspace-settings-secondary-group {
+    display: grid;
+    gap: 0.45rem;
+    min-width: 0;
+  }
+
+  .workspace-settings-secondary-group > strong {
+    color: var(--ns-slate-500);
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: 0;
+    text-transform: uppercase;
+  }
+
+  .workspace-settings-secondary-group > div {
+    display: grid;
+    gap: 0.25rem;
+    min-width: 0;
+  }
+
+  .workspace-settings-secondary-group a {
+    display: grid;
+    min-width: 0;
+    gap: 0.1rem;
+    border-left: 2px solid transparent;
+    border-radius: 3px;
+    padding: 0.55rem 0.65rem;
+    color: var(--ns-slate-700);
+    text-decoration: none;
+  }
+
+  .workspace-settings-secondary-group a:hover,
+  .workspace-settings-secondary-group a.is-active {
+    border-left-color: var(--ns-blue-600);
+    background: rgba(15, 92, 156, 0.08);
+    color: var(--ns-navy-950);
+  }
+
+  .workspace-settings-secondary-group a span,
+  .workspace-settings-secondary-group a small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .workspace-settings-secondary-group a span {
+    font-size: 13px;
+    font-weight: 850;
+  }
+
+  .workspace-settings-secondary-group a small {
+    color: var(--ns-slate-500);
+    font-size: 11px;
+  }
+
+  .workspace-settings-detail {
+    min-width: 0;
+  }
+
+  .workspace-settings-detail > .permission-admin-section:first-child {
+    margin-top: 0;
+  }
+
   .workspace-settings-card-grid {
     display: grid;
     gap: 14px;
@@ -6421,6 +6663,83 @@
     margin: 0;
     color: var(--ns-slate-700);
     font-size: 13px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .workspace-settings-profile-summary {
+    display: grid;
+    min-width: 0;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.9rem;
+    align-items: start;
+    border: 1px solid rgba(216, 208, 195, 0.68);
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.36);
+    padding: 0.85rem;
+  }
+
+  .workspace-settings-profile-summary strong {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    margin-top: 0.16rem;
+    color: var(--ns-navy-950);
+    font-size: 15px;
+    font-weight: 800;
+    line-height: 1.35;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .workspace-settings-profile-summary p {
+    margin: 0.35rem 0 0;
+    color: var(--ns-slate-500);
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  .workspace-settings-profile-eyebrow,
+  .workspace-settings-profile-meta dt {
+    color: var(--ns-slate-500);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0;
+    text-transform: uppercase;
+  }
+
+  .workspace-settings-profile-slug {
+    max-width: 220px;
+    overflow: hidden;
+    border: 1px solid rgba(15, 92, 156, 0.2);
+    border-radius: 4px;
+    background: rgba(15, 92, 156, 0.07);
+    color: var(--ns-blue-700);
+    padding: 0.32rem 0.46rem;
+    font-size: 12px;
+    font-weight: 800;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .workspace-settings-profile-meta {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem 1rem;
+    margin: 0.9rem 0 0;
+  }
+
+  .workspace-settings-profile-meta div {
+    min-width: 0;
+  }
+
+  .workspace-settings-profile-meta dd {
+    min-width: 0;
+    overflow: hidden;
+    margin: 0.16rem 0 0;
+    color: var(--ns-slate-700);
+    font-size: 13px;
+    line-height: 1.4;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
@@ -6569,6 +6888,11 @@
     box-shadow: 0 0 0 2px rgba(15, 92, 156, 0.08);
   }
 
+  .workspace-settings-inline-edit-panel input[aria-invalid="true"] {
+    border-color: rgba(159, 58, 47, 0.55);
+    box-shadow: 0 0 0 2px rgba(159, 58, 47, 0.08);
+  }
+
   .workspace-settings-inline-edit-panel small,
   .workspace-settings-inline-error {
     color: #9f3a2f;
@@ -6581,6 +6905,14 @@
     margin: 0.55rem 0 0;
   }
 
+  .workspace-settings-inline-status {
+    margin: 0.55rem 0 0;
+    color: var(--ns-slate-600);
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 1.45;
+  }
+
   .workspace-settings-inline-success {
     color: #2f6848;
     font-size: 12px;
@@ -6588,13 +6920,44 @@
     line-height: 1.45;
   }
 
+  .workspace-settings-segmented-control {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.35rem;
+    margin-top: 0.8rem;
+    border: 1px solid rgba(216, 208, 195, 0.72);
+    border-radius: 6px;
+    background: rgba(255, 253, 248, 0.58);
+    padding: 0.25rem;
+  }
+
+  .workspace-settings-segmented-control button {
+    min-height: 34px;
+    min-width: 0;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--ns-slate-600);
+    font-size: 12px;
+    font-weight: 800;
+    overflow-wrap: anywhere;
+  }
+
+  .workspace-settings-segmented-control button.is-active {
+    border-color: rgba(15, 92, 156, 0.22);
+    background: rgba(255, 255, 255, 0.82);
+    color: var(--ns-navy-900);
+    box-shadow: 0 8px 20px rgba(30, 36, 46, 0.07);
+  }
+
+  .workspace-settings-segmented-control button:disabled {
+    cursor: not-allowed;
+    opacity: 0.58;
+  }
+
   @media (max-width: 1560px) {
     .share-permissions-body {
-      grid-template-columns: 360px minmax(0, 1fr);
-    }
-
-    .share-permissions-settings {
-      display: none;
+      grid-template-columns: 320px minmax(0, 1fr) 420px;
     }
   }
 
@@ -6728,6 +7091,16 @@
     .permission-admin-form-grid.is-scim-token,
     .permission-admin-discovery-grid {
       grid-template-columns: 1fr;
+    }
+
+    .workspace-settings-profile-summary,
+    .workspace-settings-profile-meta {
+      grid-template-columns: 1fr;
+    }
+
+    .workspace-settings-profile-slug {
+      max-width: 100%;
+      justify-self: start;
     }
 
     .libraries-workbench-heading-actions {

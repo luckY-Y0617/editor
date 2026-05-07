@@ -37,9 +37,12 @@ public sealed class EfWorkspaceGroupRepository : IWorkspaceGroupRepository
         Guid workspaceId,
         CancellationToken cancellationToken = default)
     {
+        var now = DateTimeOffset.UtcNow;
+
         return await _dbContext.WorkspaceGroups
             .AsNoTracking()
             .Where(group => group.WorkspaceId == workspaceId)
+            .OrderBy(group => group.Name)
             .Select(group => new WorkspaceGroupReadModel(
                 group.Id,
                 group.WorkspaceId,
@@ -56,8 +59,7 @@ public sealed class EfWorkspaceGroupRepository : IWorkspaceGroupRepository
                 _dbContext.WorkspaceGroupMembers.Count(member =>
                     member.GroupId == group.Id &&
                     member.RemovedAt == null &&
-                    (member.ExpiresAt == null || member.ExpiresAt > DateTimeOffset.UtcNow))))
-            .OrderBy(group => group.Name)
+                    (member.ExpiresAt == null || member.ExpiresAt > now))))
             .ToListAsync(cancellationToken);
     }
 

@@ -4,10 +4,11 @@ import type {
   KnowledgeMapResponse,
   OrganizationMembersResponse,
   OrganizationProfileResponse,
+  UpdatePermissionNotificationPreferenceRequest,
   UpdateOrganizationProfileRequest,
 } from "./appApi";
-import { createEditorHash, createLibrariesHash, createSettingsHash } from "./hashRouting";
-import type { WorkspaceSettingsScope, WorkspaceSettingsTab } from "./hashRouting";
+import { createEditorHash, createLibrariesHash, createOrganizationSettingsHash, createPersonalSettingsHash, createSettingsHash } from "./hashRouting";
+import type { SettingsPanelId, WorkspaceSettingsScope, WorkspaceSettingsTab } from "./hashRouting";
 import type { NotificationApiStatus, NotificationPreferenceResourceRow } from "./workspaceUpdatesModel";
 import { toNotificationPreferenceResourceRows } from "./workspaceUpdatesModel";
 import type { PermissionNotificationPreferenceDto } from "./appApi";
@@ -20,6 +21,25 @@ export type WorkspaceSettingsTabRow = {
   id: string;
   label: string;
   status: WorkspaceSettingsStatus;
+};
+
+export type SettingsSectionId = "deferred" | "organization" | "personal" | "workspace";
+
+export type SettingsNavItem = {
+  disabled: boolean;
+  href: string;
+  id: SettingsPanelId;
+  status: WorkspaceSettingsStatus;
+};
+
+export type SettingsNavGroup = {
+  id: SettingsSectionId;
+  items: SettingsNavItem[];
+};
+
+export type NormalizedSettingsPanel = {
+  id: SettingsPanelId;
+  section: SettingsSectionId;
 };
 
 export type WorkspaceGeneralSettings = {
@@ -98,6 +118,32 @@ export type NotificationSettingsModel = {
   emailDigestStatus: WorkspaceSettingsStatus;
   preferenceStatus: NotificationApiStatus;
   resourceRows: NotificationPreferenceResourceRow[];
+};
+
+export type WorkspaceNotificationPreferenceMode = "default" | "muted" | "watched";
+export type WorkspaceNotificationPreferenceMutationStatus = "error" | "idle" | "saving" | "success";
+
+export type WorkspaceNotificationPreferenceModel = {
+  canUpdate: boolean;
+  disabledReason: string;
+  mode: WorkspaceNotificationPreferenceMode;
+  mutationStatus: WorkspaceNotificationPreferenceMutationStatus;
+  updatedAt: string | null;
+};
+
+export type SettingsCapabilityInventoryRow = {
+  backendStatus: "conflict-marked" | "live-mutation" | "live-read" | "missing" | "read-only";
+  frontendStatus: "deferred" | "half-finished" | "live" | "read-only" | "should-move" | "static";
+  id: string;
+  recommendation: "defer" | "keep" | "move" | "remove-action-affordance" | "split";
+  scope: "library" | "organization" | "personal" | "resource" | "workspace";
+  userExpectation: "high" | "low" | "medium";
+};
+
+export type SettingsClosureSlice = {
+  capabilityIds: SettingsCapabilityInventoryRow["id"][];
+  reason: string;
+  title: string;
 };
 
 export type SecuritySettingsRow = {
@@ -218,6 +264,105 @@ export type OrganizationDeferredAction = {
   status: WorkspaceSettingsStatus;
 };
 
+export function toSettingsCapabilityInventoryRows(): SettingsCapabilityInventoryRow[] {
+  return [
+    {
+      backendStatus: "live-read",
+      frontendStatus: "live",
+      id: "personal-language",
+      recommendation: "split",
+      scope: "personal",
+      userExpectation: "high",
+    },
+    {
+      backendStatus: "missing",
+      frontendStatus: "deferred",
+      id: "workspace-profile-update",
+      recommendation: "defer",
+      scope: "workspace",
+      userExpectation: "high",
+    },
+    {
+      backendStatus: "live-mutation",
+      frontendStatus: "should-move",
+      id: "workspace-members",
+      recommendation: "move",
+      scope: "workspace",
+      userExpectation: "high",
+    },
+    {
+      backendStatus: "live-mutation",
+      frontendStatus: "live",
+      id: "workspace-notification-preferences",
+      recommendation: "keep",
+      scope: "workspace",
+      userExpectation: "medium",
+    },
+    {
+      backendStatus: "live-mutation",
+      frontendStatus: "should-move",
+      id: "resource-share",
+      recommendation: "move",
+      scope: "resource",
+      userExpectation: "low",
+    },
+    {
+      backendStatus: "live-mutation",
+      frontendStatus: "live",
+      id: "organization-profile",
+      recommendation: "keep",
+      scope: "organization",
+      userExpectation: "medium",
+    },
+    {
+      backendStatus: "live-read",
+      frontendStatus: "read-only",
+      id: "organization-members",
+      recommendation: "keep",
+      scope: "organization",
+      userExpectation: "medium",
+    },
+    {
+      backendStatus: "missing",
+      frontendStatus: "deferred",
+      id: "organization-workspace-provisioning",
+      recommendation: "defer",
+      scope: "organization",
+      userExpectation: "medium",
+    },
+    {
+      backendStatus: "live-mutation",
+      frontendStatus: "should-move",
+      id: "library-collections-documents",
+      recommendation: "move",
+      scope: "library",
+      userExpectation: "medium",
+    },
+    {
+      backendStatus: "missing",
+      frontendStatus: "deferred",
+      id: "system-instance-settings",
+      recommendation: "remove-action-affordance",
+      scope: "workspace",
+      userExpectation: "low",
+    },
+  ];
+}
+
+export function getRecommendedSettingsClosureSlice(): SettingsClosureSlice {
+  return {
+    capabilityIds: [
+      "workspace-profile-update",
+      "workspace-members",
+      "resource-share",
+      "library-collections-documents",
+    ],
+    reason:
+      "Workspace profile update has no inspected backend mutation contract, while members, resource share, and library operations already have task surfaces. Close Settings by making those boundaries explicit instead of duplicating half-finished controls.",
+    title: "Settings IA cleanup",
+  };
+}
+
 export function createWorkspaceSettingsTabRows(
   _activeTab: string,
   options: { scope?: WorkspaceSettingsScope; spaceId?: string | null } = {},
@@ -264,20 +409,154 @@ export function createWorkspaceSettingsTabRows(
   }));
 }
 
+export function createSettingsNavGroups(): SettingsNavGroup[] {
+  return [
+    {
+      id: "workspace",
+      items: [
+        createSettingsNavItem("workspace-general", "live"),
+        createSettingsNavItem("workspace-notifications", "live"),
+        createSettingsNavItem("workspace-access-identity", "reused"),
+        createSettingsNavItem("workspace-security", "live"),
+        createSettingsNavItem("workspace-integrations", "reused"),
+      ],
+    },
+    {
+      id: "deferred",
+      items: [
+        createSettingsNavItem("deferred-plan", "deferred"),
+        createSettingsNavItem("deferred-developer", "deferred"),
+      ],
+    },
+  ];
+}
+
+export function createPersonalSettingsNavGroups(): SettingsNavGroup[] {
+  return [
+    {
+      id: "personal",
+      items: [
+        createSettingsNavItem("personal-preferences", "live"),
+      ],
+    },
+  ];
+}
+
+export function createOrganizationSettingsNavGroups(): SettingsNavGroup[] {
+  return [
+    {
+      id: "organization",
+      items: [
+        createSettingsNavItem("organization-profile", "live"),
+        createSettingsNavItem("organization-workspaces", "live"),
+        createSettingsNavItem("organization-members", "live"),
+      ],
+    },
+  ];
+}
+
+export function normalizeSettingsPanel(filters: {
+  panel?: SettingsPanelId | null;
+  scope?: WorkspaceSettingsScope | null;
+  tab?: WorkspaceSettingsTab | null;
+}): NormalizedSettingsPanel {
+  if (filters.panel && getSettingsPanelSection(filters.panel) !== "organization" && getSettingsPanelSection(filters.panel) !== "personal") {
+    return {
+      id: filters.panel,
+      section: getSettingsPanelSection(filters.panel),
+    };
+  }
+
+  if (filters.scope === "library" || filters.scope === "organization") {
+    return { id: "workspace-general", section: "workspace" };
+  }
+
+  if (filters.tab === "notifications") {
+    return { id: "workspace-notifications", section: "workspace" };
+  }
+
+  if (filters.tab === "members" || filters.tab === "permissions") {
+    return { id: "workspace-access-identity", section: "workspace" };
+  }
+
+  if (filters.tab === "security") {
+    return { id: "workspace-security", section: "workspace" };
+  }
+
+  if (filters.tab === "integrations") {
+    return { id: "workspace-integrations", section: "workspace" };
+  }
+
+  if (filters.tab === "plan") {
+    return { id: "deferred-plan", section: "deferred" };
+  }
+
+  if (filters.tab === "developer") {
+    return { id: "deferred-developer", section: "deferred" };
+  }
+
+  return { id: "workspace-general", section: "workspace" };
+}
+
+function createSettingsNavItem(id: SettingsPanelId, status: WorkspaceSettingsStatus): SettingsNavItem {
+  return {
+    disabled: false,
+    href: createSettingsPanelHref(id),
+    id,
+    status,
+  };
+}
+
+function createSettingsPanelHref(id: SettingsPanelId) {
+  if (id === "personal-preferences") {
+    return createPersonalSettingsHash();
+  }
+
+  if (id === "organization-profile") {
+    return createOrganizationSettingsHash({ panel: "profile" });
+  }
+
+  if (id === "organization-workspaces") {
+    return createOrganizationSettingsHash({ panel: "workspaces" });
+  }
+
+  if (id === "organization-members") {
+    return createOrganizationSettingsHash({ panel: "members" });
+  }
+
+  return createSettingsHash({ panel: id });
+}
+
+function getSettingsPanelSection(id: SettingsPanelId): SettingsSectionId {
+  if (id.startsWith("personal-")) {
+    return "personal";
+  }
+
+  if (id.startsWith("organization-")) {
+    return "organization";
+  }
+
+  if (id.startsWith("deferred-")) {
+    return "deferred";
+  }
+
+  return "workspace";
+}
+
 export function toSettingsBoundaryRows(spaceId: string | null): SettingsBoundaryRow[] {
   return [
     {
-      href: createSettingsHash({ scope: "workspace", tab: "general" }),
+      href: createSettingsHash(),
       id: "workspace",
       status: "live",
     },
     {
-      href: createSettingsHash({ scope: "library", spaceId, tab: "general" }),
+      href: createLibrariesHash({ libraryId: spaceId }),
       id: "library",
       status: "live",
     },
     {
-      href: createSettingsHash({ scope: "organization", tab: "overview" }),
+      href: createOrganizationSettingsHash({ panel: "profile" }),
       id: "organization",
       status: "assessment",
     },
@@ -511,6 +790,75 @@ export function getRecommendedOrganizationSettingsSlice(): OrganizationImplement
   };
 }
 
+export function toWorkspaceNotificationPreferenceModel(
+  preferences: PermissionNotificationPreferenceDto[],
+  status: NotificationApiStatus,
+  mutationStatus: WorkspaceNotificationPreferenceMutationStatus = "idle",
+): WorkspaceNotificationPreferenceModel {
+  const workspacePreference = preferences.find((preference) =>
+    !preference.resourceType && !preference.resourceId,
+  );
+  const mode: WorkspaceNotificationPreferenceMode = workspacePreference?.muted
+    ? "muted"
+    : workspacePreference?.watched
+      ? "watched"
+      : "default";
+  const canUpdate = status === "ready";
+
+  return {
+    canUpdate,
+    disabledReason: getWorkspaceNotificationPreferenceDisabledReason(status),
+    mode,
+    mutationStatus,
+    updatedAt: workspacePreference?.updatedAt ?? null,
+  };
+}
+
+export function prepareWorkspaceNotificationPreferenceRequest(
+  workspaceId: string | null | undefined,
+  mode: WorkspaceNotificationPreferenceMode,
+): UpdatePermissionNotificationPreferenceRequest | null {
+  if (!workspaceId?.trim()) {
+    return null;
+  }
+
+  return {
+    muted: mode === "muted",
+    resourceId: null,
+    resourceType: null,
+    watched: mode === "watched",
+    workspaceId: workspaceId.trim(),
+  };
+}
+
+export function toWorkspaceNotificationPreferenceMutationError(error: unknown) {
+  if (error instanceof Error && error.message.trim()) {
+    return error.message;
+  }
+
+  return "Notification preference update failed.";
+}
+
+function getWorkspaceNotificationPreferenceDisabledReason(status: NotificationApiStatus) {
+  if (status === "ready") {
+    return "";
+  }
+
+  if (status === "loading") {
+    return "Loading notification preferences.";
+  }
+
+  if (status === "forbidden") {
+    return "Notification preference access is unavailable for this user.";
+  }
+
+  if (status === "error") {
+    return "Notification preference API failed.";
+  }
+
+  return "API and workspace id are required to update notification preferences.";
+}
+
 export function toOrganizationOverviewModel(
   profile: OrganizationProfileResponse | null,
 ): OrganizationOverviewModel | null {
@@ -700,7 +1048,7 @@ export function toOrganizationWorkspaceInventoryRows(
         id: workspace.id,
         isCurrentWorkspace,
         name: workspace.name,
-        settingsHref: isCurrentWorkspace ? createSettingsHash({ scope: "workspace", tab: "general" }) : null,
+        settingsHref: isCurrentWorkspace ? createSettingsHash() : null,
         slug: workspace.slug,
         switchStatus: isCurrentWorkspace ? "live" : "deferred",
         switchStatusReason: isCurrentWorkspace

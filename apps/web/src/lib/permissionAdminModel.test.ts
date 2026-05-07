@@ -4,6 +4,7 @@ import {
   getCurrentWorkspaceRole,
   getMemberActionCapability,
   getRoleChangeOptions,
+  resolvePermissionAdminWorkspace,
   toPermissionMutationError,
 } from "./permissionAdminModel";
 
@@ -19,6 +20,28 @@ describe("permissionAdminModel", () => {
       ),
     ).toBe("admin");
     expect(getCurrentWorkspaceRole(null, "workspace-1")).toBe("unknown");
+  });
+
+  test("resolves workspace members context from bootstrap when no explicit workspace id is configured", () => {
+    expect(
+      resolvePermissionAdminWorkspace({
+        apiConfigured: true,
+        bootstrapWorkspaceId: "workspace-from-bootstrap",
+        configuredWorkspaceId: null,
+      }),
+    ).toEqual({
+      reason: null,
+      source: "bootstrap",
+      workspaceId: "workspace-from-bootstrap",
+    });
+
+    expect(
+      resolvePermissionAdminWorkspace({
+        apiConfigured: true,
+        bootstrapWorkspaceId: "workspace-from-bootstrap",
+        configuredWorkspaceId: "workspace-from-config",
+      }).workspaceId,
+    ).toBe("workspace-from-config");
   });
 
   test("keeps viewer member management unavailable", () => {

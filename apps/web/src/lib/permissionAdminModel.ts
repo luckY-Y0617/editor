@@ -9,6 +9,13 @@ export type PermissionAdminCapability = {
 };
 
 export type CurrentWorkspaceRole = "admin" | "editor" | "owner" | "viewer" | "unknown";
+export type PermissionAdminWorkspaceSource = "bootstrap" | "configured" | "missing";
+
+export type PermissionAdminWorkspaceResolution = {
+  reason: string | null;
+  source: PermissionAdminWorkspaceSource;
+  workspaceId: string | null;
+};
 
 const managementRoles = new Set(["admin", "owner"]);
 
@@ -24,6 +31,42 @@ export function getCurrentWorkspaceRole(workspaces: AuthWorkspaceDto[] | null, w
   }
 
   return "unknown";
+}
+
+export function resolvePermissionAdminWorkspace(options: {
+  apiConfigured: boolean;
+  bootstrapWorkspaceId?: string | null;
+  configuredWorkspaceId?: string | null;
+}): PermissionAdminWorkspaceResolution {
+  if (!options.apiConfigured) {
+    return {
+      reason: "Permission admin API is not configured.",
+      source: "missing",
+      workspaceId: null,
+    };
+  }
+
+  if (options.configuredWorkspaceId) {
+    return {
+      reason: null,
+      source: "configured",
+      workspaceId: options.configuredWorkspaceId,
+    };
+  }
+
+  if (options.bootstrapWorkspaceId) {
+    return {
+      reason: null,
+      source: "bootstrap",
+      workspaceId: options.bootstrapWorkspaceId,
+    };
+  }
+
+  return {
+    reason: "Current workspace could not be resolved from bootstrap.",
+    source: "missing",
+    workspaceId: null,
+  };
 }
 
 export function getMemberActionCapability(options: {

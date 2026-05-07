@@ -52,7 +52,7 @@ import {
   type LibrarySortKey,
   type LibraryStatRow,
 } from "../lib/librariesPageModel";
-import { createEditorHash, createLibrariesHash, createSettingsHash, getLibrariesFiltersFromHash } from "../lib/hashRouting";
+import { createEditorHash, createLibrariesHash, getLibrariesFiltersFromHash } from "../lib/hashRouting";
 import { t, type DisplayLocale, useDisplayLanguage } from "../lib/i18n";
 import coordinatePatternUrl from "../assets/svg/patterns/coordinate-ticks.svg";
 import routePatternUrl from "../assets/svg/patterns/route-line.svg";
@@ -463,11 +463,11 @@ export function LibrariesPage() {
               <div className="libraries-workbench-heading-actions">
                 <a
                   className="workspace-home-secondary-action"
-                  href={createSettingsHash({ scope: "library", spaceId: model?.activeLibraryId ?? selectedLibraryId, tab: "general" })}
-                  title={t(locale, "library.spaceSettings")}
+                  href="#settings"
+                  title={t(locale, "settings.openWorkspaceSettings")}
                 >
                   <Settings className="h-4 w-4" />
-                  <span>{t(locale, "library.spaceSettings")}</span>
+                  <span>{t(locale, "settings.openWorkspaceSettings")}</span>
                 </a>
                 <button
                   className="workspace-home-primary-action"

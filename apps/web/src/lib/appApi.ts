@@ -141,6 +141,14 @@ export type PermissionNotificationPreferencesResponse = {
   preferences: PermissionNotificationPreferenceDto[];
 };
 
+export type UpdatePermissionNotificationPreferenceRequest = {
+  workspaceId: string;
+  resourceType?: string | null;
+  resourceId?: string | null;
+  watched: boolean;
+  muted: boolean;
+};
+
 export type WorkspaceMemberDto = {
   userId: string;
   email?: string | null;
@@ -200,6 +208,43 @@ export type OrganizationMemberDto = {
 
 export type OrganizationMembersResponse = {
   members: OrganizationMemberDto[];
+};
+
+export type ShareLinkRole = "commenter" | "viewer";
+
+export type ShareLinkAudience = "external" | "public" | "workspace";
+
+export type ShareLinkDto = {
+  id: string;
+  workspaceId: string;
+  resourceType: string;
+  resourceId: string;
+  roleKey: ShareLinkRole;
+  audience: ShareLinkAudience;
+  subjectEmail: string | null;
+  createdBy: string | null;
+  createdAt: string;
+  expiresAt: string | null;
+  revokedAt: string | null;
+  hasPassword: boolean;
+};
+
+export type ShareLinksResponse = {
+  links: ShareLinkDto[];
+};
+
+export type CreateShareLinkRequest = {
+  roleKey: ShareLinkRole;
+  audience?: ShareLinkAudience | null;
+  expiresAt?: string | null;
+  subjectEmail?: string | null;
+  password?: string | null;
+};
+
+export type CreateShareLinkResponse = {
+  link: ShareLinkDto;
+  token: string;
+  url: string;
 };
 
 export function getBootstrap(signal?: AbortSignal) {
@@ -340,6 +385,17 @@ export function getWorkspaceNotificationPreferences(workspaceId: string, signal?
   });
 }
 
+export function updateWorkspaceNotificationPreference(
+  request: UpdatePermissionNotificationPreferenceRequest,
+  signal?: AbortSignal,
+) {
+  return apiFetch<PermissionNotificationPreferenceDto>("/notifications/preferences", {
+    body: request,
+    method: "PUT",
+    signal,
+  });
+}
+
 export function getWorkspaceMembers(workspaceId: string, signal?: AbortSignal) {
   return apiFetch<WorkspaceMembersResponse>(`/workspaces/${workspaceId}/members`, { signal });
 }
@@ -362,6 +418,29 @@ export function updateOrganizationProfile(
 
 export function getOrganizationMembers(organizationId: string, signal?: AbortSignal) {
   return apiFetch<OrganizationMembersResponse>(`/organizations/${organizationId}/members`, { signal });
+}
+
+export function getDocumentShareLinks(documentId: string, signal?: AbortSignal) {
+  return apiFetch<ShareLinksResponse>(`/permissions/resources/document/${documentId}/share-links`, { signal });
+}
+
+export function createDocumentShareLink(
+  documentId: string,
+  request: CreateShareLinkRequest,
+  signal?: AbortSignal,
+) {
+  return apiFetch<CreateShareLinkResponse>(`/permissions/resources/document/${documentId}/share-links`, {
+    body: request,
+    method: "POST",
+    signal,
+  });
+}
+
+export function revokeShareLink(shareLinkId: string, signal?: AbortSignal) {
+  return apiFetch<void>(`/permissions/share-links/${shareLinkId}`, {
+    method: "DELETE",
+    signal,
+  });
 }
 
 export function updateDocument(

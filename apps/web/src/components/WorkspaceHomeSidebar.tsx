@@ -12,7 +12,7 @@ import { t, useDisplayLanguage } from "../lib/i18n";
 import compassMarkUrl from "../assets/svg/decorative/compass-mark-small.svg";
 
 type WorkspaceHomeSidebarProps = {
-  activeItem?: WorkspaceNavItemId;
+  activeItem?: WorkspaceNavItemId | null;
   collectionsTitle?: string;
   currentLibraryCollections?: WorkspaceSidebarCollection[];
   showCollections?: boolean;

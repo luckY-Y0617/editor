@@ -2,9 +2,10 @@ import { Bell, CheckCircle2, Download, Upload } from "lucide-react";
 import { type FormEvent, useEffect, useState } from "react";
 import { AtlasIcon } from "./AtlasIcon";
 import { getCurrentUser, getSecurityState, logout, type AuthSecurityStateResponse, type MeResponse } from "../lib/authClient";
-import { getConfiguredApiBaseUrl, getStoredAccessToken } from "../lib/apiClient";
-import { createSearchHash } from "../lib/hashRouting";
+import { getConfiguredApiBaseUrl, getConfiguredWorkspaceId, getStoredAccessToken } from "../lib/apiClient";
+import { createOrganizationSettingsHash, createPersonalSettingsHash, createSearchHash } from "../lib/hashRouting";
 import { t, useDisplayLanguage } from "../lib/i18n";
+import { toWorkspaceSwitcherModel } from "../lib/workspaceShellModel";
 import chevronDownIcon from "../assets/svg/icons/chevron-down.svg";
 import compassEmblemIcon from "../assets/svg/brand/compass-emblem.svg";
 import searchIcon from "../assets/svg/icons/search.svg";
@@ -25,6 +26,13 @@ export function WorkspaceHomeTopBar({
   const { locale } = useDisplayLanguage();
   const auth = useTopBarAuthState();
   const [query, setQuery] = useState(searchValue);
+  const [isWorkspaceMenuOpen, setIsWorkspaceMenuOpen] = useState(false);
+  const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
+  const workspaceSwitcher = toWorkspaceSwitcherModel(
+    auth.me?.workspaces ?? [],
+    getConfiguredWorkspaceId(),
+    t(locale, "common.workspace"),
+  );
   const resolvedSearchPlaceholder = searchPlaceholder ?? t(locale, "topbar.searchNorthstar");
   const initials = auth.me?.user.displayName
     ? getInitials(auth.me.user.displayName)
@@ -61,14 +69,61 @@ export function WorkspaceHomeTopBar({
 
       <span className="hidden h-8 w-px bg-white/[0.18] md:block" />
 
-      <a
-        className="hidden h-9 items-center gap-2 px-3 text-sm font-semibold text-[#f5efe4] transition hover:bg-white/[0.07] md:inline-flex"
-        href="#libraries"
-        title={t(locale, "topbar.libraries")}
-      >
-        {t(locale, "topbar.libraries")}
-        <AtlasIcon className="h-4 w-4 text-[#b9c7d8]" src={chevronDownIcon} />
-      </a>
+      <div className="workspace-home-switcher hidden md:block">
+        <button
+          aria-expanded={isWorkspaceMenuOpen}
+          className="workspace-home-switcher-button"
+          onClick={() => {
+            setIsWorkspaceMenuOpen((current) => !current);
+            setIsAccountMenuOpen(false);
+          }}
+          title={t(locale, "topbar.workspaceSwitcher")}
+          type="button"
+        >
+          <span>{workspaceSwitcher.currentName}</span>
+          <AtlasIcon className="h-4 w-4 text-[#b9c7d8]" src={chevronDownIcon} />
+        </button>
+        {isWorkspaceMenuOpen ? (
+          <div className="workspace-home-dropdown workspace-home-workspace-dropdown" role="menu">
+            <div className="workspace-home-dropdown-heading">
+              <span>{t(locale, "topbar.workspaceSwitcher")}</span>
+              <strong>{workspaceSwitcher.currentName}</strong>
+            </div>
+            {workspaceSwitcher.rows.length > 0 ? (
+              <div className="workspace-home-dropdown-list">
+                {workspaceSwitcher.rows.map((workspace) => (
+                  <a
+                    aria-disabled={workspace.disabled ? "true" : undefined}
+                    aria-current={workspace.isCurrent ? "page" : undefined}
+                    className={workspace.isCurrent ? "is-current" : workspace.disabled ? "is-disabled" : ""}
+                    href={workspace.disabled ? "#" : workspace.href}
+                    key={workspace.id}
+                    onClick={(event) => {
+                      if (workspace.disabled) {
+                        event.preventDefault();
+                        return;
+                      }
+
+                      setIsWorkspaceMenuOpen(false);
+                    }}
+                    role="menuitem"
+                    title={workspace.disabled ? t(locale, "topbar.workspaceSwitchingDeferred") : workspace.name}
+                  >
+                    <span>
+                      <strong>{workspace.name}</strong>
+                      <small>{workspace.role}</small>
+                    </span>
+                    <em>{workspace.isCurrent ? t(locale, "topbar.currentWorkspace") : t(locale, "common.deferred")}</em>
+                  </a>
+                ))}
+              </div>
+            ) : (
+              <p>{t(locale, "topbar.workspaceListUnavailable")}</p>
+            )}
+            <p>{t(locale, "topbar.workspaceSwitchingDeferred")}</p>
+          </div>
+        ) : null}
+      </div>
 
       <form
         className="workspace-home-search hidden min-w-[260px] max-w-[460px] items-center rounded-full border border-white/[0.18] bg-white/[0.07] px-3 text-[#c7d2df] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] lg:flex"
@@ -126,17 +181,40 @@ export function WorkspaceHomeTopBar({
         >
           <Upload className="h-4 w-4" />
         </button>
-        <button
-          className="flex h-9 items-center gap-2 border-l border-white/[0.14] pl-3 text-sm text-[#f5efe4]"
-          onClick={auth.signOut}
-          title={accountTitle}
-          type="button"
-        >
-          <span className="grid h-8 w-8 place-items-center rounded-full bg-[#efe5d3] text-xs font-semibold text-[var(--ns-navy-900)]">
-            {initials}
-          </span>
-          <AtlasIcon className="h-4 w-4 text-[#b9c7d8]" src={chevronDownIcon} />
-        </button>
+        <div className="workspace-home-account-wrapper">
+          <button
+            aria-expanded={isAccountMenuOpen}
+            className="workspace-home-account-button"
+            onClick={() => {
+              setIsAccountMenuOpen((current) => !current);
+              setIsWorkspaceMenuOpen(false);
+            }}
+            title={accountTitle}
+            type="button"
+          >
+            <span className="grid h-8 w-8 place-items-center rounded-full bg-[#efe5d3] text-xs font-semibold text-[var(--ns-navy-900)]">
+              {initials}
+            </span>
+            <AtlasIcon className="h-4 w-4 text-[#b9c7d8]" src={chevronDownIcon} />
+          </button>
+          {isAccountMenuOpen ? (
+            <div className="workspace-home-dropdown workspace-home-account-dropdown" role="menu">
+              <div className="workspace-home-dropdown-heading">
+                <span>{t(locale, "topbar.account")}</span>
+                <strong>{auth.me?.user.displayName ?? auth.me?.user.email ?? accountTitle}</strong>
+              </div>
+              <a href={createPersonalSettingsHash()} onClick={() => setIsAccountMenuOpen(false)} role="menuitem">
+                {t(locale, "topbar.personalSettings")}
+              </a>
+              <a href={createOrganizationSettingsHash()} onClick={() => setIsAccountMenuOpen(false)} role="menuitem">
+                {t(locale, "topbar.organizationSettings")}
+              </a>
+              <button onClick={auth.signOut} type="button">
+                {t(locale, "topbar.signOut")}
+              </button>
+            </div>
+          ) : null}
+        </div>
       </div>
     </header>
   );

@@ -2,14 +2,18 @@ import { describe, expect, test } from "../test/harness";
 import {
   createEditorHash,
   createLibrariesHash,
+  createOrganizationSettingsHash,
+  createPersonalSettingsHash,
   createSearchHash,
   createSettingsHash,
   getEditorDocumentIdFromHash,
   getHashRoute,
   getLibrariesFiltersFromHash,
+  getOrganizationSettingsPanelFromHash,
   getPostLoginRedirectHash,
   getSearchFiltersFromHash,
   getSettingsFiltersFromHash,
+  getSettingsRouteTarget,
   normalizeInternalActionHash,
   parseHashRoute,
 } from "./hashRouting";
@@ -90,61 +94,99 @@ describe("hashRouting", () => {
     expect(createSettingsHash({ scope: "organization", tab: "workspaces" })).toBe("#settings?scope=organization&tab=workspaces");
     expect(createSettingsHash({ scope: "organization", tab: "members" })).toBe("#settings?scope=organization&tab=members");
     expect(createSettingsHash({ scope: "organization", tab: "assessment" })).toBe("#settings?scope=organization&tab=assessment");
+    expect(createSettingsHash({ panel: "workspace-notifications" })).toBe("#settings?panel=workspace-notifications");
+    expect(getSettingsFiltersFromHash("#settings?panel=workspace-notifications")).toEqual({
+      panel: "workspace-notifications",
+      scope: "workspace",
+      spaceId: null,
+      tab: "general",
+    });
     expect(getSettingsFiltersFromHash(`#settings?tab=members&spaceId=${libraryId}`)).toEqual({
+      panel: null,
       scope: "workspace",
       spaceId: libraryId,
       tab: "members",
     });
     expect(getSettingsFiltersFromHash(`#settings?scope=library&tab=documents&spaceId=${libraryId}`)).toEqual({
+      panel: null,
       scope: "library",
       spaceId: libraryId,
       tab: "documents",
     });
     expect(getSettingsFiltersFromHash(`#settings?scope=library&tab=members&spaceId=${libraryId}`)).toEqual({
+      panel: null,
       scope: "library",
       spaceId: libraryId,
       tab: "general",
     });
     expect(getSettingsFiltersFromHash("#settings?scope=organization&tab=overview")).toEqual({
+      panel: null,
       scope: "organization",
       spaceId: null,
       tab: "overview",
     });
     expect(getSettingsFiltersFromHash("#settings?scope=organization&tab=workspaces")).toEqual({
+      panel: null,
       scope: "organization",
       spaceId: null,
       tab: "workspaces",
     });
     expect(getSettingsFiltersFromHash("#settings?scope=organization&tab=members")).toEqual({
+      panel: null,
       scope: "organization",
       spaceId: null,
       tab: "members",
     });
     expect(getSettingsFiltersFromHash("#settings?scope=organization&tab=assessment")).toEqual({
+      panel: null,
       scope: "organization",
       spaceId: null,
       tab: "assessment",
     });
     expect(getSettingsFiltersFromHash(`#settings?scope=organization&tab=security&spaceId=${libraryId}`)).toEqual({
+      panel: null,
       scope: "organization",
       spaceId: libraryId,
       tab: "overview",
     });
     expect(getSettingsFiltersFromHash("#settings?tab=unknown&spaceId=invalid")).toEqual({
+      panel: null,
       scope: "workspace",
       spaceId: null,
       tab: "general",
     });
     expect(getSettingsFiltersFromHash(`#settings?scope=admin&tab=security&spaceId=${libraryId}`)).toEqual({
+      panel: null,
       scope: "workspace",
       spaceId: libraryId,
       tab: "security",
     });
   });
 
+  test("routes personal and organization settings outside workspace settings", () => {
+    expect(createPersonalSettingsHash()).toBe("#personal-settings");
+    expect(createOrganizationSettingsHash()).toBe("#organization-settings");
+    expect(createOrganizationSettingsHash({ panel: "members" })).toBe("#organization-settings?panel=members");
+
+    expect(getSettingsRouteTarget("#settings")).toBe("workspace");
+    expect(getSettingsRouteTarget("#personal-settings")).toBe("personal");
+    expect(getSettingsRouteTarget("#organization-settings")).toBe("organization");
+    expect(getSettingsRouteTarget("#settings?panel=personal-preferences")).toBe("personal");
+    expect(getSettingsRouteTarget("#settings?scope=organization&tab=overview")).toBe("organization");
+    expect(getSettingsRouteTarget("#settings?scope=library&tab=collections")).toBe("workspace");
+
+    expect(getOrganizationSettingsPanelFromHash("#organization-settings")).toBe("profile");
+    expect(getOrganizationSettingsPanelFromHash("#organization-settings?panel=workspaces")).toBe("workspaces");
+    expect(getOrganizationSettingsPanelFromHash("#organization-settings?panel=members")).toBe("members");
+    expect(getOrganizationSettingsPanelFromHash("#settings?scope=organization&tab=workspaces")).toBe("workspaces");
+    expect(getOrganizationSettingsPanelFromHash("#settings?panel=organization-members")).toBe("members");
+  });
+
   test("normalizes action urls to safe internal hashes only", () => {
     expect(normalizeInternalActionHash("#workspace-members")).toBe("#workspace-members");
     expect(normalizeInternalActionHash("#settings?tab=notifications")).toBe("#settings?tab=notifications");
+    expect(normalizeInternalActionHash("#personal-settings")).toBe("#personal-settings");
+    expect(normalizeInternalActionHash("#organization-settings?panel=members")).toBe("#organization-settings?panel=members");
     expect(normalizeInternalActionHash(`#libraries?libraryId=${libraryId}`)).toBe(`#libraries?libraryId=${libraryId}`);
     expect(normalizeInternalActionHash(`#editor?documentId=${documentId}`)).toBe(`#editor?documentId=${documentId}`);
     expect(normalizeInternalActionHash("https://example.com")).toBe("#updates");
@@ -155,6 +197,8 @@ describe("hashRouting", () => {
 
   test("preserves safe protected target after login", () => {
     expect(getPostLoginRedirectHash("#settings")).toBe("#settings");
+    expect(getPostLoginRedirectHash("#personal-settings")).toBe("#personal-settings");
+    expect(getPostLoginRedirectHash("#organization-settings?panel=profile")).toBe("#organization-settings?panel=profile");
     expect(getPostLoginRedirectHash(`#settings?tab=notifications&spaceId=${libraryId}`)).toBe(
       `#settings?tab=notifications&spaceId=${libraryId}`,
     );

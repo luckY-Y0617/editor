@@ -1,0 +1,29 @@
+{
+  "loginEmail": "demo.admin@northstar.local",
+  "general": {
+    "ready": true,
+    "hasClosure": true,
+    "hasWorkspaceReadOnly": true,
+    "hasLibraryBoundary": true,
+    "hasPersonalBoundary": true,
+    "scrollTop": 900
+  },
+  "library": {
+    "ready": true,
+    "hasCollectionSummary": true,
+    "hasLibraryBoundary": true,
+    "hasManageInLibrary": true
+  },
+  "permissions": {
+    "ready": true,
+    "hasResourceShareBoundary": true,
+    "hasDocumentPermissionsLink": true,
+    "hasAccessRequestsLink": true
+  },
+  "mobile": {
+    "ready": true,
+    "hasGeneral": true,
+    "hasClosure": true,
+    "viewportWidth": 390
+  }
+}
