@@ -58,7 +58,7 @@ export const searchFilterGroups: SearchFilterGroup[] = [
     mode: "checkbox",
     options: [
       { id: "documents", label: "Documents", count: 128, selected: true },
-      { id: "collections", label: "Collections", count: 24, selected: false },
+      { id: "collections", label: "Folders", count: 24, selected: false },
       { id: "people", label: "People", count: 18, selected: false },
       { id: "tags", label: "Tags", count: 64, selected: false },
       { id: "templates", label: "Templates", count: 12, selected: false },

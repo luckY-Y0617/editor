@@ -5560,7 +5560,8 @@
     white-space: nowrap;
   }
 
-  .updates-page-row > button {
+  .updates-page-row > button,
+  .updates-page-row > .updates-page-action-link {
     display: inline-flex;
     height: 32px;
     align-items: center;
@@ -7051,13 +7052,15 @@
     }
 
     .updates-page-time,
-    .updates-page-row > button {
+    .updates-page-row > button,
+    .updates-page-row > .updates-page-action-link {
       grid-column: 4;
       text-align: left;
       justify-self: start;
     }
 
-    .updates-page-row > button {
+    .updates-page-row > button,
+    .updates-page-row > .updates-page-action-link {
       width: 78px;
     }
   }
@@ -7200,7 +7203,8 @@
     }
 
     .updates-page-time,
-    .updates-page-row > button {
+    .updates-page-row > button,
+    .updates-page-row > .updates-page-action-link {
       grid-column: 3;
     }
   }

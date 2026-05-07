@@ -24,7 +24,12 @@ public sealed record ActivityTimelineItemDto(
     string Id,
     string Title,
     DateTimeOffset Date,
-    string Detail);
+    string Detail,
+    ActivityActorDto? Actor = null,
+    ActivityDocumentDto? Document = null);
+
+public sealed record ActivityActorDto(string Id, string Name);
+
+public sealed record ActivityDocumentDto(string Id, string Title);
 
 public sealed record DocumentActivityResponse(IReadOnlyList<ActivityTimelineItemDto> Items);
-

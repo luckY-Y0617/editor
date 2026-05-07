@@ -11,16 +11,18 @@ type EditorSidebarProps = {
   activeDocumentId: string;
   documents: KnowledgeDocument[];
   folders: KnowledgeFolder[];
+  libraryHref: string;
+  libraryName: string;
   onCreateDocument: () => void;
   onSelectDocument: (documentId: string) => void;
 };
-
-const fallbackFolderCounts = [3, 7, 6, 12, 18, 9, 4];
 
 export function EditorSidebar({
   activeDocumentId,
   documents,
   folders,
+  libraryHref,
+  libraryName,
   onCreateDocument,
   onSelectDocument,
 }: EditorSidebarProps) {
@@ -83,18 +85,20 @@ export function EditorSidebar({
             Knowledge Map
           </div>
           <div className="flex items-center gap-1.5 text-[var(--ns-navy-800)]">
-            <button className="atlas-icon-button" title="Map view" type="button">
+            <a className="atlas-icon-button" href={libraryHref} title="Library map">
               <AtlasIcon className="h-4 w-4" src={mapIcon} />
-            </button>
-            <button className="atlas-icon-button" title="Filters" type="button">
+            </a>
+            <a className="atlas-icon-button" href="#search" title="Search filters">
               <AtlasIcon className="h-4 w-4" src={filterSlidersIcon} />
-            </button>
+            </a>
           </div>
         </div>
 
         <div className="mb-4 flex items-center gap-2 px-1 text-xs font-semibold uppercase tracking-normal text-[var(--ns-navy-800)]">
           <AtlasIcon className="h-4 w-4" src={chevronDownIcon} />
-          Atlas Library
+          <a className="min-w-0 flex-1 truncate hover:text-[var(--ns-blue-600)]" href={libraryHref}>
+            {libraryName}
+          </a>
           <button
             aria-label="Create document"
             className="ml-auto atlas-icon-button"
@@ -107,10 +111,10 @@ export function EditorSidebar({
         </div>
 
         <nav className="atlas-route-tree flex-1" aria-label="Atlas documents">
-          {folders.map((folder, folderIndex) => {
+          {folders.map((folder) => {
             const folderDocuments = documents.filter((document) => document.folderId === folder.id);
             const isActiveFolder = folder.id === activeFolderId;
-            const folderCount = fallbackFolderCounts[folderIndex] || folderDocuments.length || 0;
+            const folderCount = folderDocuments.length;
             const folderNumber = getFolderNumber(folder.title);
             const hasDocuments = folderDocuments.length > 0;
             const expanded = hasDocuments && expandedFolderIds.has(folder.id);
@@ -181,7 +185,7 @@ export function EditorSidebar({
           <div className="grid grid-cols-2 gap-x-5 gap-y-2 text-xs text-[var(--ns-slate-700)]">
             <span className="atlas-legend-item">
               <i className="atlas-legend-dot" />
-              Collection
+              Folder
             </span>
             <span className="atlas-legend-item">
               <i className="atlas-legend-line" />

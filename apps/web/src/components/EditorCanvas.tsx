@@ -24,13 +24,21 @@ type EditorCanvasProps = {
   commentThreads?: CommentThread[];
   content: JSONContent;
   documentId: string;
+  documentStatusLabel: string;
+  folderHref: string;
+  folderTitle: string;
   isContentEmpty: boolean;
   isCommentComposerOpen?: boolean;
+  libraryHref: string;
+  libraryName: string;
+  shareHref: string;
   title: string;
   tags?: string[];
   textLength: number;
   saveStatusLabel: string;
+  settingsHref: string;
   updatedAtLabel: string;
+  version?: string | null;
   outlineFocusRequest: OutlineFocusRequest | null;
   onCommentRuntimeStateChange?: (runtimeState: CommentRuntimeAnchorState) => void;
   onOpenCommentComposer?: (composer: PendingCommentComposer) => void;
@@ -46,8 +54,13 @@ export function EditorCanvas({
   commentThreads,
   content,
   documentId,
+  documentStatusLabel,
+  folderHref,
+  folderTitle,
   isContentEmpty,
   isCommentComposerOpen,
+  libraryHref,
+  libraryName,
   onCommentRuntimeStateChange,
   onContentChange,
   onContentStatsChange,
@@ -56,22 +69,30 @@ export function EditorCanvas({
   onTitleChange,
   outlineFocusRequest,
   saveStatusLabel,
+  settingsHref,
+  shareHref,
   tags,
   textLength,
   title,
   updatedAtLabel,
+  version,
 }: EditorCanvasProps) {
   const displayTitle = title.trim() || "Untitled Field Note";
   const readingMinutes = Math.max(1, Math.ceil(textLength / 850));
   const toolbarSlotId = `atlas-toolbar-${documentId.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
+  const folderLabel = folderTitle.trim() || "Folder";
 
   return (
     <section className="atlas-canvas flex h-full w-full min-w-0 flex-1 flex-col">
       <div className="atlas-breadcrumb-row flex h-[52px] shrink-0 items-center justify-between border-b border-[var(--ns-border)] bg-[rgba(251,248,241,0.76)] px-6">
         <nav className="flex min-w-0 items-center gap-2 text-sm text-[var(--ns-slate-700)]" aria-label="Breadcrumb">
-          <span className="truncate">Atlas Library</span>
+          <a className="truncate hover:text-[var(--ns-blue-600)]" href={libraryHref}>
+            {libraryName}
+          </a>
           <AtlasIcon className="h-3.5 w-3.5 text-[var(--ns-slate-500)]" src={chevronRightIcon} />
-          <span className="hidden truncate sm:inline">01. Foundations</span>
+          <a className="hidden truncate hover:text-[var(--ns-blue-600)] sm:inline" href={folderHref}>
+            {folderLabel}
+          </a>
           <AtlasIcon className="hidden h-3.5 w-3.5 text-[var(--ns-slate-500)] sm:inline-block" src={chevronRightIcon} />
           <span className="truncate font-semibold text-[var(--ns-navy-900)]">{displayTitle}</span>
         </nav>
@@ -79,15 +100,15 @@ export function EditorCanvas({
         <div className="ml-4 flex shrink-0 items-center gap-2 text-sm text-[var(--ns-navy-800)]">
           <span className="hidden items-center gap-2 border-r border-[var(--ns-border)] pr-3 font-medium sm:inline-flex">
             <span className="h-1.5 w-1.5 rounded-full bg-[#3f8c86]" />
-            Published
+            {documentStatusLabel}
           </span>
-          <button className="atlas-row-button hidden sm:inline-flex" type="button">
+          <a className="atlas-row-button hidden sm:inline-flex" href={shareHref} title="Share document">
             <AtlasIcon className="h-4 w-4" src={shareIcon} />
             Share
-          </button>
-          <button className="atlas-icon-button" title="More" type="button">
+          </a>
+          <a className="atlas-icon-button" href={settingsHref} title="Library settings">
             <MoreHorizontal className="h-4 w-4" />
-          </button>
+          </a>
         </div>
       </div>
 
@@ -100,12 +121,12 @@ export function EditorCanvas({
       <div className="editor-scrollbar atlas-canvas-scroll min-h-0 flex-1 overflow-y-auto">
         <article className="atlas-document-flow mx-auto min-h-full w-full max-w-[920px] px-8 pb-20 pt-12 sm:px-12 lg:px-[72px]">
           <div className="atlas-document-header mb-5">
-            <div className="ns-kicker mb-3">Foundations</div>
+            <div className="ns-kicker mb-3">{getFolderKicker(folderLabel)}</div>
             <DocumentTitleEditor onChange={onTitleChange} value={title} />
             <div className="atlas-compass-divider mt-4 text-[var(--ns-stone-300)]">
               <AtlasIcon className="h-5 w-5 text-[var(--ns-stone-300)]" src={compassEmblemIcon} />
             </div>
-            <DocumentMeta tags={tags} updatedAtLabel={updatedAtLabel} />
+            <DocumentMeta tags={tags} updatedAtLabel={updatedAtLabel} version={version} />
           </div>
 
           <div className="relative">
@@ -156,4 +177,8 @@ export function EditorCanvas({
       </footer>
     </section>
   );
+}
+
+function getFolderKicker(folderTitle: string) {
+  return folderTitle.replace(/^\d+(?:\.\d+)?\.?\s*/, "") || folderTitle;
 }

@@ -156,7 +156,7 @@ export function WorkspaceHomePage() {
               </div>
 
               <div className="workspace-home-bottom-grid">
-                <HomePanel actionLabel={t(locale, "home.allActivity")} icon={Users} title={t(locale, "home.teamActivity")}>
+                <HomePanel actionHref="#updates" actionLabel={t(locale, "home.allActivity")} icon={Users} title={t(locale, "home.teamActivity")}>
                   <TeamActivityList
                     items={homeModel.activityRows}
                     locale={locale}
@@ -167,7 +167,7 @@ export function WorkspaceHomePage() {
                   <PanelLink href="#updates">View all activity</PanelLink>
                 </HomePanel>
 
-                <HomePanel actionLabel="View archive" icon={MessageSquare} title={t(locale, "home.recentConversationsAndDecisions")}>
+                <HomePanel actionHref="#updates" actionLabel="View archive" icon={MessageSquare} title={t(locale, "home.recentConversationsAndDecisions")}>
                   <ConversationList emptyLabel="No recent conversation or decision data." items={homeModel.recentDecisionRows} variant="stacked" />
                   <PanelLink href="#updates">View all conversations</PanelLink>
                 </HomePanel>
@@ -245,12 +245,14 @@ function QuickActions({ actions, locale }: { actions: HomeQuickActionRow[]; loca
 }
 
 function HomePanel({
+  actionHref,
   actionLabel,
   badge,
   children,
   icon: Icon,
   title,
 }: {
+  actionHref?: string;
   actionLabel?: string;
   badge?: number;
   children: ReactNode;
@@ -267,8 +269,12 @@ function HomePanel({
           <h2>{title}</h2>
           {typeof badge === "number" && badge > 0 ? <mark>{badge}</mark> : null}
         </div>
-        {actionLabel ? (
-          <button className="workspace-home-text-link" title={actionLabel} type="button">
+        {actionLabel && actionHref ? (
+          <a className="workspace-home-text-link" href={actionHref} title={actionLabel}>
+            {actionLabel}
+          </a>
+        ) : actionLabel ? (
+          <button className="workspace-home-text-link" disabled title={`${actionLabel} is unavailable`} type="button">
             {actionLabel}
           </button>
         ) : null}

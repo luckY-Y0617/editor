@@ -139,6 +139,10 @@ export function createEditorHash(documentId?: string | null) {
   return documentId && isUuid(documentId) ? `#editor?documentId=${encodeURIComponent(documentId)}` : "#editor";
 }
 
+export function createShareHash(documentId?: string | null) {
+  return documentId && isUuid(documentId) ? `#share?documentId=${encodeURIComponent(documentId)}` : "#share";
+}
+
 export function createLibrariesHash(options: { collectionId?: string | null; libraryId?: string | null } = {}) {
   const params = new URLSearchParams();
 

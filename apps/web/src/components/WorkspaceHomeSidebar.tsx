@@ -38,12 +38,12 @@ const workspaceNavItems = [
 
 export function WorkspaceHomeSidebar({
   activeItem = "home",
-  collectionsTitle = "Current Library Collections",
+  collectionsTitle = "Current Library Folders",
   currentLibraryCollections = [],
   showCollections = true,
 }: WorkspaceHomeSidebarProps) {
   const { locale } = useDisplayLanguage();
-  const resolvedCollectionsTitle = collectionsTitle === "Current Library Collections"
+  const resolvedCollectionsTitle = collectionsTitle === "Current Library Folders"
     ? t(locale, "nav.currentLibraryCollections")
     : collectionsTitle;
 

@@ -378,7 +378,7 @@ export function createWorkspaceSettingsTabRows(
     : scope === "library"
     ? [
         { id: "general", label: "General", status: "live" },
-        { id: "collections", label: "Collections", status: "live" },
+        { id: "collections", label: "Folders", status: "live" },
         { id: "documents", label: "Documents", status: "live" },
         { id: "permissions", label: "Permissions", status: "reused" },
         { id: "notifications", label: "Notifications", status: "live" },

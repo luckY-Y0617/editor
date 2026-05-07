@@ -152,7 +152,7 @@ export function createLibrariesPageModel(
     collectionOptions,
     collections: sortedCollections
       .map((collection) => toLibraryCollectionRow(collection, activeLibraryId, activeCollectionId)),
-    createDocumentDisabledReason: canCreateDocument ? null : "Select a collection before creating a document.",
+    createDocumentDisabledReason: canCreateDocument ? null : "Select a folder before creating a document.",
     documents,
     hasCollections: map.folders.length > 0,
     hasLibraries: bootstrap.spaces.length > 0,
@@ -375,7 +375,7 @@ function createStats(map: KnowledgeMapResponse): LibraryStatRow[] {
     },
     {
       id: "collections",
-      label: "Collections",
+      label: "Folders",
       value: String(map.folders.length),
     },
     {

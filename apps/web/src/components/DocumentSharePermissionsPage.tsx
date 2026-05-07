@@ -49,7 +49,7 @@ import {
   toSharePermissionMutationError,
   type ShareTargetResolution,
 } from "../lib/documentShareLinksModel";
-import { getShareDocumentIdFromHash } from "../lib/hashRouting";
+import { createEditorHash, createShareHash, getShareDocumentIdFromHash } from "../lib/hashRouting";
 import {
   permissionRoleSummaries,
   recentAccessEvents,
@@ -71,7 +71,6 @@ const sharePatternStyle = {
   "--share-topographic-pattern": `url(${topographicPatternUrl})`,
 } as CSSProperties;
 
-const shareBreadcrumbs = ["Atlas Library", "01. Foundations", "Mission & Vision", "Share"];
 const shareTabs = ["People", "Groups", "Access Settings"];
 
 type PermissionApiStatus = "unconfigured" | "loading" | "ready" | "forbidden" | "error";
@@ -223,7 +222,7 @@ export function DocumentSharePermissionsPage() {
   return (
     <main className="share-permissions-shell flex h-screen flex-col overflow-hidden" style={sharePatternStyle}>
       <WorkspaceHomeTopBar />
-      <ShareBreadcrumbs />
+      <ShareBreadcrumbs context={shareTarget.documentContext} resolution={shareTarget.resolution} />
       <div className="share-permissions-body min-h-0 flex-1 overflow-hidden">
         <DocumentContextPanel context={shareTarget.documentContext} resolution={shareTarget.resolution} status={shareTarget.status} />
         <section className="share-permissions-main editor-scrollbar min-w-0 overflow-y-auto">
@@ -363,23 +362,55 @@ function useSharePermissionTarget() {
   };
 }
 
-function ShareBreadcrumbs() {
+function ShareBreadcrumbs({
+  context,
+  resolution,
+}: {
+  context: ShareDocumentContext;
+  resolution: ShareTargetResolution;
+}) {
+  const breadcrumbs = getShareBreadcrumbs(context, resolution);
+
   return (
     <header className="share-permissions-breadcrumb-row">
       <nav className="share-permissions-breadcrumbs" aria-label="Document location">
-        {shareBreadcrumbs.map((breadcrumb, index) => {
-          const isLast = index === shareBreadcrumbs.length - 1;
-
-          return (
-            <span className={isLast ? "is-current" : ""} key={breadcrumb}>
-              <a href={isLast ? "#share" : "#editor"}>{breadcrumb}</a>
-              {!isLast ? <ChevronRight className="h-4 w-4" aria-hidden="true" /> : null}
-            </span>
-          );
-        })}
+        {breadcrumbs.map((breadcrumb, index) => (
+          <span className={breadcrumb.isCurrent ? "is-current" : ""} key={`${breadcrumb.label}-${index}`}>
+            <a href={breadcrumb.href}>{breadcrumb.label}</a>
+            {!breadcrumb.isCurrent ? <ChevronRight className="h-4 w-4" aria-hidden="true" /> : null}
+          </span>
+        ))}
       </nav>
     </header>
   );
+}
+
+function getShareBreadcrumbs(context: ShareDocumentContext, resolution: ShareTargetResolution) {
+  const breadcrumbs: Array<{ href: string; isCurrent?: boolean; label: string }> = [{ href: "#libraries", label: "Library" }];
+  const folderLabel = resolution.documentId ? getFolderBreadcrumbLabel(context.location) : null;
+
+  if (folderLabel) {
+    breadcrumbs.push({ href: "#libraries", label: folderLabel });
+  }
+
+  if (resolution.documentId) {
+    breadcrumbs.push({ href: createEditorHash(resolution.documentId), label: context.title });
+  }
+
+  return [
+    ...breadcrumbs,
+    {
+      href: createShareHash(resolution.documentId),
+      isCurrent: true,
+      label: "Share",
+    },
+  ];
+}
+
+function getFolderBreadcrumbLabel(location: string) {
+  const parts = location.split("/").map((part) => part.trim()).filter(Boolean);
+  const folderLabel = parts.length > 1 ? parts[parts.length - 1] : null;
+  return folderLabel && folderLabel !== "Document resolved by id" ? folderLabel : null;
 }
 
 function DocumentContextPanel({
@@ -391,6 +422,9 @@ function DocumentContextPanel({
   resolution: ShareTargetResolution;
   status: PermissionApiStatus;
 }) {
+  const targetHref = resolution.documentId ? createEditorHash(resolution.documentId) : "#libraries";
+  const targetLabel = resolution.documentId ? "Back to document" : "Choose a document in Library";
+
   return (
     <aside className="share-permissions-context editor-scrollbar overflow-y-auto">
       <div className="share-permissions-ruler" aria-hidden="true">
@@ -437,7 +471,7 @@ function DocumentContextPanel({
               {context.tags.length ? context.tags.map((tag) => (
                 <span key={tag}>{tag}</span>
               )) : <span>{statusLabel(status)}</span>}
-              <button title="Tag management is planned for a later phase" type="button">
+              <button disabled title="Tag management is planned for a later phase" type="button">
                 <Plus className="h-3.5 w-3.5" />
               </button>
             </dd>
@@ -446,6 +480,9 @@ function DocumentContextPanel({
         <div className="share-permissions-context-note">
           <strong>Share target</strong>
           <span>{resolution.documentId ? `${resolution.source} document` : resolution.reason ?? statusLabel(status)}</span>
+          <a className="share-permissions-text-link mt-3 inline-flex" href={targetHref} title={targetLabel}>
+            {targetLabel}
+          </a>
         </div>
 
         <div className="share-permissions-context-map" aria-hidden="true">

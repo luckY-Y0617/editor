@@ -15,12 +15,22 @@ import {
   createDocument,
   getBootstrap,
   getDocument,
+  getDocumentActivity,
+  getDocumentContext,
   updateDocument,
+  type DocumentActivityResponse,
+  type DocumentContextResponse,
   type KnowledgeDocumentDto,
   type KnowledgeDocumentSummaryDto,
   type KnowledgeFolderDto,
 } from "../lib/appApi";
 import { ApiClientError, getConfiguredApiBaseUrl } from "../lib/apiClient";
+import {
+  createEditorDocumentContextPanelModel,
+  formatDocumentStatus,
+  type EditorContextLoadStatus,
+} from "../lib/editorDocumentContextModel";
+import { createLibrariesHash, createSearchHash, createSettingsHash, createShareHash } from "../lib/hashRouting";
 import coordinatePatternUrl from "../assets/svg/patterns/coordinate-ticks.svg";
 import routePatternUrl from "../assets/svg/patterns/route-line.svg";
 import topographicPatternUrl from "../assets/svg/patterns/topographic-lines.svg";
@@ -81,6 +91,14 @@ export function KnowledgeEditorPage({ requestedDocumentId = null }: { requestedD
   const [activeDocumentId, setActiveDocumentId] = useState(initialEditorState.activeDocumentId);
   const [editorApiLoadStatus, setEditorApiLoadStatus] = useState<EditorApiLoadStatus>(() =>
     getConfiguredApiBaseUrl() ? "loading" : "demo",
+  );
+  const [workspaceName, setWorkspaceName] = useState("Northstar");
+  const [activeLibraryId, setActiveLibraryId] = useState<string | null>(null);
+  const [activeLibraryName, setActiveLibraryName] = useState("Atlas Library");
+  const [documentContextResponse, setDocumentContextResponse] = useState<DocumentContextResponse | null>(null);
+  const [documentActivityResponse, setDocumentActivityResponse] = useState<DocumentActivityResponse | null>(null);
+  const [documentContextStatus, setDocumentContextStatus] = useState<EditorContextLoadStatus>(() =>
+    getConfiguredApiBaseUrl() ? "idle" : "demo",
   );
   const [apiSaveStatus, setApiSaveStatus] = useState<ApiSaveStatus>("saved");
   const [isContentEmpty, setIsContentEmpty] = useState(false);
@@ -154,6 +172,24 @@ export function KnowledgeEditorPage({ requestedDocumentId = null }: { requestedD
   const effectiveUpdatedAtLabel = isApiMode
     ? formatDocumentUpdatedAt(activeDocument?.updatedAt)
     : mockUpdatedAtLabel;
+  const activeFolder = activeDocument
+    ? folders.find((folder) => folder.id === activeDocument.folderId)
+    : null;
+  const libraryHref = createLibrariesHash({ libraryId: activeLibraryId });
+  const folderHref = createLibrariesHash({
+    collectionId: activeDocument?.folderId,
+    libraryId: activeLibraryId,
+  });
+  const librarySettingsHref = createSettingsHash({
+    scope: "library",
+    spaceId: activeLibraryId,
+    tab: "general",
+  });
+  const shareHref = createShareHash(activeDocument?.id);
+  const documentStatusLabel = formatDocumentStatus(activeDocument?.status);
+  const documentContextPanelModel = isApiMode
+    ? createEditorDocumentContextPanelModel(documentContextResponse, documentActivityResponse)
+    : null;
   const atlasPatternStyle = {
     "--atlas-coordinate-pattern": `url(${coordinatePatternUrl})`,
     "--atlas-route-pattern": `url(${routePatternUrl})`,
@@ -192,7 +228,14 @@ export function KnowledgeEditorPage({ requestedDocumentId = null }: { requestedD
         const summaryDocuments = bootstrap.documents.map(mapDocumentSummaryDto);
         const activeApiDocument = mapDocumentDto(activeDocumentResponse.document);
         const nextDocuments = upsertDocument(summaryDocuments, activeApiDocument);
+        const activeSpace =
+          bootstrap.spaces.find((space) => space.id === bootstrap.activeSpaceId) ??
+          bootstrap.spaces.find((space) => space.id === bootstrap.workspace.currentSpaceId) ??
+          bootstrap.spaces[0];
 
+        setWorkspaceName(bootstrap.workspace.name);
+        setActiveLibraryId(activeSpace?.id ?? bootstrap.activeSpaceId ?? null);
+        setActiveLibraryName(activeSpace?.name ?? "Atlas Library");
         setFolders(bootstrap.folders.map(mapFolderDto));
         setDocuments(nextDocuments);
         documentsRef.current = nextDocuments;
@@ -239,6 +282,55 @@ export function KnowledgeEditorPage({ requestedDocumentId = null }: { requestedD
     saveStateInitializedRef.current = true;
     resetMockSaved(new Date(activeDocument.updatedAt));
   }, [activeDocument, isApiMode, resetMockSaved]);
+
+  useEffect(() => {
+    if (!isApiMode) {
+      setDocumentContextStatus("demo");
+      setDocumentContextResponse(null);
+      setDocumentActivityResponse(null);
+      return;
+    }
+
+    if (!activeDocument || editorApiLoadStatus !== "ready") {
+      setDocumentContextStatus("idle");
+      setDocumentContextResponse(null);
+      setDocumentActivityResponse(null);
+      return;
+    }
+
+    const controller = new AbortController();
+
+    setDocumentContextStatus("loading");
+    setDocumentContextResponse(null);
+    setDocumentActivityResponse(null);
+
+    void Promise.all([
+      getDocumentContext(activeDocument.id, controller.signal),
+      getDocumentActivity(activeDocument.id, controller.signal),
+    ])
+      .then(([contextResponse, activityResponse]) => {
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        setDocumentContextResponse(contextResponse);
+        setDocumentActivityResponse(activityResponse);
+        setDocumentContextStatus("ready");
+      })
+      .catch((error) => {
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        setDocumentContextStatus("error");
+        setTransferMessage({
+          type: "error",
+          text: error instanceof Error ? error.message : "Document context load failed.",
+        });
+      });
+
+    return () => controller.abort();
+  }, [activeDocument?.id, editorApiLoadStatus, isApiMode]);
 
   useEffect(() => () => window.clearTimeout(apiSaveTimerRef.current), []);
 
@@ -796,6 +888,19 @@ export function KnowledgeEditorPage({ requestedDocumentId = null }: { requestedD
     markMockCreated(now);
   }, [activeDocument?.folderId, folders, isApiMode, markMockCreated]);
 
+  const handleSearch = useCallback(
+    (query: string) => {
+      const trimmedQuery = query.trim();
+
+      window.location.hash = createSearchHash({
+        folderId: activeDocument?.folderId,
+        folderTitle: activeFolder?.title,
+        q: trimmedQuery || null,
+      });
+    },
+    [activeDocument?.folderId, activeFolder?.title],
+  );
+
   const handleExportJson = useCallback(() => {
     exportKnowledgeState({ activeDocumentId, documents });
     setTransferMessage({ type: "success", text: "已导出 JSON" });
@@ -877,18 +982,25 @@ export function KnowledgeEditorPage({ requestedDocumentId = null }: { requestedD
   return (
     <main className="atlas-shell flex h-screen flex-col overflow-hidden" style={atlasPatternStyle}>
       <EditorTopBar
+        canImportJson={!isApiMode}
+        libraryHref={libraryHref}
+        libraryName={activeLibraryName}
         onExportJson={handleExportJson}
         onImportJsonFile={handleImportJsonFile}
+        onSearch={handleSearch}
         saveStatus={effectiveSaveStatus}
         saveStatusLabel={atlasSaveStatusLabel}
         title={activeDocument.title}
         transferMessage={transferMessage}
+        workspaceName={workspaceName}
       />
       <div className="atlas-workspace flex min-h-0 flex-1 overflow-hidden">
         <EditorSidebar
           activeDocumentId={activeDocument.id}
           documents={documents}
           folders={folders}
+          libraryHref={libraryHref}
+          libraryName={activeLibraryName}
           onCreateDocument={handleCreateDocument}
           onSelectDocument={handleSelectDocument}
         />
@@ -899,8 +1011,13 @@ export function KnowledgeEditorPage({ requestedDocumentId = null }: { requestedD
             commentThreads={activeCommentThreads}
             content={cloneContent(activeDocument.content)}
             documentId={activeDocument.id}
+            documentStatusLabel={documentStatusLabel}
+            folderHref={folderHref}
+            folderTitle={activeFolder?.title ?? "Folder"}
             isContentEmpty={isContentEmpty}
             isCommentComposerOpen={pendingCommentComposer?.documentId === activeDocument.id}
+            libraryHref={libraryHref}
+            libraryName={activeLibraryName}
             onCommentRuntimeStateChange={handleCommentRuntimeStateChange}
             onContentChange={handleContentChange}
             onContentStatsChange={handleContentStatsChange}
@@ -909,20 +1026,27 @@ export function KnowledgeEditorPage({ requestedDocumentId = null }: { requestedD
             onTitleChange={handleTitleChange}
             outlineFocusRequest={outlineFocusRequest}
             saveStatusLabel={atlasSaveStatusLabel}
+            settingsHref={librarySettingsHref}
+            shareHref={shareHref}
             tags={activeDocument.tags}
             textLength={contentTextLength}
             title={activeDocument.title}
             updatedAtLabel={effectiveUpdatedAtLabel}
+            version={activeDocument.version}
           />
           <OutlinePanel
             activeCommentThreadId={activeCommentThreadId}
             activeDocument={activeDocument}
+            activityRows={documentContextPanelModel?.activity}
+            backlinksRows={documentContextPanelModel?.backlinks}
             commentLifecycleErrors={commentLifecycleActionState.errorsByThreadId}
             commentLifecyclePending={commentLifecycleActionState.pendingByThreadId}
             commentLoadState={activeCommentLoadState}
             commentMatchResults={activeCommentMatchResults}
             commentRelocationResults={activeCommentRelocationResults}
             commentThreads={activeCommentThreads}
+            contextLoadStatus={documentContextStatus}
+            documentStatusLabel={documentStatusLabel}
             onCancelPendingComment={handleCancelPendingCommentComposer}
             onCreateCommentThread={handleCreateCommentThread}
             onCommentThreadClick={handleCommentThreadClick}
@@ -935,9 +1059,11 @@ export function KnowledgeEditorPage({ requestedDocumentId = null }: { requestedD
             pendingCommentComposer={
               pendingCommentComposer?.documentId === activeDocument.id ? pendingCommentComposer : null
             }
+            relatedDocumentRows={documentContextPanelModel?.relatedDocuments}
             saveStatusLabel={atlasSaveStatusLabel}
             textLength={contentTextLength}
             updatedAtLabel={effectiveUpdatedAtLabel}
+            versionTrailRows={documentContextPanelModel?.versionTrail}
           />
         </section>
       </div>
@@ -957,6 +1083,8 @@ function mapDocumentSummaryDto(document: KnowledgeDocumentSummaryDto): Knowledge
     id: document.id,
     content: createEmptyDocumentContent(),
     folderId: document.folderId,
+    sortOrder: document.sortOrder,
+    status: document.status,
     tags: [...document.tags],
     title: document.title,
     updatedAt: document.updatedAt,
@@ -968,10 +1096,14 @@ function mapDocumentDto(document: KnowledgeDocumentDto): KnowledgeDocument {
     id: document.id,
     content: cloneContent(document.content),
     folderId: document.folderId,
+    owner: { ...document.owner },
     revision: document.revision,
+    sortOrder: document.sortOrder,
+    status: document.status,
     tags: [...document.tags],
     title: document.title,
     updatedAt: document.updatedAt,
+    version: document.version,
   };
 }
 

@@ -124,7 +124,14 @@ export type KnowledgeDocument = {
   title: string;
   folderId: string;
   updatedAt: string;
+  owner?: {
+    id: string;
+    name: string;
+  };
   revision?: number;
+  sortOrder?: number;
+  status?: string;
   tags?: string[];
+  version?: string;
   content: JSONContent;
 };

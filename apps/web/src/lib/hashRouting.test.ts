@@ -6,6 +6,7 @@ import {
   createPersonalSettingsHash,
   createSearchHash,
   createSettingsHash,
+  createShareHash,
   getEditorDocumentIdFromHash,
   getHashRoute,
   getLibrariesFiltersFromHash,
@@ -14,6 +15,7 @@ import {
   getSearchFiltersFromHash,
   getSettingsFiltersFromHash,
   getSettingsRouteTarget,
+  getShareDocumentIdFromHash,
   normalizeInternalActionHash,
   parseHashRoute,
 } from "./hashRouting";
@@ -45,6 +47,15 @@ describe("hashRouting", () => {
     expect(createEditorHash(documentId)).toBe(`#editor?documentId=${documentId}`);
     expect(createEditorHash("doc-demo")).toBe("#editor");
     expect(createEditorHash(null)).toBe("#editor");
+  });
+
+  test("creates and parses share document hashes only for UUID document ids", () => {
+    expect(createShareHash(documentId)).toBe(`#share?documentId=${documentId}`);
+    expect(createShareHash("doc-demo")).toBe("#share");
+    expect(createShareHash(null)).toBe("#share");
+    expect(getShareDocumentIdFromHash(`#share?documentId=${documentId}`)).toBe(documentId);
+    expect(getShareDocumentIdFromHash(`#permissions?documentId=${documentId}`)).toBe(documentId);
+    expect(getShareDocumentIdFromHash("#share?documentId=not-a-uuid")).toBe(null);
   });
 
   test("creates and parses folder search hashes", () => {

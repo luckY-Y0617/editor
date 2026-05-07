@@ -103,6 +103,33 @@ export type DocumentActivityResponse = {
   items: ActivityTimelineItemDto[];
 };
 
+export type RelatedDocumentDto = {
+  id: string;
+  code: string;
+  title: string;
+};
+
+export type VersionTrailItemDto = {
+  id: string;
+  version: string;
+  date: string;
+  author: string;
+  status: string;
+};
+
+export type BacklinkItemDto = {
+  id: string;
+  code: string;
+  title: string;
+  excerpt: string;
+};
+
+export type DocumentContextResponse = {
+  relatedDocuments: RelatedDocumentDto[];
+  versionTrail: VersionTrailItemDto[];
+  backlinks: BacklinkItemDto[];
+};
+
 export type PermissionNotificationDto = {
   id: string;
   workspaceId: string;
@@ -351,6 +378,10 @@ export function deleteDocument(documentId: string, signal?: AbortSignal) {
 
 export function getDocumentActivity(documentId: string, signal?: AbortSignal) {
   return apiFetch<DocumentActivityResponse>(`/documents/${documentId}/activity`, { signal });
+}
+
+export function getDocumentContext(documentId: string, signal?: AbortSignal) {
+  return apiFetch<DocumentContextResponse>(`/documents/${documentId}/context`, { signal });
 }
 
 export function getWorkspaceNotifications(workspaceId?: string | null, signal?: AbortSignal) {

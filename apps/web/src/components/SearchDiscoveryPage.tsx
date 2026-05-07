@@ -8,7 +8,6 @@ import {
   MoreHorizontal,
   Plus,
   Search,
-  Upload,
   UserRound,
   X,
 } from "lucide-react";
@@ -46,20 +45,21 @@ const searchPatternStyle = {
   "--workspace-home-topographic-pattern": `url(${topographicPatternUrl})`,
 } as CSSProperties;
 
-const resultTabs = ["All", "Documents (128)", "Collections (24)", "People (18)", "Tags (64)"];
+const resultTabs = ["All", "Documents (128)", "Folders (24)", "People (18)", "Tags (64)"];
 
 export function SearchDiscoveryPage() {
   const [hash, setHash] = useState(window.location.hash);
   const searchFilters = getSearchFiltersFromHash(hash);
   const searchQuery = searchFilters.q ?? "";
   const [draftQuery, setDraftQuery] = useState(searchQuery);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(true);
   const liveSearch = useLiveSearch(searchQuery, searchFilters.folderId);
   const isDemoSearch = liveSearch.status === "unconfigured";
   const displayResults = liveSearch.status === "unconfigured" ? searchResults : liveSearch.results ?? [];
   const tabs = isDemoSearch ? resultTabs : ["All"];
   const resultCount = displayResults.length;
   const headingLabel = searchFilters.folderTitle
-    ? `Collection ${searchFilters.folderTitle}`
+    ? `Folder ${searchFilters.folderTitle}`
     : searchQuery
       ? `Search results for '${searchQuery}'`
       : "Search Northstar";
@@ -72,6 +72,7 @@ export function SearchDiscoveryPage() {
 
   useEffect(() => {
     setDraftQuery(searchQuery);
+    setIsPreviewOpen(true);
   }, [searchQuery]);
 
   const submitSearch = (event: FormEvent<HTMLFormElement>) => {
@@ -129,7 +130,9 @@ export function SearchDiscoveryPage() {
               {tabs.map((tab, index) => (
                 <button
                   className={["search-discovery-tab", index === 0 ? "is-active" : ""].join(" ")}
+                  disabled={index !== 0}
                   key={tab}
+                  title={index === 0 ? tab : "Type filters are not connected in this view."}
                   type="button"
                 >
                   {tab}
@@ -141,11 +144,11 @@ export function SearchDiscoveryPage() {
               <span>{resultCount} results</span>
               <div className="ml-auto flex items-center gap-3">
                 <span>Sort by</span>
-                <button className="search-discovery-sort" title="Sort by relevance" type="button">
+                <button className="search-discovery-sort" disabled title="Search results are ordered by relevance." type="button">
                   Relevance
                   <ChevronDown className="h-3.5 w-3.5" />
                 </button>
-                <button className="search-discovery-view-button" title="List view" type="button">
+                <button className="search-discovery-view-button" disabled title="Only list view is available." type="button">
                   <ListFilter className="h-4 w-4" />
                 </button>
               </div>
@@ -165,7 +168,7 @@ export function SearchDiscoveryPage() {
             </div>
           </div>
         </section>
-        {isDemoSearch ? <SearchPreview query={searchQuery} /> : null}
+        {isDemoSearch && isPreviewOpen ? <SearchPreview onClose={() => setIsPreviewOpen(false)} query={searchQuery} /> : null}
       </div>
     </main>
   );
@@ -303,7 +306,7 @@ function SearchResultRow({ query, result }: { query: string; result: SearchDispl
         {result.excerpt ? <p className="search-discovery-excerpt">{highlightQuery(result.excerpt, query)}</p> : null}
         {result.type === "collection" ? (
           <p className="search-discovery-path">
-            Collection&nbsp;&nbsp;-&nbsp;&nbsp;{result.documentCount} documents
+            Folder&nbsp;&nbsp;-&nbsp;&nbsp;{result.documentCount} documents
           </p>
         ) : null}
         {result.type === "person" ? <p className="search-discovery-path">People</p> : null}
@@ -326,7 +329,7 @@ function SearchResultRow({ query, result }: { query: string; result: SearchDispl
         {result.type === "person" ? (
           <>
             <span>{result.documentCount} documents</span>
-            <span>{result.collectionCount} collections</span>
+            <span>{result.collectionCount} folders</span>
           </>
         ) : null}
         {result.status ? <StatusBadge status={result.status} /> : <MoreHorizontal className="ml-auto h-4 w-4" />}
@@ -335,11 +338,11 @@ function SearchResultRow({ query, result }: { query: string; result: SearchDispl
   );
 }
 
-function SearchPreview({ query }: { query: string }) {
+function SearchPreview({ onClose, query }: { onClose: () => void; query: string }) {
   return (
     <aside className="search-discovery-preview hidden h-full w-[470px] shrink-0 overflow-y-auto border-l border-[var(--ns-border)] xl:block">
       <div className="search-discovery-preview-inner">
-        <button className="search-discovery-close" title="Close preview" type="button">
+        <button className="search-discovery-close" onClick={onClose} title="Close preview" type="button">
           <X className="h-5 w-5" />
         </button>
 
@@ -384,7 +387,7 @@ function SearchPreview({ query }: { query: string }) {
                 {tag}
               </span>
             ))}
-            <button className="search-discovery-tag is-add" title="Add tag" type="button">
+            <button className="search-discovery-tag is-add" disabled title="Tag management is not available from search preview." type="button">
               <Plus className="h-3.5 w-3.5" />
             </button>
           </div>
@@ -401,9 +404,9 @@ function SearchPreview({ query }: { query: string }) {
               </a>
             ))}
           </div>
-          <button className="search-discovery-preview-link mt-3" type="button">
+          <a className="search-discovery-preview-link mt-3 inline-flex" href={createSearchHash({ q: selectedSearchDetail.title })}>
             View all 8 related documents
-          </button>
+          </a>
         </PreviewSection>
 
         <PreviewSection title="Details">

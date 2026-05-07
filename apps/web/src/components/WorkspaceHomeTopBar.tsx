@@ -167,16 +167,18 @@ export function WorkspaceHomeTopBar({
         </div>
         <button
           aria-label={t(locale, "topbar.exportJson")}
-          className="grid h-9 w-9 place-items-center text-[#dfe8f3] transition hover:bg-white/[0.08]"
-          title={t(locale, "topbar.exportJson")}
+          className="grid h-9 w-9 place-items-center text-[#dfe8f3] transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-transparent"
+          disabled
+          title="Open a document in the editor to export JSON."
           type="button"
         >
           <Download className="h-4 w-4" />
         </button>
         <button
           aria-label={t(locale, "topbar.importJson")}
-          className="grid h-9 w-9 place-items-center text-[#dfe8f3] transition hover:bg-white/[0.08]"
-          title={t(locale, "topbar.importJson")}
+          className="grid h-9 w-9 place-items-center text-[#dfe8f3] transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-transparent"
+          disabled
+          title="Open a document in the editor to import JSON."
           type="button"
         >
           <Upload className="h-4 w-4" />

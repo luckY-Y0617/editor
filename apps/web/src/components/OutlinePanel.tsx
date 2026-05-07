@@ -21,6 +21,13 @@ import type { AnchorRelocationResult } from "../lib/commentAnchorRelocation";
 import { isCommentBodySubmittable } from "../lib/commentComposerModel";
 import type { CommentLoadState } from "../lib/commentProductionState";
 import type {
+  EditorActivityRow,
+  EditorBacklinkRow,
+  EditorContextLoadStatus,
+  EditorRelatedDocumentRow,
+  EditorVersionTrailRow,
+} from "../lib/editorDocumentContextModel";
+import type {
   CommentThread,
   CreateCommentThreadRequest,
   KnowledgeDocument,
@@ -31,17 +38,23 @@ import type {
 type OutlinePanelProps = {
   activeCommentThreadId?: string | null;
   activeDocument: KnowledgeDocument;
+  activityRows?: EditorActivityRow[];
+  backlinksRows?: EditorBacklinkRow[];
   commentLifecycleErrors?: Record<string, string>;
   commentLifecyclePending?: Record<string, true>;
   commentLoadState?: CommentLoadState;
   commentMatchResults?: Record<string, AnchorMatchResult>;
   commentRelocationResults?: Record<string, AnchorRelocationResult>;
   commentThreads?: CommentThread[];
+  contextLoadStatus?: EditorContextLoadStatus;
+  documentStatusLabel: string;
   outlineItems: OutlineItem[];
   pendingCommentComposer?: PendingCommentComposer | null;
+  relatedDocumentRows?: EditorRelatedDocumentRow[];
   saveStatusLabel: string;
   textLength: number;
   updatedAtLabel: string;
+  versionTrailRows?: EditorVersionTrailRow[];
   onCancelPendingComment?: () => void;
   onCommentThreadClick?: (thread: CommentThread) => void;
   onCreateCommentThread?: (request: CreateCommentThreadRequest) => void;
@@ -58,12 +71,16 @@ type CollapsibleSection = "documentMap" | "versionTrail" | "backlinks";
 export function OutlinePanel({
   activeCommentThreadId,
   activeDocument,
+  activityRows,
+  backlinksRows,
   commentLifecycleErrors = {},
   commentLifecyclePending = {},
   commentLoadState = { status: "idle" },
   commentMatchResults = {},
   commentRelocationResults = {},
   commentThreads = [],
+  contextLoadStatus = "demo",
+  documentStatusLabel,
   onCancelPendingComment,
   onCommentThreadClick,
   onCreateCommentThread,
@@ -74,9 +91,11 @@ export function OutlinePanel({
   onResolveCommentThread,
   outlineItems,
   pendingCommentComposer,
+  relatedDocumentRows,
   saveStatusLabel,
   textLength,
   updatedAtLabel,
+  versionTrailRows,
 }: OutlinePanelProps) {
   const [activeTab, setActiveTab] = useState<OverviewTab>("overview");
   const [collapsedSections, setCollapsedSections] = useState<Record<CollapsibleSection, boolean>>({
@@ -86,6 +105,12 @@ export function OutlinePanel({
   });
   const readingMinutes = Math.max(1, Math.ceil(textLength / 850));
   const tags = activeDocument.tags?.length ? activeDocument.tags : [];
+  const displayedActivityRows = activityRows ?? activityTimeline.map(toDemoActivityRow);
+  const displayedBacklinkRows = backlinksRows ?? backlinks.map(toDemoBacklinkRow);
+  const displayedRelatedDocuments = relatedDocumentRows ?? relatedDocuments.map(toDemoRelatedDocumentRow);
+  const displayedVersionTrailRows = versionTrailRows ?? versionTrail.map(toDemoVersionTrailRow);
+  const contextIsError = contextLoadStatus === "error";
+  const contextIsLoading = contextLoadStatus === "loading";
 
   useEffect(() => {
     if (activeCommentThreadId || pendingCommentComposer) {
@@ -167,16 +192,24 @@ export function OutlinePanel({
               )}
             </PanelSection>
 
-            <PanelSection title="Related Documents" action="View All">
-              <div className="space-y-2">
-                {relatedDocuments.map((document) => (
-                  <button className="atlas-related-item" key={`${document.code}-${document.title}`} type="button">
-                    <AtlasIcon className="h-4 w-4 text-[var(--ns-slate-500)]" src={fileIcon} />
-                    <span className="font-semibold text-[var(--ns-navy-800)]">{document.code}</span>
-                    <span className="min-w-0 flex-1 truncate">{document.title}</span>
-                  </button>
-                ))}
-              </div>
+            <PanelSection action="View All" actionHref="#search" title="Related Documents">
+              {contextIsLoading ? (
+                <ContextStateMessage>Loading related documents...</ContextStateMessage>
+              ) : contextIsError ? (
+                <ContextStateMessage tone="error">Document context could not be loaded.</ContextStateMessage>
+              ) : displayedRelatedDocuments.length > 0 ? (
+                <div className="space-y-2">
+                  {displayedRelatedDocuments.map((document) => (
+                    <a className="atlas-related-item" href={document.href} key={document.id} title={document.title}>
+                      <AtlasIcon className="h-4 w-4 text-[var(--ns-slate-500)]" src={fileIcon} />
+                      <span className="font-semibold text-[var(--ns-navy-800)]">{document.code}</span>
+                      <span className="min-w-0 flex-1 truncate">{document.title}</span>
+                    </a>
+                  ))}
+                </div>
+              ) : (
+                <ContextStateMessage>No related documents yet.</ContextStateMessage>
+              )}
             </PanelSection>
 
             <PanelSection
@@ -184,30 +217,46 @@ export function OutlinePanel({
               onToggle={() => toggleSection("versionTrail")}
               title="Version Trail"
             >
-              <VersionTrail />
+              {contextIsLoading ? (
+                <ContextStateMessage>Loading version trail...</ContextStateMessage>
+              ) : contextIsError ? (
+                <ContextStateMessage tone="error">Version trail could not be loaded.</ContextStateMessage>
+              ) : displayedVersionTrailRows.length > 0 ? (
+                <VersionTrail items={displayedVersionTrailRows} />
+              ) : (
+                <ContextStateMessage>No versions yet.</ContextStateMessage>
+              )}
             </PanelSection>
 
             <PanelSection
               collapsed={collapsedSections.backlinks}
-              count={7}
+              count={displayedBacklinkRows.length}
               onToggle={() => toggleSection("backlinks")}
               title="Backlinks"
             >
-              <div className="space-y-3">
-                {backlinks.map((item) => (
-                  <button className="atlas-backlink" key={`${item.code}-${item.title}`} type="button">
-                    <div className="flex items-center gap-2">
-                      <AtlasIcon className="h-4 w-4 text-[var(--ns-slate-500)]" src={linkIcon} />
-                      <span className="font-semibold text-[var(--ns-blue-600)]">{item.code}</span>
-                      <span className="min-w-0 flex-1 truncate text-[var(--ns-navy-800)]">{item.title}</span>
-                      <AtlasIcon className="h-4 w-4 text-[var(--ns-slate-500)]" src={chevronRightSvg} />
-                    </div>
-                    <p className="mt-2 line-clamp-2 text-left text-xs leading-5 text-[var(--ns-slate-700)]">
-                      {item.excerpt}
-                    </p>
-                  </button>
-                ))}
-              </div>
+              {contextIsLoading ? (
+                <ContextStateMessage>Loading backlinks...</ContextStateMessage>
+              ) : contextIsError ? (
+                <ContextStateMessage tone="error">Backlinks could not be loaded.</ContextStateMessage>
+              ) : displayedBacklinkRows.length > 0 ? (
+                <div className="space-y-3">
+                  {displayedBacklinkRows.map((item) => (
+                    <a className="atlas-backlink" href={item.href} key={item.id} title={item.title}>
+                      <div className="flex items-center gap-2">
+                        <AtlasIcon className="h-4 w-4 text-[var(--ns-slate-500)]" src={linkIcon} />
+                        <span className="font-semibold text-[var(--ns-blue-600)]">{item.code}</span>
+                        <span className="min-w-0 flex-1 truncate text-[var(--ns-navy-800)]">{item.title}</span>
+                        <AtlasIcon className="h-4 w-4 text-[var(--ns-slate-500)]" src={chevronRightSvg} />
+                      </div>
+                      <p className="mt-2 line-clamp-2 text-left text-xs leading-5 text-[var(--ns-slate-700)]">
+                        {item.excerpt}
+                      </p>
+                    </a>
+                  ))}
+                </div>
+              ) : (
+                <ContextStateMessage>No backlinks yet.</ContextStateMessage>
+              )}
             </PanelSection>
           </>
         ) : null}
@@ -239,12 +288,12 @@ export function OutlinePanel({
                 <InfoRow label="Status">
                   <span className="inline-flex items-center gap-2">
                     <span className="h-1.5 w-1.5 rounded-full bg-[#3f8c86]" />
-                    Published
+                    {documentStatusLabel}
                   </span>
                 </InfoRow>
-                <InfoRow label="Owner">Alice Kim</InfoRow>
+                <InfoRow label="Owner">{activeDocument.owner?.name ?? "Unassigned"}</InfoRow>
                 <InfoRow label="Last updated">{updatedAtLabel}</InfoRow>
-                <InfoRow label="Version">3.2</InfoRow>
+                <InfoRow label="Version">{activeDocument.version?.trim() || "Draft"}</InfoRow>
                 <InfoRow label="Word count">{textLength.toLocaleString("en-US")}</InfoRow>
                 <InfoRow label="Reading time">{readingMinutes} min</InfoRow>
                 <InfoRow label="Save status">{saveStatusLabel}</InfoRow>
@@ -269,22 +318,30 @@ export function OutlinePanel({
 
         {activeTab === "activity" ? (
           <PanelSection title="Activity Trail">
-            <div className="atlas-activity-list">
-              {activityTimeline.map((item, index) => (
-                <div className="atlas-activity-item" key={`${item.title}-${item.date}`}>
-                  <span className={["atlas-version-dot", index === 0 ? "is-active" : ""].join(" ")} />
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 text-xs">
-                      <span className="min-w-0 flex-1 truncate font-semibold text-[var(--ns-navy-800)]">
-                        {item.title}
-                      </span>
-                      <span className="shrink-0 text-[var(--ns-slate-500)]">{item.date}</span>
+            {contextIsLoading ? (
+              <ContextStateMessage>Loading activity...</ContextStateMessage>
+            ) : contextIsError ? (
+              <ContextStateMessage tone="error">Activity could not be loaded.</ContextStateMessage>
+            ) : displayedActivityRows.length > 0 ? (
+              <div className="atlas-activity-list">
+                {displayedActivityRows.map((item, index) => (
+                  <div className="atlas-activity-item" key={item.id}>
+                    <span className={["atlas-version-dot", index === 0 ? "is-active" : ""].join(" ")} />
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 text-xs">
+                        <span className="min-w-0 flex-1 truncate font-semibold text-[var(--ns-navy-800)]">
+                          {item.title}
+                        </span>
+                        <span className="shrink-0 text-[var(--ns-slate-500)]">{item.date}</span>
+                      </div>
+                      <p className="mt-1 text-xs leading-5 text-[var(--ns-slate-700)]">{item.detail}</p>
                     </div>
-                    <p className="mt-1 text-xs leading-5 text-[var(--ns-slate-700)]">{item.detail}</p>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <ContextStateMessage>No activity yet.</ContextStateMessage>
+            )}
           </PanelSection>
         ) : null}
       </div>
@@ -736,11 +793,11 @@ function createFallbackMatchResult(anchorStatus: CommentThread["anchorStatus"]):
   };
 }
 
-function VersionTrail() {
+function VersionTrail({ items }: { items: EditorVersionTrailRow[] }) {
   return (
     <div className="atlas-version-list">
-      {versionTrail.map((item, index) => (
-        <div className="atlas-version-item" key={`${item.version}-${item.date}`}>
+      {items.map((item, index) => (
+        <div className="atlas-version-item" key={item.id}>
           <span className={["atlas-version-dot", index === 0 ? "is-active" : ""].join(" ")} />
           <div className="min-w-0">
             <div className="flex items-center gap-3 text-xs">
@@ -756,6 +813,65 @@ function VersionTrail() {
   );
 }
 
+function ContextStateMessage({
+  children,
+  tone = "muted",
+}: {
+  children: ReactNode;
+  tone?: "error" | "muted";
+}) {
+  return (
+    <div
+      className={[
+        "border px-3 py-3 text-sm leading-6",
+        tone === "error"
+          ? "border-[rgba(185,77,95,0.24)] bg-[rgba(185,77,95,0.08)] text-[#8e3b4a]"
+          : "border-dashed border-[var(--ns-border)] bg-white/45 text-[var(--ns-slate-500)]",
+      ].join(" ")}
+    >
+      {children}
+    </div>
+  );
+}
+
+function toDemoRelatedDocumentRow(document: (typeof relatedDocuments)[number], index: number): EditorRelatedDocumentRow {
+  return {
+    id: `demo-related-${index}`,
+    code: document.code,
+    href: "#editor",
+    title: document.title,
+  };
+}
+
+function toDemoVersionTrailRow(item: (typeof versionTrail)[number], index: number): EditorVersionTrailRow {
+  return {
+    id: `demo-version-${index}`,
+    author: item.author,
+    date: item.date,
+    status: item.status,
+    version: item.version,
+  };
+}
+
+function toDemoBacklinkRow(item: (typeof backlinks)[number], index: number): EditorBacklinkRow {
+  return {
+    id: `demo-backlink-${index}`,
+    code: item.code,
+    excerpt: item.excerpt,
+    href: "#editor",
+    title: item.title,
+  };
+}
+
+function toDemoActivityRow(item: (typeof activityTimeline)[number], index: number): EditorActivityRow {
+  return {
+    id: `demo-activity-${index}`,
+    date: item.date,
+    detail: item.detail,
+    title: item.title,
+  };
+}
+
 function InfoRow({ children, label }: { children: ReactNode; label: string }) {
   return (
     <div>
@@ -767,6 +883,7 @@ function InfoRow({ children, label }: { children: ReactNode; label: string }) {
 
 function PanelSection({
   action,
+  actionHref,
   children,
   collapsed,
   count,
@@ -774,6 +891,7 @@ function PanelSection({
   title,
 }: {
   action?: string;
+  actionHref?: string;
   children: ReactNode;
   collapsed?: boolean;
   count?: number;
@@ -799,9 +917,12 @@ function PanelSection({
         )}
         <div className="flex shrink-0 items-center gap-2">
           {action ? (
-            <button className="text-[10px] font-bold text-[var(--ns-blue-600)] underline underline-offset-2" type="button">
+            <a
+              className="text-[10px] font-bold text-[var(--ns-blue-600)] underline underline-offset-2"
+              href={actionHref ?? "#search"}
+            >
               {action}
-            </button>
+            </a>
           ) : null}
           {typeof count === "number" ? (
             <span className="text-xs tracking-normal text-[var(--ns-navy-800)]">{count}</span>

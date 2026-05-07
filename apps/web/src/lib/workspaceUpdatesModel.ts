@@ -219,6 +219,10 @@ function formatPreferenceResourceLabel(resourceType: string, resourceId?: string
 }
 
 function formatResourceType(resourceType: string) {
+  if (resourceType === "collection") {
+    return "Folder";
+  }
+
   return resourceType
     .split(/[_-]/)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))

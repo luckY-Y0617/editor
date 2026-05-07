@@ -91,7 +91,7 @@ export function toFolderSearchResultItems(
       excerpt: document.tags.length > 0 ? `Tags: ${document.tags.join(", ")}` : "",
       href: createEditorHash(document.id),
       id: document.id,
-      path: folder ? folder.title : "Collection",
+      path: folder ? folder.title : "Folder",
       selected: index === 0,
       status: normalizeStatus(document.status),
       title: document.title,
@@ -116,7 +116,7 @@ export function toSearchResultItems(response: SearchResponse, bootstrap: Bootstr
             ? createLibrariesHash({ collectionId: result.id, libraryId: bootstrap.activeSpaceId })
             : "#workspace-members",
       id: result.id,
-      path: folderTitle ?? (type === "collection" ? "Collection" : "Workspace"),
+      path: folderTitle ?? (type === "collection" ? "Folder" : "Workspace"),
       selected: index === 0,
       status: type === "document" ? "Published" : undefined,
       title: result.title,

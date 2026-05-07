@@ -86,7 +86,7 @@ describe("workspaceUpdatesModel", () => {
       {
         href: `#libraries?collectionId=${collectionId}`,
         id: "pref-collection",
-        label: "Collection 22222222...2222",
+        label: "Folder 22222222...2222",
         resourceType: "collection",
         state: "muted",
         updatedAt: "2024-02-03T00:00:00.000Z",

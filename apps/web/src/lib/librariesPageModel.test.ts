@@ -71,7 +71,7 @@ describe("librariesPageModel", () => {
       archivedDocumentId,
     ]);
     expect(model.canCreateDocument).toBe(false);
-    expect(model.createDocumentDisabledReason).toBe("Select a collection before creating a document.");
+    expect(model.createDocumentDisabledReason).toBe("Select a folder before creating a document.");
   });
 
   test("calculates stats from real map data", () => {
@@ -82,7 +82,7 @@ describe("librariesPageModel", () => {
 
     expect(model.stats).toEqual([
       { id: "total-documents", label: "Total Documents", value: "4" },
-      { id: "collections", label: "Collections", value: "2" },
+      { id: "collections", label: "Folders", value: "2" },
       { id: "published-documents", label: "Published", value: "1" },
       { id: "draft-documents", label: "Drafts", value: "1" },
       { id: "archived-documents", label: "Archived", value: "1" },
@@ -356,7 +356,7 @@ describe("librariesPageModel", () => {
     expect(model.hasCollections).toBe(false);
     expect(model.canCreateCollection).toBe(true);
     expect(model.canCreateDocument).toBe(false);
-    expect(model.createDocumentDisabledReason).toBe("Select a collection before creating a document.");
+    expect(model.createDocumentDisabledReason).toBe("Select a folder before creating a document.");
   });
 
   test("chooses a preferred library from requested, active, current, then first library", () => {

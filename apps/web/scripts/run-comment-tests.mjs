@@ -18,6 +18,7 @@ const testFiles = [
   "src/lib/commentSelectionUx.test.ts",
   "src/lib/commentThreadState.test.ts",
   "src/lib/documentShareLinksModel.test.ts",
+  "src/lib/editorDocumentContextModel.test.ts",
   "src/lib/hashRouting.test.ts",
   "src/lib/i18n.test.ts",
   "src/lib/librariesPageModel.test.ts",

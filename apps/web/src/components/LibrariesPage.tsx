@@ -52,7 +52,7 @@ import {
   type LibrarySortKey,
   type LibraryStatRow,
 } from "../lib/librariesPageModel";
-import { createEditorHash, createLibrariesHash, getLibrariesFiltersFromHash } from "../lib/hashRouting";
+import { createEditorHash, createLibrariesHash, createSettingsHash, getLibrariesFiltersFromHash } from "../lib/hashRouting";
 import { t, type DisplayLocale, useDisplayLanguage } from "../lib/i18n";
 import coordinatePatternUrl from "../assets/svg/patterns/coordinate-ticks.svg";
 import routePatternUrl from "../assets/svg/patterns/route-line.svg";
@@ -156,6 +156,9 @@ export function LibrariesPage() {
   const stats = model?.stats ?? createPlaceholderStats(bootstrap.status, map.status);
   const newDocumentDisabled = createStatus === "creating" || !model || !model.hasCollections;
   const collectionBusy = Boolean(collectionMutation);
+  const settingsHref = model?.activeLibraryId
+    ? createSettingsHash({ scope: "library", spaceId: model.activeLibraryId, tab: "general" })
+    : createSettingsHash({ scope: "workspace", tab: "general" });
 
   useEffect(() => {
     const syncHash = () => setHash(window.location.hash);
@@ -185,7 +188,7 @@ export function LibrariesPage() {
 
     if (!model.activeCollectionId) {
       setCreateStatus("error");
-      setCreateError(model.createDocumentDisabledReason ?? "Select a collection before creating a document.");
+      setCreateError(model.createDocumentDisabledReason ?? "Select a folder before creating a document.");
       return;
     }
 
@@ -292,7 +295,7 @@ export function LibrariesPage() {
       collectionId: model.activeCollectionId,
       documentCount: collection?.documentCount ?? 0,
       kind: "delete-collection",
-      title: model.activeCollectionTitle ?? "Selected collection",
+      title: model.activeCollectionTitle ?? "Selected folder",
     });
   };
 
@@ -313,8 +316,8 @@ export function LibrariesPage() {
         await reorderCollections(model.activeLibraryId!, { collectionIds });
         return { collectionId: model.activeCollectionId };
       },
-      "Collection order updated.",
-      "Collection order could not be updated.",
+      "Folder order updated.",
+      "Folder order could not be updated.",
     );
   };
 
@@ -326,7 +329,7 @@ export function LibrariesPage() {
     if (actionPanel.kind === "create-collection") {
       const title = actionPanel.title.trim();
       if (!title) {
-        setCollectionActionMessage({ kind: "error", text: "Collection name is required." });
+        setCollectionActionMessage({ kind: "error", text: "Folder name is required." });
         return;
       }
 
@@ -337,8 +340,8 @@ export function LibrariesPage() {
           const response = await createCollection(model.activeLibraryId!, { title });
           return { collectionId: response.collection.id };
         },
-        "Collection created.",
-        "Collection could not be created.",
+        "Folder created.",
+        "Folder could not be created.",
       );
       return;
     }
@@ -346,7 +349,7 @@ export function LibrariesPage() {
     if (actionPanel.kind === "rename-collection") {
       const title = actionPanel.title.trim();
       if (!title) {
-        setCollectionActionMessage({ kind: "error", text: "Collection name is required." });
+        setCollectionActionMessage({ kind: "error", text: "Folder name is required." });
         return;
       }
 
@@ -357,13 +360,21 @@ export function LibrariesPage() {
           const response = await updateCollection(model.activeLibraryId!, actionPanel.collectionId, { title });
           return { collectionId: response.collection.id };
         },
-        "Collection renamed.",
-        "Collection could not be renamed.",
+        "Folder renamed.",
+        "Folder could not be renamed.",
       );
       return;
     }
 
     if (actionPanel.kind === "delete-collection") {
+      if (actionPanel.documentCount > 0) {
+        setCollectionActionMessage({
+          kind: "error",
+          text: t(locale, "library.deleteNonEmptyCollectionDescription", { count: actionPanel.documentCount }),
+        });
+        return;
+      }
+
       const nextCollectionId = getCollectionIdAfterDelete(model.collections, actionPanel.collectionId);
       void runCollectionMutation(
         "delete",
@@ -372,8 +383,8 @@ export function LibrariesPage() {
           await deleteCollection(model.activeLibraryId!, actionPanel.collectionId);
           return { collectionId: nextCollectionId };
         },
-        nextCollectionId ? "Collection deleted. Showing the next collection." : "Collection deleted. Showing all collections.",
-        "Collection could not be deleted.",
+        nextCollectionId ? "Folder deleted. Showing the next folder." : "Folder deleted. Showing all folders.",
+        "Folder could not be deleted.",
       );
       return;
     }
@@ -417,7 +428,7 @@ export function LibrariesPage() {
       return;
     }
 
-    const targetCollectionTitle = document.moveOptions.find((option) => option.id === folderId)?.label ?? "another collection";
+    const targetCollectionTitle = document.moveOptions.find((option) => option.id === folderId)?.label ?? "another folder";
     const leavesCurrentCollection = Boolean(model?.activeCollectionId && model.activeCollectionId === document.collectionId);
 
     void runDocumentMutation(
@@ -425,7 +436,7 @@ export function LibrariesPage() {
       "move",
       () => moveDocument(document.id, { folderId }),
       leavesCurrentCollection
-        ? `Document moved to ${targetCollectionTitle}; it no longer matches this collection view.`
+        ? `Document moved to ${targetCollectionTitle}; it no longer matches this folder view.`
         : `Document moved to ${targetCollectionTitle}.`,
       "Document could not be moved.",
     );
@@ -463,7 +474,7 @@ export function LibrariesPage() {
               <div className="libraries-workbench-heading-actions">
                 <a
                   className="workspace-home-secondary-action"
-                  href="#settings"
+                  href={settingsHref}
                   title={t(locale, "settings.openWorkspaceSettings")}
                 >
                   <Settings className="h-4 w-4" />
@@ -595,6 +606,8 @@ function LibraryToolbar({
   const { locale } = useDisplayLanguage();
   const disabled = !model;
   const selectedCollectionTitle = model?.activeCollectionTitle ?? t(locale, "library.collection");
+  const selectedCollectionDocumentCount =
+    model?.collections.find((collection) => collection.id === model.activeCollectionId)?.documentCount ?? 0;
 
   return (
     <div className="libraries-workbench-toolbar" aria-label="Library controls">
@@ -692,11 +705,11 @@ function LibraryToolbar({
         <button
           aria-label={`${t(locale, "library.deleteCollection")}: ${selectedCollectionTitle}`}
           className="libraries-workbench-icon-action is-danger"
-          disabled={disabled || !model.activeCollectionId || collectionBusy}
+          disabled={disabled || !model.activeCollectionId || !model.canDeleteActiveCollection || collectionBusy}
           onClick={onDeleteCollection}
           title={
             model?.activeCollectionId && !model.canDeleteActiveCollection
-              ? t(locale, "library.deleteNonEmptyCollectionDescription", { count: 1 })
+              ? t(locale, "library.deleteNonEmptyCollectionDescription", { count: selectedCollectionDocumentCount })
               : `${t(locale, "library.deleteCollection")}: ${selectedCollectionTitle}`
           }
           type="button"
@@ -745,7 +758,7 @@ function LibraryToolbar({
         <option value="updatedAt">Last updated</option>
         <option value="title">Title</option>
         <option value="status">Status</option>
-        <option value="collection">Collection</option>
+        <option value="collection">Folder</option>
       </select>
 
       <div className="libraries-workbench-view-toggle" aria-label="View mode">
@@ -1050,7 +1063,7 @@ function DocumentList({
     <div className="libraries-workbench-list" role="table" aria-label="Documents">
       <div className="libraries-workbench-list-head" role="row">
         <span>Document</span>
-        <span>Collection</span>
+        <span>Folder</span>
         <span>Status</span>
         <span>Updated</span>
         <span>Tags</span>
@@ -1098,8 +1111,8 @@ function DocumentActions({
   const isBusy = mutation?.documentId === document.id;
   const isAnyBusy = Boolean(mutation);
   const moveTitle = document.canMove
-    ? `Move ${document.title} to another collection`
-    : "No other collection is available.";
+    ? `Move ${document.title} to another folder`
+    : "No other folder is available.";
 
   return (
     <div className={compact ? "libraries-workbench-actions is-compact" : "libraries-workbench-actions"}>
@@ -1114,9 +1127,9 @@ function DocumentActions({
       </a>
 
       <label className="libraries-workbench-move-control" title={moveTitle}>
-        <span className="sr-only">Move {document.title} to collection</span>
+        <span className="sr-only">Move {document.title} to folder</span>
         <select
-          aria-label={`Move ${document.title} to collection`}
+          aria-label={`Move ${document.title} to folder`}
           disabled={isAnyBusy || !document.canMove}
           onChange={(event) => onMove(document, event.currentTarget.value)}
           value={document.collectionId}
@@ -1282,7 +1295,7 @@ function createPlaceholderStats(bootstrapStatus: DataStatus, mapStatus: DataStat
 
   return [
     { id: "total-documents", label: "Total Documents", value },
-    { id: "collections", label: "Collections", value },
+    { id: "collections", label: "Folders", value },
     { id: "published-documents", label: "Published", value },
     { id: "draft-documents", label: "Drafts", value },
     { id: "archived-documents", label: "Archived", value },
@@ -1318,7 +1331,7 @@ function librariesStatusLabel(
       : `${model.workspaceName}: ${model.visibleDocumentCount} of ${model.totalDocumentCount} documents visible from live library data.`;
   }
 
-  return locale === "zh-CN" ? "选择资料库以加载集合和文档。" : "Select a library to load its collections and documents.";
+  return locale === "zh-CN" ? "选择资料库以加载文件夹和文档。" : "Select a library to load its folders and documents.";
 }
 
 function getBlockedMessage(status: DataStatus, locale: DisplayLocale) {
@@ -1343,12 +1356,12 @@ function getNewDocumentTitle(model: LibrariesPageModel | null, locale: DisplayLo
   }
 
   if (!model.hasCollections) {
-    return locale === "zh-CN" ? "当前资料库暂无集合。" : "No collections are available in this library.";
+    return locale === "zh-CN" ? "当前资料库暂无文件夹。" : "No folders are available in this library.";
   }
 
   return model.activeCollectionId
-    ? (locale === "zh-CN" ? "在选中集合中创建文档" : "Create document in selected collection")
-    : (locale === "zh-CN" ? "请先选择集合，再创建文档。" : "Select a collection before creating a document.");
+    ? (locale === "zh-CN" ? "在选中文件夹中创建文档" : "Create document in selected folder")
+    : (locale === "zh-CN" ? "请先选择文件夹，再创建文档。" : "Select a folder before creating a document.");
 }
 
 function getOperationLabel(operation: DocumentOperation) {

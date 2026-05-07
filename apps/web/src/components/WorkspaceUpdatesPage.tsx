@@ -133,7 +133,7 @@ export function WorkspaceUpdatesPage() {
 
             <div className="updates-page-toolbar">
               <span>{status === "ready" ? t(locale, "updates.shown", { count: filteredNotifications.length }) : getNotificationStatusLabel(status)}</span>
-              <button title="Sort notifications" type="button">
+              <button disabled title="Notifications are fixed to newest first." type="button">
                 {t(locale, "updates.newestFirst")}
                 <ChevronDown className="h-4 w-4" />
               </button>
@@ -212,6 +212,7 @@ function NotificationRow({
   onMarkRead?: (notificationId: string) => void;
 }) {
   const Icon = getNotificationIcon(notification.kind);
+  const actionHref = notification.actionHref ?? getNotificationHref(notification.kind);
 
   return (
     <article className="updates-page-row">
@@ -233,7 +234,7 @@ function NotificationRow({
           {notification.actor ? <strong>{notification.actor.name}</strong> : null}
           {notification.messagePrefix ? <span> {notification.messagePrefix} </span> : null}
           <a
-            href={notification.actionHref ?? getNotificationHref(notification.kind)}
+            href={actionHref}
             onClick={() => {
               if (notification.unread) {
                 onMarkRead?.(notification.id);
@@ -249,20 +250,18 @@ function NotificationRow({
       </div>
       <span className="updates-page-time">{notification.time}</span>
       {notification.actionLabel ? (
-        <button
+        <a
+          className="updates-page-action-link"
+          href={actionHref}
           onClick={() => {
             if (notification.unread) {
               onMarkRead?.(notification.id);
             }
-            if (notification.actionHref) {
-              window.location.href = notification.actionHref;
-            }
           }}
           title={`${notification.actionLabel} notification`}
-          type="button"
         >
           {notification.actionLabel}
-        </button>
+        </a>
       ) : (
         <span />
       )}
@@ -317,7 +316,7 @@ function UpdatesSummaryPanel({
           </div>
         </SummaryCard>
 
-        <SummaryCard action="View all" title="Watched Documents">
+        <SummaryCard action="View all" actionHref="#search" title="Watched Documents">
           <PreferenceResourceList
             fallbackRows={watchedDocuments.map((document) => ({
               href: "#editor",
@@ -332,10 +331,10 @@ function UpdatesSummaryPanel({
           />
         </SummaryCard>
 
-        <SummaryCard action="View all" title="Muted Collections">
+        <SummaryCard action="View all" actionHref="#libraries" title="Muted Folders">
           <PreferenceResourceList
             fallbackRows={mutedCollections.map((collection) => ({
-              href: "#updates",
+              href: "#libraries",
               id: collection.id,
               label: collection.title,
               resourceType: "collection",
@@ -353,10 +352,12 @@ function UpdatesSummaryPanel({
 
 function SummaryCard({
   action,
+  actionHref,
   children,
   title,
 }: {
   action?: string;
+  actionHref?: string;
   children: ReactNode;
   title: string;
 }) {
@@ -364,8 +365,12 @@ function SummaryCard({
     <section className="updates-page-summary-card">
       <header>
         <h2>{title}</h2>
-        {action ? (
-          <button className="updates-page-text-link" title={action} type="button">
+        {action && actionHref ? (
+          <a className="updates-page-text-link" href={actionHref} title={action}>
+            {action}
+          </a>
+        ) : action ? (
+          <button className="updates-page-text-link" disabled title={`${action} is unavailable`} type="button">
             {action}
           </button>
         ) : null}
