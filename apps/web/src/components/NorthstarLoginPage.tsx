@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ApiClientError, getConfiguredApiBaseUrl } from "../lib/apiClient";
-import { login } from "../lib/authClient";
+import { login, register } from "../lib/authClient";
+import { getPostLoginRedirectHash } from "../lib/hashRouting";
 import compassRoseEmblemUrl from "../assets/svg/brand/compass-rose-emblem.svg";
 import smallCompassMarkUrl from "../assets/svg/brand/small-compass-mark.svg";
 import cardCornerDetailUrl from "../assets/svg/decorative/card-corner-detail.svg";
@@ -20,6 +21,9 @@ import loginLeftMapOverlayUrl from "../assets/svg/patterns/login-left-map-overla
 import topographicContourPatchUrl from "../assets/svg/patterns/topographic-contour-patch.svg";
 
 export function NorthstarLoginPage() {
+  const [authMode, setAuthMode] = useState<"login" | "register">("login");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -34,9 +38,16 @@ export function NorthstarLoginPage() {
       return;
     }
 
-    if (!email.trim() || !password) {
+    const validationError = validateAuthForm({
+      authMode,
+      confirmPassword,
+      displayName,
+      email,
+      password,
+    });
+    if (validationError) {
       setStatus("error");
-      setMessage("Email and password are required.");
+      setMessage(validationError);
       return;
     }
 
@@ -44,15 +55,34 @@ export function NorthstarLoginPage() {
     setMessage(null);
 
     try {
-      await login({ email: email.trim(), password });
+      if (authMode === "register") {
+        await register({
+          displayName: displayName.trim(),
+          email: email.trim(),
+          password,
+        });
+      } else {
+        await login({ email: email.trim(), password });
+      }
+
       setStatus("success");
-      setMessage("Signed in.");
-      window.location.hash = "#home";
+      setMessage(authMode === "register" ? "Account created." : "Signed in.");
+      window.location.hash = getPostLoginRedirectHash(window.location.hash);
     } catch (error) {
       setStatus("error");
-      setMessage(error instanceof ApiClientError && error.status === 401 ? "Invalid email or password." : "Could not sign in.");
+      setMessage(getAuthErrorMessage(error));
     }
   };
+
+  const switchMode = (nextMode: "login" | "register") => {
+    setAuthMode(nextMode);
+    setMessage(null);
+    setStatus("idle");
+  };
+
+  const isRegisterMode = authMode === "register";
+  const submitLabel = isRegisterMode ? "Create account" : "Sign in";
+  const submittingLabel = isRegisterMode ? "Creating account" : "Signing in";
 
   return (
     <div className="login-page">
@@ -99,9 +129,47 @@ export function NorthstarLoginPage() {
             }}
           >
             <div className="login-heading">
-              <h1 id="login-title">Sign in to Northstar</h1>
-              <p>Access your workspace and documents.</p>
+              <h1 id="login-title">{isRegisterMode ? "Create your Northstar account" : "Sign in to Northstar"}</h1>
+              <p>{isRegisterMode ? "Start with a protected workspace identity." : "Access your workspace and documents."}</p>
             </div>
+
+            <div className="auth-mode-switch" aria-label="Authentication mode">
+              <button
+                aria-pressed={!isRegisterMode}
+                className={!isRegisterMode ? "is-active" : ""}
+                onClick={() => switchMode("login")}
+                type="button"
+              >
+                Sign in
+              </button>
+              <button
+                aria-pressed={isRegisterMode}
+                className={isRegisterMode ? "is-active" : ""}
+                onClick={() => switchMode("register")}
+                type="button"
+              >
+                Register
+              </button>
+            </div>
+
+            {isRegisterMode ? (
+              <>
+                <label className="field-label" htmlFor="northstar-display-name">
+                  Display name
+                </label>
+                <div className="field-control">
+                  <input
+                    id="northstar-display-name"
+                    name="displayName"
+                    type="text"
+                    autoComplete="name"
+                    onChange={(event) => setDisplayName(event.target.value)}
+                    placeholder="Your name"
+                    value={displayName}
+                  />
+                </div>
+              </>
+            ) : null}
 
             <label className="field-label" htmlFor="northstar-email">
               Email
@@ -128,7 +196,7 @@ export function NorthstarLoginPage() {
                 id="northstar-password"
                 name="password"
                 type={isPasswordVisible ? "text" : "password"}
-                autoComplete="current-password"
+                autoComplete={isRegisterMode ? "new-password" : "current-password"}
                 onChange={(event) => setPassword(event.target.value)}
                 placeholder="********"
                 value={password}
@@ -143,12 +211,32 @@ export function NorthstarLoginPage() {
               </button>
             </div>
 
+            {isRegisterMode ? (
+              <>
+                <label className="field-label" htmlFor="northstar-confirm-password">
+                  Confirm password
+                </label>
+                <div className="field-control">
+                  <img className="field-icon" src={lockIconUrl} alt="" />
+                  <input
+                    id="northstar-confirm-password"
+                    name="confirmPassword"
+                    type={isPasswordVisible ? "text" : "password"}
+                    autoComplete="new-password"
+                    onChange={(event) => setConfirmPassword(event.target.value)}
+                    placeholder="********"
+                    value={confirmPassword}
+                  />
+                </div>
+              </>
+            ) : null}
+
             {message ? (
               <div className={["login-inline-status", status === "error" ? "is-error" : ""].join(" ")}>{message}</div>
             ) : null}
 
             <button className="sign-in-button" disabled={status === "submitting"} type="submit">
-              {status === "submitting" ? "Signing in" : "Sign in"}
+              {status === "submitting" ? submittingLabel : submitLabel}
             </button>
 
             <div className="login-divider" aria-hidden="true">
@@ -174,7 +262,13 @@ export function NorthstarLoginPage() {
             </button>
 
             <div className="login-links">
-              <a href="#forgot-password">Forgot password</a>
+              {isRegisterMode ? (
+                <button className="login-link-button" onClick={() => switchMode("login")} type="button">
+                  Already have an account
+                </button>
+              ) : (
+                <a href="#forgot-password">Forgot password</a>
+              )}
               <a href="#workspace-url">
                 <span>Access via workspace URL</span>
                 <img src={externalLinkIconUrl} alt="" />
@@ -192,4 +286,50 @@ export function NorthstarLoginPage() {
       </main>
     </div>
   );
+}
+
+function validateAuthForm(values: {
+  authMode: "login" | "register";
+  confirmPassword: string;
+  displayName: string;
+  email: string;
+  password: string;
+}) {
+  if (values.authMode === "register" && !values.displayName.trim()) {
+    return "Display name is required.";
+  }
+
+  if (!values.email.trim() || !values.password) {
+    return "Email and password are required.";
+  }
+
+  if (values.authMode === "register" && values.password.length < 8) {
+    return "Password must be at least 8 characters.";
+  }
+
+  if (values.authMode === "register" && values.password !== values.confirmPassword) {
+    return "Passwords must match.";
+  }
+
+  return null;
+}
+
+function getAuthErrorMessage(error: unknown) {
+  if (!(error instanceof ApiClientError)) {
+    return "Could not complete authentication.";
+  }
+
+  if (error.status === 401) {
+    return "Invalid email or password.";
+  }
+
+  if (error.status === 400 || error.code === "VALIDATION_ERROR") {
+    return error.message || "Request validation failed.";
+  }
+
+  if (error.status === 0) {
+    return "Could not reach the API. Check that the backend and dev server are running.";
+  }
+
+  return error.message || "Could not complete authentication.";
 }

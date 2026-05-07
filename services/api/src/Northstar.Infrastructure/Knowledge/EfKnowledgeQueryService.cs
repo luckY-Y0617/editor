@@ -60,7 +60,11 @@ public sealed class EfKnowledgeQueryService : IKnowledgeQueryService
         var activeDocumentId = map.Documents.FirstOrDefault()?.Id ?? string.Empty;
 
         return new BootstrapResponse(
-            new WorkspaceDto(workspace.Id.ToString(), workspace.Name, activeSpaceId.ToString()),
+            new WorkspaceDto(
+                workspace.Id.ToString(),
+                workspace.Name,
+                activeSpaceId.ToString(),
+                workspace.OrganizationId.ToString()),
             spaces,
             activeSpaceId.ToString(),
             map.Folders,

@@ -1,0 +1,110 @@
+
+> knowledge-editor-shell@0.1.0 dev
+> vite --host 0.0.0.0 --port 5174
+
+
+  [32m[1mVITE[22m v4.5.14[39m  [2mready in [0m[1m193[22m[2m[0m ms[22m
+
+  [32m➜[39m  [1mLocal[22m:   [36mhttp://localhost:[1m5174[22m/[39m
+  [32m➜[39m  [1mNetwork[22m: [36mhttp://192.168.0.117:[1m5174[22m/[39m
+[2m08:33:11[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/WorkspaceUpdatesPage.tsx, /src/index.css[22m
+[2m08:47:54[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/App.tsx, /src/index.css, /src/components/SearchDiscoveryPage.tsx, /src/components/LibrariesPage.tsx, /src/components/WorkspaceHomeTopBar.tsx, /src/components/WorkspaceHomePage.tsx, /src/components/WorkspaceUpdatesPage.tsx[22m
+[2m08:49:19[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/lib/hashRouting.test.ts[22m
+[2m08:51:41[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/App.tsx, /src/index.css[22m
+[2m08:51:50[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/WorkspaceHomeSidebar.tsx, /src/index.css[22m
+[2m08:52:08[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/WorkspaceHomePage.tsx, /src/index.css[22m
+[2m08:52:23[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/LibrariesPage.tsx, /src/index.css[22m
+[2m08:52:49[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/App.tsx, /src/index.css, /src/components/SearchDiscoveryPage.tsx, /src/components/LibrariesPage.tsx, /src/components/WorkspaceHomeTopBar.tsx, /src/components/WorkspaceHomePage.tsx, /src/components/WorkspaceUpdatesPage.tsx[22m
+[2m08:53:26[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m08:53:37[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m08:54:11[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m08:54:22[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m09:03:12[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/App.tsx, /src/index.css, /src/components/SearchDiscoveryPage.tsx, /src/components/LibrariesPage.tsx, /src/components/WorkspaceHomeTopBar.tsx, /src/components/WorkspaceHomePage.tsx, /src/components/WorkspaceUpdatesPage.tsx, /src/components/WorkspaceSettingsPage.tsx[22m
+[2m09:03:21[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/NorthstarLoginPage.tsx, /src/index.css[22m
+[2m09:03:32[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/lib/hashRouting.test.ts[22m
+[2m09:15:26[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/WorkspaceHomeTopBar.tsx, /src/index.css[22m
+[2m09:16:22[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/WorkspaceHomeSidebar.tsx, /src/index.css[22m
+[2m09:17:08[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/WorkspaceHomePage.tsx, /src/index.css[22m
+[2m09:17:36[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/WorkspaceHomePage.tsx, /src/index.css[22m
+[2m09:18:33[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/WorkspaceSettingsPage.tsx, /src/index.css[22m
+[2m09:19:27[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/WorkspaceSettingsPage.tsx, /src/index.css[22m
+[2m09:19:59[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/WorkspaceSettingsPage.tsx, /src/index.css[22m
+[2m09:20:22[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/WorkspaceSettingsPage.tsx, /src/index.css[22m
+[2m09:20:43[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m09:21:04[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/LibrariesPage.tsx, /src/index.css[22m
+[2m09:21:12[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/LibrariesPage.tsx, /src/index.css[22m
+[2m09:21:32[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/LibrariesPage.tsx, /src/index.css[22m
+[2m09:21:43[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/LibrariesPage.tsx, /src/index.css[22m
+[2m09:22:07[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/LibrariesPage.tsx, /src/index.css[22m
+[2m09:22:19[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/LibrariesPage.tsx, /src/index.css[22m
+[2m09:22:44[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/LibrariesPage.tsx, /src/index.css[22m
+[2m09:23:06[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/WorkspaceUpdatesPage.tsx, /src/index.css[22m
+[2m09:23:23[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/WorkspaceUpdatesPage.tsx, /src/index.css[22m
+[2m09:26:06[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/WorkspaceSettingsPage.tsx, /src/index.css[22m
+[2m09:45:22[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/NorthstarLoginPage.tsx, /src/components/PermissionAdminSurfacesPage.tsx, /src/components/WorkspaceHomeTopBar.tsx, /src/components/WorkspaceSettingsPage.tsx[22m
+[2m09:45:59[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/NorthstarLoginPage.tsx, /src/index.css[22m
+[2m09:46:19[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/assets/css/northstar-login.css[22m
+[2m09:55:27[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/App.tsx, /src/index.css, /src/components/SearchDiscoveryPage.tsx, /src/components/LibrariesPage.tsx, /src/components/WorkspaceHomeTopBar.tsx, /src/components/WorkspaceHomePage.tsx, /src/components/WorkspaceUpdatesPage.tsx, /src/components/WorkspaceSettingsPage.tsx[22m
+[2m09:58:35[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/WorkspaceSettingsPage.tsx[22m
+[2m10:01:26[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/WorkspaceSettingsPage.tsx, /src/index.css[22m
+[2m10:02:00[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/WorkspaceSettingsPage.tsx, /src/index.css[22m
+[2m10:02:06[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/WorkspaceSettingsPage.tsx, /src/index.css[22m
+[2m10:02:56[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/WorkspaceSettingsPage.tsx, /src/index.css[22m
+[2m10:03:04[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/WorkspaceSettingsPage.tsx, /src/index.css[22m
+[2m10:03:15[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/WorkspaceSettingsPage.tsx, /src/index.css[22m
+[2m10:03:23[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/LibrariesPage.tsx, /src/index.css[22m
+[2m10:03:41[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m10:03:58[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/lib/hashRouting.test.ts[22m
+[2m10:04:32[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/lib/workspaceSettingsModel.test.ts[22m
+[2m10:05:06[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/WorkspaceSettingsPage.tsx[22m
+[2m10:05:21[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/lib/workspaceSettingsModel.test.ts[22m
+[2m10:27:59[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/App.tsx, /src/index.css, /src/components/SearchDiscoveryPage.tsx, /src/components/LibrariesPage.tsx, /src/components/WorkspaceHomeTopBar.tsx, /src/components/WorkspaceHomePage.tsx, /src/components/WorkspaceUpdatesPage.tsx, /src/components/WorkspaceSettingsPage.tsx[22m
+[2m10:28:22[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/WorkspaceSettingsPage.tsx[22m
+[2m10:28:36[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/WorkspaceSettingsPage.tsx, /src/index.css[22m
+[2m10:28:54[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/WorkspaceSettingsPage.tsx, /src/index.css[22m
+[2m10:29:17[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/WorkspaceSettingsPage.tsx, /src/index.css[22m
+[2m10:30:15[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/lib/hashRouting.test.ts[22m
+[2m10:30:32[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/lib/workspaceSettingsModel.test.ts[22m
+[2m10:31:17[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/App.tsx, /src/index.css, /src/components/SearchDiscoveryPage.tsx, /src/components/LibrariesPage.tsx, /src/components/WorkspaceHomeTopBar.tsx, /src/components/WorkspaceHomePage.tsx, /src/components/WorkspaceUpdatesPage.tsx, /src/components/WorkspaceSettingsPage.tsx[22m
+[2m10:31:32[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/lib/workspaceSettingsModel.test.ts[22m
+[2m10:38:05[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/WorkspaceSettingsPage.tsx[22m
+[2m10:38:33[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/WorkspaceSettingsPage.tsx, /src/index.css[22m
+[2m10:38:43[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/WorkspaceSettingsPage.tsx, /src/index.css[22m
+[2m10:39:56[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/lib/workspaceSettingsModel.test.ts[22m
+[2m10:46:12[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/WorkspaceSettingsPage.tsx[22m
+[2m10:46:28[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/WorkspaceSettingsPage.tsx, /src/index.css[22m
+[2m10:49:19[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/lib/workspaceSettingsModel.test.ts[22m
+[2m14:07:09[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/WorkspaceHomePage.tsx, /src/components/KnowledgeEditorPage.tsx, /src/components/SearchDiscoveryPage.tsx, /src/components/WorkspaceUpdatesPage.tsx, /src/components/LibrariesPage.tsx, /src/components/WorkspaceSettingsPage.tsx[22m
+[2m14:07:29[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/WorkspaceSettingsPage.tsx[22m
+[2m14:07:45[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/WorkspaceSettingsPage.tsx, /src/index.css[22m
+[2m14:08:07[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/WorkspaceSettingsPage.tsx, /src/index.css[22m
+[2m14:08:32[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/WorkspaceSettingsPage.tsx, /src/index.css[22m
+[2m14:13:12[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/lib/workspaceSettingsModel.test.ts[22m
+[2m14:16:42[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/lib/librariesPageModel.test.ts[22m
+[2m14:16:43[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/lib/searchDiscoveryModel.test.ts[22m
+[2m14:16:43[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/lib/workspaceHomeModel.test.ts[22m
+[2m14:32:00[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/App.tsx, /src/index.css, /src/components/SearchDiscoveryPage.tsx, /src/components/LibrariesPage.tsx, /src/components/WorkspaceHomeTopBar.tsx, /src/components/WorkspaceHomePage.tsx, /src/components/WorkspaceUpdatesPage.tsx, /src/components/WorkspaceSettingsPage.tsx[22m
+[2m14:32:37[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/WorkspaceSettingsPage.tsx[22m
+[2m14:32:52[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/WorkspaceSettingsPage.tsx, /src/index.css[22m
+[2m14:33:43[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/WorkspaceSettingsPage.tsx, /src/index.css[22m
+[2m14:33:53[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/WorkspaceSettingsPage.tsx, /src/index.css[22m
+[2m14:35:44[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/lib/hashRouting.test.ts[22m
+[2m14:36:24[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/lib/workspaceSettingsModel.test.ts[22m
+[2m14:38:27[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/lib/workspaceSettingsModel.test.ts[22m
+[2m14:46:44[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/WorkspaceSettingsPage.tsx[22m
+[2m14:47:05[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/WorkspaceSettingsPage.tsx, /src/index.css[22m
+[2m14:47:37[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/WorkspaceSettingsPage.tsx, /src/index.css[22m
+[2m14:48:07[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/WorkspaceSettingsPage.tsx, /src/index.css[22m
+[2m14:48:28[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/WorkspaceSettingsPage.tsx, /src/index.css[22m
+[2m14:53:04[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/lib/workspaceSettingsModel.test.ts[22m
+[2m14:53:36[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/lib/workspaceSettingsModel.test.ts[22m
+[2m14:53:54[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/lib/workspaceSettingsModel.test.ts[22m
+[2m15:22:15[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/WorkspaceHomePage.tsx, /src/components/KnowledgeEditorPage.tsx, /src/components/SearchDiscoveryPage.tsx, /src/components/WorkspaceUpdatesPage.tsx, /src/components/LibrariesPage.tsx, /src/components/WorkspaceSettingsPage.tsx[22m
+[2m15:22:36[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/WorkspaceSettingsPage.tsx[22m
+[2m15:22:53[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/lib/workspaceSettingsModel.test.ts[22m
+[2m15:23:05[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/WorkspaceSettingsPage.tsx, /src/index.css[22m
+[2m15:23:15[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/WorkspaceSettingsPage.tsx, /src/index.css[22m
+[2m15:23:46[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/WorkspaceSettingsPage.tsx, /src/index.css[22m
+[2m15:24:03[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/WorkspaceSettingsPage.tsx, /src/index.css[22m
+[2m15:24:12[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/WorkspaceSettingsPage.tsx, /src/index.css[22m
+[2m15:24:34[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m

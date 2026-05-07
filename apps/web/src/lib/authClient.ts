@@ -1,9 +1,12 @@
 import {
   apiFetch,
+  type ApiFetchOptions,
   clearStoredAuthTokens,
   getStoredRefreshToken,
   setStoredAuthTokens,
 } from "./apiClient";
+
+type AuthClientRequestOptions = Pick<ApiFetchOptions, "apiBaseUrl" | "fetchFn">;
 
 export type AuthUserDto = {
   id: string;
@@ -42,8 +45,9 @@ export type AuthSecurityStateResponse = {
   stepUpMethods: string[];
 };
 
-export async function login(request: { email: string; password: string }) {
+export async function login(request: { email: string; password: string }, options: AuthClientRequestOptions = {}) {
   const response = await apiFetch<AuthTokenResponse>("/auth/login", {
+    ...options,
     auth: false,
     body: request,
     method: "POST",
@@ -52,8 +56,12 @@ export async function login(request: { email: string; password: string }) {
   return response;
 }
 
-export async function register(request: { email: string; displayName: string; password: string }) {
+export async function register(
+  request: { email: string; displayName: string; password: string },
+  options: AuthClientRequestOptions = {},
+) {
   const response = await apiFetch<AuthTokenResponse>("/auth/register", {
+    ...options,
     auth: false,
     body: request,
     method: "POST",

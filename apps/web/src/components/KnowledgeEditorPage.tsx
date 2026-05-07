@@ -73,7 +73,7 @@ const EMPTY_COMMENT_THREADS: CommentThread[] = [];
 const EMPTY_COMMENT_MATCH_RESULTS: Record<string, AnchorMatchResult> = {};
 const EMPTY_COMMENT_RELOCATION_RESULTS: Record<string, AnchorRelocationResult> = {};
 
-export function KnowledgeEditorPage() {
+export function KnowledgeEditorPage({ requestedDocumentId = null }: { requestedDocumentId?: string | null }) {
   const [initialEditorState] = useState(loadKnowledgeEditorState);
   const [isApiMode] = useState(() => Boolean(getConfiguredApiBaseUrl()));
   const [documents, setDocuments] = useState<KnowledgeDocument[]>(initialEditorState.documents);
@@ -182,7 +182,8 @@ export function KnowledgeEditorPage() {
 
     void getBootstrap(controller.signal)
       .then(async (bootstrap) => {
-        const activeDocumentResponse = await getDocument(bootstrap.activeDocumentId, controller.signal);
+        const targetDocumentId = requestedDocumentId ?? bootstrap.activeDocumentId;
+        const activeDocumentResponse = await getDocument(targetDocumentId, controller.signal);
 
         if (controller.signal.aborted) {
           return;
@@ -214,7 +215,7 @@ export function KnowledgeEditorPage() {
       });
 
     return () => controller.abort();
-  }, [isApiMode]);
+  }, [isApiMode, requestedDocumentId]);
 
   useEffect(() => {
     if (isApiMode) {

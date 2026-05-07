@@ -56,6 +56,18 @@ public sealed class Collection
         Touch();
     }
 
+    public bool Delete()
+    {
+        if (DeletedAt.HasValue)
+        {
+            return false;
+        }
+
+        DeletedAt = DateTimeOffset.UtcNow;
+        Touch();
+        return true;
+    }
+
     private void Touch()
     {
         UpdatedAt = DateTimeOffset.UtcNow;

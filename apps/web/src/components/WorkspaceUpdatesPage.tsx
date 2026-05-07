@@ -1,26 +1,40 @@
 import {
-  Activity,
   AtSign,
   Bell,
   ChevronDown,
   ChevronRight,
   Eye,
   FileText,
-  Home,
-  Library,
   MessageSquare,
-  Search,
-  Settings,
   ShieldCheck,
   SlidersHorizontal,
-  SwatchBook,
   UsersRound,
   Wrench,
 } from "lucide-react";
 import { type CSSProperties, type ReactNode, useEffect, useMemo, useState } from "react";
 import { AtlasIcon } from "./AtlasIcon";
+import { WorkspaceHomeSidebar } from "./WorkspaceHomeSidebar";
 import { WorkspaceHomeTopBar } from "./WorkspaceHomeTopBar";
-import { createApiHeaders, getConfiguredApiBaseUrl, getConfiguredWorkspaceId } from "../lib/apiClient";
+import { ApiClientError, getConfiguredApiBaseUrl, getConfiguredWorkspaceId } from "../lib/apiClient";
+import {
+  getWorkspaceNotificationPreferences,
+  getWorkspaceNotifications,
+  markAllWorkspaceNotificationsRead,
+  markWorkspaceNotificationRead,
+  type PermissionNotificationDto,
+  type PermissionNotificationPreferenceDto,
+} from "../lib/appApi";
+import {
+  filterWorkspaceNotifications,
+  getNotificationKind,
+  getNotificationPreferenceStatusLabel,
+  getNotificationStatusLabel,
+  toNotificationPreferenceResourceRows,
+  toWorkspaceNotification,
+  type NotificationApiStatus,
+  type WorkspaceUpdatesTab,
+} from "../lib/workspaceUpdatesModel";
+import { getWorkspaceUpdatesTabDisplayLabel, t, useDisplayLanguage } from "../lib/i18n";
 import {
   mutedCollections,
   notificationGroups,
@@ -39,110 +53,125 @@ const updatesPatternStyle = {
   "--updates-coordinate-pattern": `url(${coordinatePatternUrl})`,
   "--updates-route-pattern": `url(${routePatternUrl})`,
   "--updates-topographic-pattern": `url(${topographicPatternUrl})`,
+  "--workspace-home-coordinate-pattern": `url(${coordinatePatternUrl})`,
+  "--workspace-home-route-pattern": `url(${routePatternUrl})`,
+  "--workspace-home-topographic-pattern": `url(${topographicPatternUrl})`,
 } as CSSProperties;
 
-const updatesTabs = ["All", "Mentions", "Comments", "Documents", "Permissions", "System"];
+const updatesTabs: WorkspaceUpdatesTab[] = ["all", "unread", "comments", "mentions", "access", "documents", "general"];
 const updatesApiWorkspaceId = getConfiguredNotificationWorkspaceId();
 
-const updatesNavItems = [
-  { label: "Home", href: "#home", icon: Home },
-  { label: "Library", href: "#editor", icon: Library },
-  { label: "Search", href: "#search", icon: Search },
-  { label: "Templates", href: "#home", icon: SwatchBook, deferred: true },
-  { label: "Activity", href: "#home", icon: Activity },
-  { label: "Updates", href: "#updates", icon: Bell, active: true },
-  { label: "Settings", href: "#home", icon: Settings, deferred: true },
-];
-
-type NotificationApiStatus = "unconfigured" | "loading" | "ready" | "forbidden" | "error";
-
-type PermissionNotificationDto = {
-  id: string;
-  workspaceId: string;
-  recipientUserId: string;
-  actorUserId: string | null;
-  type: string;
-  resourceType: string | null;
-  resourceId: string | null;
-  accessRequestId: string | null;
-  permissionGrantId: string | null;
-  title: string;
-  body: string | null;
-  actionUrl: string | null;
-  readAt: string | null;
-  createdAt: string;
-};
-
-type PermissionNotificationsResponse = {
-  notifications: PermissionNotificationDto[];
-  unreadCount: number;
-};
-
 export function WorkspaceUpdatesPage() {
-  const { markRead, notifications, status, unreadCount } = usePermissionNotifications(updatesApiWorkspaceId);
+  const { locale } = useDisplayLanguage();
+  const [activeTab, setActiveTab] = useState<WorkspaceUpdatesTab>("all");
+  const { markAllRead, markRead, notifications, status, unreadCount } = usePermissionNotifications(updatesApiWorkspaceId);
+  const preferences = useNotificationPreferences(updatesApiWorkspaceId);
+  const filteredNotifications = useMemo(
+    () => filterWorkspaceNotifications(notifications, activeTab),
+    [activeTab, notifications],
+  );
   const displayGroups = useMemo(() => {
-    if (status !== "ready") {
+    if (status === "unconfigured") {
       return notificationGroups;
     }
 
-    if (notifications.length === 0) {
+    if (status !== "ready") {
+      return [];
+    }
+
+    if (filteredNotifications.length === 0) {
       return [];
     }
 
     return [
       {
         id: "permission-notifications",
-        label: "Latest",
-        notifications: notifications.map(toWorkspaceNotification),
+        label: t(locale, "updates.latest"),
+        notifications: filteredNotifications.map(toWorkspaceNotification),
       },
     ];
-  }, [notifications, status]);
+  }, [filteredNotifications, locale, status]);
   const totalCount = status === "ready"
     ? notifications.length
-    : notificationGroups.reduce((sum, group) => sum + group.notifications.length, 0);
+    : status === "unconfigured"
+      ? notificationGroups.reduce((sum, group) => sum + group.notifications.length, 0)
+      : 0;
   const displayUnreadCount = status === "ready"
     ? unreadCount
-    : notificationGroups.reduce(
+    : status === "unconfigured"
+      ? notificationGroups.reduce(
         (sum, group) => sum + group.notifications.filter((notification) => notification.unread).length,
         0,
-      );
+      )
+      : 0;
 
   return (
     <main className="updates-page-shell flex h-screen flex-col overflow-hidden" style={updatesPatternStyle}>
       <WorkspaceHomeTopBar activeItem="updates" />
       <div className="updates-page-body flex min-h-0 flex-1 overflow-hidden">
-        <UpdatesSidebar />
+        <WorkspaceHomeSidebar activeItem="updates" showCollections={false} />
         <section className="updates-page-feed editor-scrollbar min-w-0 flex-1 overflow-y-auto">
           <div className="updates-page-feed-inner">
             <header className="updates-page-heading">
-              <h1>Updates</h1>
-              <p>Track comments, mentions, document changes, and workspace activity.</p>
+              <h1>{t(locale, "updates.title")}</h1>
+              <p>{t(locale, "updates.heading")}</p>
+              <p className="share-permissions-inline-status">{getNotificationStatusLabel(status)}</p>
             </header>
 
             <nav className="updates-page-tabs" aria-label="Notification filters">
-              {updatesTabs.map((tab, index) => (
-                <button className={index === 0 ? "is-active" : ""} key={tab} type="button">
-                  {tab}
+              {updatesTabs.map((tab) => (
+                <button
+                  className={activeTab === tab ? "is-active" : ""}
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  type="button"
+                >
+                  {getWorkspaceUpdatesTabDisplayLabel(locale, tab)}
                 </button>
               ))}
             </nav>
 
             <div className="updates-page-toolbar">
+              <span>{status === "ready" ? t(locale, "updates.shown", { count: filteredNotifications.length }) : getNotificationStatusLabel(status)}</span>
               <button title="Sort notifications" type="button">
-                Newest first
+                {t(locale, "updates.newestFirst")}
                 <ChevronDown className="h-4 w-4" />
               </button>
-              <button aria-label="Filter notifications" title="Filter notifications" type="button">
+              <button
+                disabled={status !== "ready" || unreadCount === 0}
+                onClick={markAllRead}
+                title={status === "ready" ? t(locale, "updates.markAllRead") : getNotificationStatusLabel(status)}
+                type="button"
+              >
+                {t(locale, "updates.markAllRead")}
+              </button>
+              <button aria-label="Filter notifications" disabled title="Advanced filters are deferred" type="button">
                 <SlidersHorizontal className="h-4 w-4" />
               </button>
             </div>
 
             <div className="updates-page-groups">
+              {status !== "ready" && status !== "unconfigured" ? (
+                <section className="updates-page-group">
+                  <h2>{t(locale, "updates.latest")}</h2>
+                  <div className="updates-page-list">
+                    <div className="share-permissions-empty-state">{getUpdatesUnavailableMessage(status)}</div>
+                  </div>
+                </section>
+              ) : null}
               {status === "ready" && notifications.length === 0 ? (
                 <section className="updates-page-group">
-                  <h2>Latest</h2>
+                  <h2>{t(locale, "updates.latest")}</h2>
                   <div className="updates-page-list">
-                    <div className="share-permissions-empty-state">No notifications</div>
+                    <div className="share-permissions-empty-state">{t(locale, "updates.noNotifications")}</div>
+                  </div>
+                </section>
+              ) : null}
+              {status === "ready" && notifications.length > 0 && filteredNotifications.length === 0 ? (
+                <section className="updates-page-group">
+                  <h2>{getWorkspaceUpdatesTabDisplayLabel(locale, activeTab)}</h2>
+                  <div className="updates-page-list">
+                    <div className="share-permissions-empty-state">{t(locale, "updates.noNotificationsForFilter")}</div>
                   </div>
                 </section>
               ) : null}
@@ -163,54 +192,15 @@ export function WorkspaceUpdatesPage() {
             </div>
           </div>
         </section>
-        <UpdatesSummaryPanel status={status} totalCount={totalCount} unreadCount={displayUnreadCount} />
+        <UpdatesSummaryPanel
+          preferences={preferences}
+          locale={locale}
+          status={status}
+          totalCount={totalCount}
+          unreadCount={displayUnreadCount}
+        />
       </div>
     </main>
-  );
-}
-
-function UpdatesSidebar() {
-  return (
-    <aside className="updates-page-sidebar hidden h-full w-[320px] shrink-0 overflow-hidden border-r border-[var(--ns-border)] md:flex md:flex-col">
-      <div className="updates-page-ruler" aria-hidden="true">
-        <span>N 90</span>
-        <span>N 60</span>
-        <span>N 30</span>
-        <span>0</span>
-        <span>S 30</span>
-        <span>S 60</span>
-      </div>
-      <div className="updates-page-sidebar-inner editor-scrollbar relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-7 pl-[78px]">
-        <nav className="space-y-3" aria-label="Workspace navigation">
-          {updatesNavItems.map((item) => {
-            const Icon = item.icon;
-
-            return (
-              <a
-                aria-current={item.active ? "page" : undefined}
-                className={[
-                  "updates-page-nav-item",
-                  item.active ? "is-active" : "",
-                  item.deferred ? "is-deferred" : "",
-                ].join(" ")}
-                href={item.href}
-                key={item.label}
-                title={item.deferred ? `${item.label} is planned for a later phase` : item.label}
-              >
-                <Icon className="h-4 w-4 shrink-0" />
-                <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                {item.active ? <span className="updates-page-active-dot" /> : null}
-              </a>
-            );
-          })}
-        </nav>
-
-        <div className="mt-auto pt-10 text-center text-[var(--ns-slate-500)]">
-          <AtlasIcon className="mx-auto h-20 w-20 opacity-35" src={compassMarkUrl} />
-          <div className="mt-4 text-xs">47&deg;36&apos;36&quot;N&nbsp;&nbsp;122&deg;19&apos;48&quot;W</div>
-        </div>
-      </div>
-    </aside>
   );
 }
 
@@ -242,7 +232,16 @@ function NotificationRow({
         <p>
           {notification.actor ? <strong>{notification.actor.name}</strong> : null}
           {notification.messagePrefix ? <span> {notification.messagePrefix} </span> : null}
-          <a href={notification.actionHref ?? getNotificationHref(notification.kind)}>{notification.subject}</a>
+          <a
+            href={notification.actionHref ?? getNotificationHref(notification.kind)}
+            onClick={() => {
+              if (notification.unread) {
+                onMarkRead?.(notification.id);
+              }
+            }}
+          >
+            {notification.subject}
+          </a>
           {notification.messageSuffix ? <span> {notification.messageSuffix}</span> : null}
           {notification.versionBadge ? <em>{notification.versionBadge}</em> : null}
         </p>
@@ -273,10 +272,14 @@ function NotificationRow({
 }
 
 function UpdatesSummaryPanel({
+  locale,
+  preferences,
   status,
   totalCount,
   unreadCount,
 }: {
+  locale: ReturnType<typeof useDisplayLanguage>["locale"];
+  preferences: ReturnType<typeof useNotificationPreferences>;
   status: NotificationApiStatus;
   totalCount: number;
   unreadCount: number;
@@ -284,25 +287,23 @@ function UpdatesSummaryPanel({
   return (
     <aside className="updates-page-summary editor-scrollbar h-full w-[390px] shrink-0 overflow-y-auto border-l border-[var(--ns-border)]">
       <div className="updates-page-summary-inner">
-        <SummaryCard title="Summary">
+        <SummaryCard title={t(locale, "updates.summary")}>
           <div className="updates-page-summary-count">
             <strong>{unreadCount}</strong>
             <span>unread</span>
             <p>{totalCount} total notifications</p>
-            <p>{notificationStatusLabel(status)}</p>
+            <p>{getNotificationStatusLabel(status)}</p>
           </div>
           <AtlasIcon className="updates-page-summary-compass" src={compassMarkUrl} />
         </SummaryCard>
 
-        <SummaryCard title="Notification Preferences">
+        <SummaryCard title="Category Preferences">
           <div className="updates-page-preferences">
             {notificationPreferences.map((preference) => (
               <PreferenceRow key={preference.id} preference={preference} />
             ))}
           </div>
-          <button className="updates-page-text-link" title="Notification preference persistence is deferred" type="button">
-            Manage all preferences
-          </button>
+          <p className="updates-page-summary-note">Category toggles are deferred; resource watch and mute state is live-backed below.</p>
         </SummaryCard>
 
         <SummaryCard title="Email Digest">
@@ -317,25 +318,33 @@ function UpdatesSummaryPanel({
         </SummaryCard>
 
         <SummaryCard action="View all" title="Watched Documents">
-          <div className="updates-page-compact-list">
-            {watchedDocuments.map((document) => (
-              <a href="#editor" key={document.id}>
-                <FileText className="h-4 w-4" />
-                <span className="min-w-0 flex-1 truncate">{document.title}</span>
-              </a>
-            ))}
-          </div>
+          <PreferenceResourceList
+            fallbackRows={watchedDocuments.map((document) => ({
+              href: "#editor",
+              id: document.id,
+              label: document.title,
+              resourceType: "document",
+              state: "watched" as const,
+              updatedAt: "",
+            }))}
+            preferences={preferences}
+            state="watched"
+          />
         </SummaryCard>
 
         <SummaryCard action="View all" title="Muted Collections">
-          <div className="updates-page-compact-list">
-            {mutedCollections.map((collection) => (
-              <button title={`${collection.title} mute settings are deferred`} type="button" key={collection.id}>
-                <Eye className="h-4 w-4" />
-                <span className="min-w-0 flex-1 truncate">{collection.title}</span>
-              </button>
-            ))}
-          </div>
+          <PreferenceResourceList
+            fallbackRows={mutedCollections.map((collection) => ({
+              href: "#updates",
+              id: collection.id,
+              label: collection.title,
+              resourceType: "collection",
+              state: "muted" as const,
+              updatedAt: "",
+            }))}
+            preferences={preferences}
+            state="muted"
+          />
         </SummaryCard>
       </div>
     </aside>
@@ -376,11 +385,47 @@ function PreferenceRow({ preference }: { preference: NotificationPreference }) {
       <button
         aria-pressed={preference.enabled}
         className={preference.enabled ? "is-on" : ""}
-        title="Notification preference persistence is deferred"
+        disabled
+        title="Category notification preference API is not available"
         type="button"
       >
         <span />
       </button>
+    </div>
+  );
+}
+
+function PreferenceResourceList({
+  fallbackRows,
+  preferences,
+  state,
+}: {
+  fallbackRows: ReturnType<typeof toNotificationPreferenceResourceRows>;
+  preferences: ReturnType<typeof useNotificationPreferences>;
+  state: "muted" | "watched";
+}) {
+  const liveRows = useMemo(
+    () => toNotificationPreferenceResourceRows(preferences.preferences).filter((row) => row.state === state),
+    [preferences.preferences, state],
+  );
+  const rows = preferences.status === "unconfigured" ? fallbackRows : liveRows;
+
+  if (preferences.status !== "ready" && preferences.status !== "unconfigured") {
+    return <p className="updates-page-summary-note">{getNotificationPreferenceStatusLabel(preferences.status)}</p>;
+  }
+
+  if (rows.length === 0) {
+    return <p className="updates-page-summary-note">No {state} resources</p>;
+  }
+
+  return (
+    <div className="updates-page-compact-list">
+      {rows.slice(0, 4).map((row) => (
+        <a href={row.href} key={row.id} title={row.updatedAt ? `Updated ${row.updatedAt}` : undefined}>
+          {row.resourceType === "collection" ? <Eye className="h-4 w-4" /> : <FileText className="h-4 w-4" />}
+          <span className="min-w-0 flex-1 truncate">{row.label}</span>
+        </a>
+      ))}
     </div>
   );
 }
@@ -446,36 +491,23 @@ function usePermissionNotifications(workspaceId: string | null) {
       return;
     }
 
-    const controller = new AbortController();
-    const params = new URLSearchParams();
-    if (workspaceId) {
-      params.set("workspaceId", workspaceId);
-    }
-
     setStatus("loading");
-    void fetch(`${apiBaseUrl}/notifications${params.size ? `?${params.toString()}` : ""}`, {
-      headers: createNotificationHeaders(),
-      signal: controller.signal,
-    })
-      .then(async (response) => {
-        if (response.status === 401 || response.status === 403) {
-          setNotifications([]);
-          setUnreadCount(0);
-          setStatus("forbidden");
-          return;
-        }
-
-        if (!response.ok) {
-          throw new Error(`Notifications API returned ${response.status}`);
-        }
-
-        const body = (await response.json()) as PermissionNotificationsResponse;
+    const controller = new AbortController();
+    void getWorkspaceNotifications(workspaceId, controller.signal)
+      .then((body) => {
         setNotifications(body.notifications);
         setUnreadCount(body.unreadCount);
         setStatus("ready");
       })
       .catch((error: unknown) => {
         if (error instanceof DOMException && error.name === "AbortError") {
+          return;
+        }
+
+        if (error instanceof ApiClientError && (error.status === 401 || error.status === 403)) {
+          setNotifications([]);
+          setUnreadCount(0);
+          setStatus("forbidden");
           return;
         }
 
@@ -492,17 +524,8 @@ function usePermissionNotifications(workspaceId: string | null) {
       return;
     }
 
-    void fetch(`${apiBaseUrl}/notifications/${notificationId}/read`, {
-      body: JSON.stringify({ read: true }),
-      headers: createNotificationHeaders("application/json"),
-      method: "PATCH",
-    })
-      .then(async (response) => {
-        if (!response.ok) {
-          return;
-        }
-
-        const updated = (await response.json()) as PermissionNotificationDto;
+    void markWorkspaceNotificationRead(notificationId)
+      .then((updated) => {
         setNotifications((current) =>
           current.map((notification) => (notification.id === updated.id ? updated : notification)),
         );
@@ -513,73 +536,79 @@ function usePermissionNotifications(workspaceId: string | null) {
       });
   };
 
-  return { markRead, notifications, status, unreadCount };
-}
+  const markAllRead = () => {
+    if (!apiBaseUrl || unreadCount === 0) {
+      return;
+    }
 
-function toWorkspaceNotification(notification: PermissionNotificationDto): WorkspaceNotification {
-  return {
-    id: notification.id,
-    kind: getNotificationKind(notification.type),
-    unread: notification.readAt === null,
-    subject: notification.title,
-    detail: notification.body ?? undefined,
-    time: formatRelativeNotificationTime(notification.createdAt),
-    actionLabel: notification.type === "access_request.created" ? "Review" : "Open",
-    actionHref: normalizeNotificationActionUrl(notification.actionUrl),
+    void markAllWorkspaceNotificationsRead(workspaceId)
+      .then(() => {
+        const readAt = new Date().toISOString();
+        setNotifications((current) => current.map((notification) => ({ ...notification, readAt })));
+        setUnreadCount(0);
+      })
+      .catch(() => {
+        // The next reload remains authoritative.
+      });
   };
+
+  return { markAllRead, markRead, notifications, status, unreadCount };
 }
 
-function getNotificationKind(type: string): NotificationKind {
-  if (type.startsWith("access_request.") || type.startsWith("permission.") || type.startsWith("group.")) {
-    return "permission";
-  }
+function useNotificationPreferences(workspaceId: string | null) {
+  const apiBaseUrl = useMemo(() => getConfiguredApiBaseUrl(), []);
+  const [preferences, setPreferences] = useState<PermissionNotificationPreferenceDto[]>([]);
+  const [status, setStatus] = useState<NotificationApiStatus>(() =>
+    apiBaseUrl && workspaceId ? "loading" : "unconfigured",
+  );
 
-  return "system";
-}
+  useEffect(() => {
+    if (!apiBaseUrl || !workspaceId) {
+      setPreferences([]);
+      setStatus("unconfigured");
+      return;
+    }
 
-function normalizeNotificationActionUrl(actionUrl: string | null) {
-  if (!actionUrl) {
-    return undefined;
-  }
+    setStatus("loading");
+    const controller = new AbortController();
+    void getWorkspaceNotificationPreferences(workspaceId, controller.signal)
+      .then((body) => {
+        setPreferences(body.preferences);
+        setStatus("ready");
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return;
+        }
 
-  if (actionUrl.startsWith("#") || actionUrl.startsWith("/")) {
-    return actionUrl;
-  }
+        if (error instanceof ApiClientError && (error.status === 401 || error.status === 403)) {
+          setPreferences([]);
+          setStatus("forbidden");
+          return;
+        }
 
-  return undefined;
+        setPreferences([]);
+        setStatus("error");
+      });
+
+    return () => controller.abort();
+  }, [apiBaseUrl, workspaceId]);
+
+  return { preferences, status };
 }
 
 function getConfiguredNotificationWorkspaceId() {
   return getConfiguredWorkspaceId();
 }
 
-function createNotificationHeaders(contentType?: string) {
-  return createApiHeaders(contentType);
-}
-
-function notificationStatusLabel(status: NotificationApiStatus) {
-  if (status === "ready") {
-    return "Live permission notifications";
-  }
-
+function getUpdatesUnavailableMessage(status: NotificationApiStatus) {
   if (status === "loading") {
-    return "Loading notifications";
+    return "Loading live notifications.";
   }
 
   if (status === "forbidden") {
-    return "Notification access unavailable";
+    return "Sign in with notification access to load workspace updates.";
   }
 
-  if (status === "error") {
-    return "Notification API unavailable";
-  }
-
-  return "Mock activity shown until API is configured";
-}
-
-function formatRelativeNotificationTime(value: string) {
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
+  return "Live notifications could not be loaded. Demo notifications are hidden while the API is configured.";
 }

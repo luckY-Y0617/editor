@@ -3,8 +3,10 @@ namespace Northstar.Infrastructure.Persistence;
 internal static class SeedDataIds
 {
     public const string WorkspaceSlug = "northstar";
+    public const string OrganizationSlug = "northstar";
 
     public static readonly Guid DefaultUserId = Guid.Parse("20000000-0000-0000-0000-000000000001");
+    public static readonly Guid OrganizationId = Guid.Parse("09000000-0000-0000-0000-000000000001");
     public static readonly Guid WorkspaceId = Guid.Parse("10000000-0000-0000-0000-000000000001");
     public static readonly Guid SpaceId = Guid.Parse("11000000-0000-0000-0000-000000000001");
 

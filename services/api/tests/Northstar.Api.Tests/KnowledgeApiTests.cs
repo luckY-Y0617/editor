@@ -16,10 +16,12 @@ using Northstar.Contracts.Auth;
 using Northstar.Contracts.Common;
 using Northstar.Contracts.Files;
 using Northstar.Contracts.Knowledge;
+using Northstar.Contracts.Organizations;
 using Northstar.Contracts.Security;
 using Northstar.Contracts.Workspaces;
 using Northstar.Domain.Files;
 using Northstar.Domain.Knowledge.Activity;
+using Northstar.Domain.Organizations;
 using Northstar.Domain.Security;
 using Northstar.Domain.Users;
 using Northstar.Domain.Workspaces;
@@ -900,6 +902,113 @@ public sealed class KnowledgeApiTests
             new CreateDocumentRequest(bootstrap.Folders[0].Id, "Editor Write"));
 
         Assert.Equal(HttpStatusCode.OK, writeResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task OwnerCanCreateRenameReorderAndDeleteEmptyCollection()
+    {
+        using var factory = new NorthstarApiFactory();
+        var client = factory.CreateClient();
+        await LoginOwnerAsync(client);
+        var bootstrap = await client.GetFromJsonAsync<BootstrapResponse>("/api/v1/bootstrap");
+        Assert.NotNull(bootstrap);
+
+        var createResponse = await client.PostAsJsonAsync(
+            $"/api/v1/spaces/{bootstrap.ActiveSpaceId}/collections",
+            new CreateCollectionRequest("Field Notes", null));
+        createResponse.EnsureSuccessStatusCode();
+        var created = await createResponse.Content.ReadFromJsonAsync<CollectionMutationResponse>();
+        Assert.NotNull(created);
+        Assert.Equal("Field Notes", created.Collection.Title);
+        Assert.Contains(created.Map.Folders, folder => folder.Id == created.Collection.Id);
+
+        var renameResponse = await client.PatchAsJsonAsync(
+            $"/api/v1/spaces/{bootstrap.ActiveSpaceId}/collections/{created.Collection.Id}",
+            new UpdateCollectionRequest("Research Notes", 0.5m));
+        renameResponse.EnsureSuccessStatusCode();
+        var renamed = await renameResponse.Content.ReadFromJsonAsync<CollectionMutationResponse>();
+        Assert.NotNull(renamed);
+        Assert.Equal("Research Notes", renamed.Collection.Title);
+        Assert.Equal(0.5m, renamed.Collection.SortOrder);
+
+        var deleteResponse = await client.DeleteAsync(
+            $"/api/v1/spaces/{bootstrap.ActiveSpaceId}/collections/{created.Collection.Id}");
+        deleteResponse.EnsureSuccessStatusCode();
+        var afterDelete = await deleteResponse.Content.ReadFromJsonAsync<KnowledgeMapResponse>();
+        Assert.NotNull(afterDelete);
+        Assert.DoesNotContain(afterDelete.Folders, folder => folder.Id == created.Collection.Id);
+    }
+
+    [Fact]
+    public async Task DeleteCollection_WithDocuments_ReturnsConflictEnvelope()
+    {
+        using var factory = new NorthstarApiFactory();
+        var client = factory.CreateClient();
+        await LoginOwnerAsync(client);
+        var bootstrap = await client.GetFromJsonAsync<BootstrapResponse>("/api/v1/bootstrap");
+        Assert.NotNull(bootstrap);
+        var collection = bootstrap.Folders.First(folder => folder.DocumentCount > 0);
+
+        var response = await client.DeleteAsync(
+            $"/api/v1/spaces/{bootstrap.ActiveSpaceId}/collections/{collection.Id}");
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        var error = await response.Content.ReadFromJsonAsync<ApiErrorResponse>();
+        Assert.NotNull(error);
+        Assert.Equal(ErrorCodes.Conflict, error.Error.Code);
+        Assert.Equal("Collection cannot be deleted while it contains documents.", error.Error.Message);
+        var map = await client.GetFromJsonAsync<KnowledgeMapResponse>($"/api/v1/spaces/{bootstrap.ActiveSpaceId}/map");
+        Assert.NotNull(map);
+        Assert.Contains(map.Folders, folder => folder.Id == collection.Id);
+    }
+
+    [Fact]
+    public async Task ReorderCollections_StoresStableContiguousOrder()
+    {
+        using var factory = new NorthstarApiFactory();
+        var client = factory.CreateClient();
+        await LoginOwnerAsync(client);
+        var bootstrap = await client.GetFromJsonAsync<BootstrapResponse>("/api/v1/bootstrap");
+        Assert.NotNull(bootstrap);
+        var reversedIds = bootstrap.Folders.Select(folder => folder.Id).Reverse().ToArray();
+
+        var response = await client.PutAsJsonAsync(
+            $"/api/v1/spaces/{bootstrap.ActiveSpaceId}/collections/order",
+            new ReorderCollectionsRequest(reversedIds));
+
+        response.EnsureSuccessStatusCode();
+        var map = await response.Content.ReadFromJsonAsync<KnowledgeMapResponse>();
+        Assert.NotNull(map);
+        Assert.Equal(reversedIds, map.Folders.Select(folder => folder.Id));
+        Assert.Equal(Enumerable.Range(1, reversedIds.Length).Select(value => (decimal)value), map.Folders.Select(folder => folder.SortOrder));
+    }
+
+    [Fact]
+    public async Task ViewerCannotManageCollections()
+    {
+        using var factory = new NorthstarApiFactory();
+        var client = factory.CreateClient();
+        var ownerTokens = await LoginOwnerAsync(client);
+        var bootstrap = await client.GetFromJsonAsync<BootstrapResponse>("/api/v1/bootstrap");
+        var viewerTokens = await RegisterAndAddMemberAsync(client, ownerTokens, bootstrap!.Workspace.Id, "viewer");
+
+        Authorize(client, viewerTokens);
+        var createResponse = await client.PostAsJsonAsync(
+            $"/api/v1/spaces/{bootstrap.ActiveSpaceId}/collections",
+            new CreateCollectionRequest("Viewer Collection", null));
+        var renameResponse = await client.PatchAsJsonAsync(
+            $"/api/v1/spaces/{bootstrap.ActiveSpaceId}/collections/{bootstrap.Folders[0].Id}",
+            new UpdateCollectionRequest("Viewer Rename", null));
+        var deleteResponse = await client.DeleteAsync(
+            $"/api/v1/spaces/{bootstrap.ActiveSpaceId}/collections/{bootstrap.Folders[0].Id}");
+        var reorderResponse = await client.PutAsJsonAsync(
+            $"/api/v1/spaces/{bootstrap.ActiveSpaceId}/collections/order",
+            new ReorderCollectionsRequest(bootstrap.Folders.Select(folder => folder.Id).Reverse().ToArray()));
+
+        Assert.Equal(HttpStatusCode.Forbidden, createResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, renameResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, deleteResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, reorderResponse.StatusCode);
     }
 
     [Fact]
@@ -5440,6 +5549,200 @@ public sealed class KnowledgeApiTests
         Assert.Contains("WriteAsync", source, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task OrganizationProfile_AllowsActiveWorkspaceMemberRead()
+    {
+        using var factory = new NorthstarApiFactory();
+        var client = factory.CreateClient();
+        await LoginOwnerAsync(client);
+        var bootstrap = await GetBootstrapAsync(client);
+
+        var response = await client.GetAsync($"/api/v1/organizations/{bootstrap.Workspace.OrganizationId}/profile");
+
+        response.EnsureSuccessStatusCode();
+        var profile = await response.Content.ReadFromJsonAsync<OrganizationProfileResponse>(JsonOptions);
+        Assert.NotNull(profile);
+        Assert.Equal(bootstrap.Workspace.OrganizationId, profile.Organization.Id);
+        Assert.Equal("Northstar", profile.Organization.Name);
+        var workspace = Assert.Single(profile.Organization.Workspaces);
+        Assert.Equal(bootstrap.Workspace.Id, workspace.Id);
+        Assert.Equal(WorkspaceMemberRole.Owner, workspace.CurrentUserRole);
+    }
+
+    [Fact]
+    public async Task OrganizationProfile_ForbidsNonMemberAndDoesNotLeakUnknownOrganization()
+    {
+        using var factory = new NorthstarApiFactory();
+        var client = factory.CreateClient();
+        var ownerTokens = await LoginOwnerAsync(client);
+        var bootstrap = await GetBootstrapAsync(client);
+        var outsiderTokens = await RegisterAsync(client, $"outsider-{Guid.NewGuid():N}@northstar.local");
+
+        Authorize(client, outsiderTokens);
+        var forbidden = await client.GetAsync($"/api/v1/organizations/{bootstrap.Workspace.OrganizationId}/profile");
+        Authorize(client, ownerTokens);
+        var missing = await client.GetAsync($"/api/v1/organizations/{Guid.NewGuid()}/profile");
+
+        Assert.Equal(HttpStatusCode.Forbidden, forbidden.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
+    }
+
+    [Fact]
+    public async Task OrganizationMembers_AllowsViewerReadAndMergesSameUserAcrossWorkspaces()
+    {
+        using var factory = new NorthstarApiFactory();
+        var client = factory.CreateClient();
+        var ownerTokens = await LoginOwnerAsync(client);
+        var bootstrap = await GetBootstrapAsync(client);
+        var viewerTokens = await RegisterAndAddMemberAsync(
+            client,
+            ownerTokens,
+            bootstrap.Workspace.Id,
+            WorkspaceMemberRole.Viewer);
+        var viewerId = await GetCurrentUserIdAsync(client, viewerTokens);
+        await AddWorkspaceMemberInSecondWorkspaceAsync(
+            factory,
+            Guid.Parse(bootstrap.Workspace.OrganizationId),
+            viewerId,
+            WorkspaceMemberRole.Editor);
+
+        Authorize(client, viewerTokens);
+        var response = await client.GetAsync($"/api/v1/organizations/{bootstrap.Workspace.OrganizationId}/members");
+
+        response.EnsureSuccessStatusCode();
+        var members = await response.Content.ReadFromJsonAsync<OrganizationMembersResponse>(JsonOptions);
+        Assert.NotNull(members);
+        var viewer = Assert.Single(members.Members.Where(member => member.UserId == viewerId.ToString()));
+        Assert.Equal("active", viewer.Status);
+        Assert.Equal(2, viewer.Workspaces.Count);
+        Assert.Contains(viewer.Workspaces, workspace => workspace.WorkspaceId == bootstrap.Workspace.Id && workspace.Role == WorkspaceMemberRole.Viewer);
+        Assert.Contains(viewer.Workspaces, workspace => workspace.Role == WorkspaceMemberRole.Editor);
+        Assert.All(members.Members, member => Assert.NotNull(member.Workspaces));
+    }
+
+    [Fact]
+    public async Task OrganizationProfileUpdate_OwnerCanRenameAndProfileReadReturnsUpdatedDto()
+    {
+        using var factory = new NorthstarApiFactory();
+        var client = factory.CreateClient();
+        await LoginOwnerAsync(client);
+        var bootstrap = await GetBootstrapAsync(client);
+        var organizationId = bootstrap.Workspace.OrganizationId;
+        var original = await client.GetFromJsonAsync<OrganizationProfileResponse>(
+            $"/api/v1/organizations/{organizationId}/profile",
+            JsonOptions);
+        Assert.NotNull(original);
+
+        var response = await client.PatchAsJsonAsync(
+            $"/api/v1/organizations/{organizationId}/profile",
+            new UpdateOrganizationProfileRequest("  Northstar Atlas  ", " atlas-team "));
+
+        response.EnsureSuccessStatusCode();
+        var rawJson = await response.Content.ReadAsStringAsync();
+        var updated = JsonSerializer.Deserialize<OrganizationProfileResponse>(rawJson, JsonOptions);
+        var reread = await client.GetFromJsonAsync<OrganizationProfileResponse>(
+            $"/api/v1/organizations/{organizationId}/profile",
+            JsonOptions);
+
+        Assert.NotNull(updated);
+        Assert.NotNull(reread);
+        Assert.Equal("Northstar Atlas", updated.Organization.Name);
+        Assert.Equal("atlas-team", updated.Organization.Slug);
+        Assert.NotEqual(original.Organization.UpdatedAt, updated.Organization.UpdatedAt);
+        Assert.Equal(updated.Organization.Name, reread.Organization.Name);
+        Assert.Equal(updated.Organization.Slug, reread.Organization.Slug);
+        Assert.DoesNotContain("deletedAt", rawJson, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("workspaces\":null", rawJson, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Theory]
+    [InlineData(WorkspaceMemberRole.Admin)]
+    [InlineData(WorkspaceMemberRole.Editor)]
+    [InlineData(WorkspaceMemberRole.Viewer)]
+    public async Task OrganizationProfileUpdate_RequiresOwnerRole(string role)
+    {
+        using var factory = new NorthstarApiFactory();
+        var client = factory.CreateClient();
+        var ownerTokens = await LoginOwnerAsync(client);
+        var bootstrap = await GetBootstrapAsync(client);
+        var memberTokens = await RegisterAndAddMemberAsync(client, ownerTokens, bootstrap.Workspace.Id, role);
+
+        Authorize(client, memberTokens);
+        var response = await client.PatchAsJsonAsync(
+            $"/api/v1/organizations/{bootstrap.Workspace.OrganizationId}/profile",
+            new UpdateOrganizationProfileRequest("Blocked", "blocked"));
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        var error = await response.Content.ReadFromJsonAsync<ApiErrorResponse>(JsonOptions);
+        Assert.NotNull(error);
+        Assert.Equal(ErrorCodes.Forbidden, error.Error.Code);
+        Assert.Contains("Owner", error.Error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task OrganizationProfileUpdate_ForbidsNonMemberAndMissingOrganizationReturnsNotFound()
+    {
+        using var factory = new NorthstarApiFactory();
+        var client = factory.CreateClient();
+        var ownerTokens = await LoginOwnerAsync(client);
+        var bootstrap = await GetBootstrapAsync(client);
+        var outsiderTokens = await RegisterAsync(client, $"org-outsider-{Guid.NewGuid():N}@northstar.local");
+
+        Authorize(client, outsiderTokens);
+        var forbidden = await client.PatchAsJsonAsync(
+            $"/api/v1/organizations/{bootstrap.Workspace.OrganizationId}/profile",
+            new UpdateOrganizationProfileRequest("Outsider", "outsider"));
+        Authorize(client, ownerTokens);
+        var missing = await client.PatchAsJsonAsync(
+            $"/api/v1/organizations/{Guid.NewGuid()}/profile",
+            new UpdateOrganizationProfileRequest("Missing", "missing"));
+
+        Assert.Equal(HttpStatusCode.Forbidden, forbidden.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
+    }
+
+    [Fact]
+    public async Task OrganizationProfileUpdate_ReturnsValidationEnvelopeForNameAndSlug()
+    {
+        using var factory = new NorthstarApiFactory();
+        var client = factory.CreateClient();
+        await LoginOwnerAsync(client);
+        var bootstrap = await GetBootstrapAsync(client);
+
+        var response = await client.PatchAsJsonAsync(
+            $"/api/v1/organizations/{bootstrap.Workspace.OrganizationId}/profile",
+            new UpdateOrganizationProfileRequest("   ", " ### "));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var error = await response.Content.ReadFromJsonAsync<ApiErrorResponse>(JsonOptions);
+        Assert.NotNull(error);
+        Assert.Equal(ErrorCodes.ValidationError, error.Error.Code);
+        Assert.Equal("Request validation failed.", error.Error.Message);
+        var details = Assert.IsType<JsonElement>(error.Error.Details);
+        Assert.True(details.TryGetProperty("fields", out var fields));
+        Assert.True(fields.TryGetProperty("name", out _));
+        Assert.True(fields.TryGetProperty("slug", out _));
+    }
+
+    [Fact]
+    public async Task OrganizationProfileUpdate_RejectsDuplicateSlug()
+    {
+        using var factory = new NorthstarApiFactory();
+        var client = factory.CreateClient();
+        await LoginOwnerAsync(client);
+        var bootstrap = await GetBootstrapAsync(client);
+        await AddOrganizationAsync(factory, "Taken Organization", "taken");
+
+        var response = await client.PatchAsJsonAsync(
+            $"/api/v1/organizations/{bootstrap.Workspace.OrganizationId}/profile",
+            new UpdateOrganizationProfileRequest("Northstar", " TAKEN "));
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        var error = await response.Content.ReadFromJsonAsync<ApiErrorResponse>(JsonOptions);
+        Assert.NotNull(error);
+        Assert.Equal(ErrorCodes.Conflict, error.Error.Code);
+    }
+
     private static HttpRequestMessage CreatePreflightRequest(string origin)
     {
         var request = new HttpRequestMessage(HttpMethod.Options, "/api/v1/bootstrap");
@@ -5447,6 +5750,51 @@ public sealed class KnowledgeApiTests
         request.Headers.Add("Access-Control-Request-Method", "GET");
         request.Headers.Add("Access-Control-Request-Headers", "authorization");
         return request;
+    }
+
+    private static async Task<BootstrapResponse> GetBootstrapAsync(HttpClient client)
+    {
+        var bootstrap = await client.GetFromJsonAsync<BootstrapResponse>("/api/v1/bootstrap", JsonOptions);
+        Assert.NotNull(bootstrap);
+        return bootstrap;
+    }
+
+    private static async Task<Guid> GetCurrentUserIdAsync(HttpClient client, AuthTokenResponse tokens)
+    {
+        Authorize(client, tokens);
+        var me = await client.GetFromJsonAsync<MeResponse>("/api/v1/auth/me", JsonOptions);
+        Assert.NotNull(me);
+        return Guid.Parse(me.User.Id);
+    }
+
+    private static async Task AddWorkspaceMemberInSecondWorkspaceAsync(
+        NorthstarApiFactory factory,
+        Guid organizationId,
+        Guid userId,
+        string role)
+    {
+        using var scope = factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<NorthstarDbContext>();
+        var workspace = new Workspace(
+            "Second Workspace",
+            $"second-{Guid.NewGuid():N}",
+            createdBy: null,
+            id: Guid.NewGuid(),
+            organizationId: organizationId);
+        await dbContext.Workspaces.AddAsync(workspace);
+        await dbContext.WorkspaceMembers.AddAsync(new WorkspaceMember(workspace.Id, userId, role));
+        await dbContext.SaveChangesAsync();
+    }
+
+    private static async Task AddOrganizationAsync(
+        NorthstarApiFactory factory,
+        string name,
+        string slug)
+    {
+        using var scope = factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<NorthstarDbContext>();
+        await dbContext.Organizations.AddAsync(new Organization(name, slug));
+        await dbContext.SaveChangesAsync();
     }
 
     private static async Task<AuthTokenResponse> LoginOwnerAsync(HttpClient client)

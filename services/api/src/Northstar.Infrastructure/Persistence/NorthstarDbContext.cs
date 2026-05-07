@@ -9,6 +9,7 @@ using Northstar.Domain.Knowledge.Links;
 using Northstar.Domain.Knowledge.Spaces;
 using Northstar.Domain.Knowledge.Tags;
 using Northstar.Domain.Knowledge.Versions;
+using Northstar.Domain.Organizations;
 using Northstar.Domain.Security;
 using Northstar.Domain.Users;
 using Northstar.Domain.Workspaces;
@@ -24,6 +25,7 @@ public sealed class NorthstarDbContext : DbContext, IUnitOfWork
     }
 
     public DbSet<Workspace> Workspaces => Set<Workspace>();
+    public DbSet<Organization> Organizations => Set<Organization>();
     public DbSet<WorkspaceMember> WorkspaceMembers => Set<WorkspaceMember>();
     public DbSet<User> Users => Set<User>();
     public DbSet<UserCredential> UserCredentials => Set<UserCredential>();

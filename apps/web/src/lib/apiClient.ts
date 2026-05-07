@@ -116,7 +116,7 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}) {
     apiBaseUrl,
     auth = true,
     body,
-    fetchFn = fetch,
+    fetchFn,
     headers,
     skipAuthRefresh = false,
     ...requestOptions
@@ -159,7 +159,7 @@ async function sendApiRequest(
     apiBaseUrl?: string;
     auth: boolean;
     body: unknown;
-    fetchFn: typeof fetch;
+    fetchFn?: typeof fetch;
     headers?: HeadersInit;
     requestOptions: Omit<RequestInit, "body" | "headers">;
   },
@@ -167,12 +167,17 @@ async function sendApiRequest(
   const isFormDataBody = typeof FormData !== "undefined" && options.body instanceof FormData;
   const hasJsonBody = options.body !== undefined && !isFormDataBody && typeof options.body !== "string";
   const requestHeaders = createApiHeaders(hasJsonBody ? "application/json" : undefined, options.auth, options.headers);
+  const url = buildApiUrl(path, options.apiBaseUrl);
 
-  return options.fetchFn(buildApiUrl(path, options.apiBaseUrl), {
-    ...options.requestOptions,
-    body: hasJsonBody ? JSON.stringify(options.body) : (options.body as BodyInit | null | undefined),
-    headers: requestHeaders,
-  });
+  try {
+    return await callFetch(options.fetchFn, url, {
+      ...options.requestOptions,
+      body: hasJsonBody ? JSON.stringify(options.body) : (options.body as BodyInit | null | undefined),
+      headers: requestHeaders,
+    });
+  } catch (error) {
+    throw toRequestError(error, url);
+  }
 }
 
 async function parseApiResponse<T>(response: Response) {
@@ -195,7 +200,7 @@ async function refreshStoredAuthCore(options: { apiBaseUrl?: string; fetchFn?: t
   }
 
   try {
-    const response = await (options.fetchFn ?? fetch)(buildApiUrl("/auth/refresh", options.apiBaseUrl), {
+    const response = await callFetch(options.fetchFn, buildApiUrl("/auth/refresh", options.apiBaseUrl), {
       body: JSON.stringify({ refreshToken }),
       headers: createApiHeaders("application/json", false),
       method: "POST",
@@ -285,4 +290,33 @@ function notifyAuthStateChanged() {
   }
 
   window.dispatchEvent(new Event(authStateEventName));
+}
+
+function callFetch(fetchFn: typeof fetch | undefined, input: RequestInfo | URL, init?: RequestInit) {
+  if (fetchFn) {
+    return fetchFn(input, init);
+  }
+
+  if (typeof globalThis.fetch !== "function") {
+    throw new ApiClientError(0, "Fetch is not available in this runtime.");
+  }
+
+  return globalThis.fetch.bind(globalThis)(input, init);
+}
+
+function toRequestError(error: unknown, url: string) {
+  if (isAbortError(error) || error instanceof ApiClientError) {
+    return error;
+  }
+
+  const reason = error instanceof Error && error.message ? ` ${error.message}` : "";
+  return new ApiClientError(0, `Could not reach API endpoint ${url}.${reason}`);
+}
+
+function isAbortError(error: unknown) {
+  return (
+    typeof DOMException !== "undefined" &&
+    error instanceof DOMException &&
+    error.name === "AbortError"
+  );
 }

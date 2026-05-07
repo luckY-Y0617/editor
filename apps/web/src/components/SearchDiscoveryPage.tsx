@@ -4,18 +4,28 @@ import {
   ChevronDown,
   FileText,
   Folder,
-  Info,
   ListFilter,
   MoreHorizontal,
   Plus,
+  Search,
   Upload,
   UserRound,
   X,
 } from "lucide-react";
-import { type CSSProperties, type ReactNode, useEffect, useState } from "react";
+import { type CSSProperties, type FormEvent, type ReactNode, useEffect, useState } from "react";
+import { WorkspaceHomeSidebar } from "./WorkspaceHomeSidebar";
 import { WorkspaceHomeTopBar } from "./WorkspaceHomeTopBar";
 import { ApiClientError, getConfiguredApiBaseUrl } from "../lib/apiClient";
-import { getBootstrap, searchKnowledge, type SearchResponse } from "../lib/appApi";
+import { getBootstrap, searchKnowledge } from "../lib/appApi";
+import { createLibrariesHash, createSearchHash, getSearchFiltersFromHash } from "../lib/hashRouting";
+import {
+  getSearchEmptyState,
+  getSearchStatusLabel,
+  toFolderSearchResultItems,
+  toSearchResultItems,
+  type SearchApiStatus,
+  type SearchDisplayResult,
+} from "../lib/searchDiscoveryModel";
 import {
   searchFilterGroups,
   searchResults,
@@ -25,34 +35,98 @@ import {
   type SearchResultItem,
 } from "../data/searchDiscoveryData";
 import coordinatePatternUrl from "../assets/svg/patterns/coordinate-ticks.svg";
+import routePatternUrl from "../assets/svg/patterns/route-line.svg";
 import topographicPatternUrl from "../assets/svg/patterns/topographic-lines.svg";
 
 const searchPatternStyle = {
   "--search-coordinate-pattern": `url(${coordinatePatternUrl})`,
   "--search-topographic-pattern": `url(${topographicPatternUrl})`,
+  "--workspace-home-coordinate-pattern": `url(${coordinatePatternUrl})`,
+  "--workspace-home-route-pattern": `url(${routePatternUrl})`,
+  "--workspace-home-topographic-pattern": `url(${topographicPatternUrl})`,
 } as CSSProperties;
 
 const resultTabs = ["All", "Documents (128)", "Collections (24)", "People (18)", "Tags (64)"];
 
 export function SearchDiscoveryPage() {
-  const liveSearch = useLiveSearch("decision framework");
-  const displayResults = liveSearch.results ?? searchResults;
+  const [hash, setHash] = useState(window.location.hash);
+  const searchFilters = getSearchFiltersFromHash(hash);
+  const searchQuery = searchFilters.q ?? "";
+  const [draftQuery, setDraftQuery] = useState(searchQuery);
+  const liveSearch = useLiveSearch(searchQuery, searchFilters.folderId);
+  const isDemoSearch = liveSearch.status === "unconfigured";
+  const displayResults = liveSearch.status === "unconfigured" ? searchResults : liveSearch.results ?? [];
+  const tabs = isDemoSearch ? resultTabs : ["All"];
   const resultCount = displayResults.length;
+  const headingLabel = searchFilters.folderTitle
+    ? `Collection ${searchFilters.folderTitle}`
+    : searchQuery
+      ? `Search results for '${searchQuery}'`
+      : "Search Northstar";
+
+  useEffect(() => {
+    const syncHash = () => setHash(window.location.hash);
+    window.addEventListener("hashchange", syncHash);
+    return () => window.removeEventListener("hashchange", syncHash);
+  }, []);
+
+  useEffect(() => {
+    setDraftQuery(searchQuery);
+  }, [searchQuery]);
+
+  const submitSearch = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    window.location.hash = createSearchHash({
+      folderId: searchFilters.folderId,
+      folderTitle: searchFilters.folderTitle,
+      q: draftQuery.trim(),
+    });
+  };
+
+  const clearSearch = () => {
+    setDraftQuery("");
+    window.location.hash = createSearchHash({
+      folderId: searchFilters.folderId,
+      folderTitle: searchFilters.folderTitle,
+    });
+  };
 
   return (
     <main className="search-discovery-shell flex h-screen flex-col overflow-hidden" style={searchPatternStyle}>
-      <WorkspaceHomeTopBar searchHref="#search" searchValue="decision framework" />
+      <WorkspaceHomeTopBar searchHref="#search" searchValue={searchQuery} />
       <div className="search-discovery-body flex min-h-0 flex-1 overflow-hidden">
-        <SearchFilters />
+        <WorkspaceHomeSidebar activeItem="search" showCollections={false} />
         <section className="search-discovery-results editor-scrollbar min-w-0 flex-1 overflow-y-auto">
           <div className="search-discovery-results-inner">
             <header className="search-discovery-heading">
-              <h1>Search results for &apos;decision framework&apos;</h1>
-              <p className="share-permissions-inline-status">{searchStatusLabel(liveSearch.status)}</p>
+              <h1>{headingLabel}</h1>
+              <p className="share-permissions-inline-status">{getSearchStatusLabel(liveSearch.status)}</p>
             </header>
 
+            <form className="search-discovery-query-form" onSubmit={submitSearch}>
+              <label>
+                <Search className="h-4 w-4" />
+                <span className="sr-only">Search query</span>
+                <input
+                  autoComplete="off"
+                  onChange={(event) => setDraftQuery(event.currentTarget.value)}
+                  placeholder="Search Northstar"
+                  type="search"
+                  value={draftQuery}
+                />
+              </label>
+              {draftQuery ? (
+                <button aria-label="Clear search" onClick={clearSearch} title="Clear search" type="button">
+                  <X className="h-4 w-4" />
+                </button>
+              ) : null}
+              <button title="Run search" type="submit">
+                Search
+              </button>
+            </form>
+
             <nav className="search-discovery-tabs" aria-label="Search result types">
-              {resultTabs.map((tab, index) => (
+              {tabs.map((tab, index) => (
                 <button
                   className={["search-discovery-tab", index === 0 ? "is-active" : ""].join(" ")}
                   key={tab}
@@ -78,21 +152,28 @@ export function SearchDiscoveryPage() {
             </div>
 
             <div className="search-discovery-list">
-              {displayResults.map((result) => (
-                <SearchResultRow key={result.id} result={result} />
-              ))}
+              {displayResults.length > 0 ? (
+                displayResults.map((result) => <SearchResultRow key={result.id} query={searchQuery} result={result} />)
+              ) : (
+                <div className="search-discovery-result is-empty">
+                  <div className="min-w-0">
+                    <h2>{getSearchEmptyState(liveSearch.status).title}</h2>
+                    <p className="search-discovery-path">{getSearchEmptyState(liveSearch.status).detail}</p>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </section>
-        <SearchPreview />
+        {isDemoSearch ? <SearchPreview query={searchQuery} /> : null}
       </div>
     </main>
   );
 }
 
-function useLiveSearch(query: string) {
-  const [results, setResults] = useState<SearchResultItem[] | null>(null);
-  const [status, setStatus] = useState<"unconfigured" | "loading" | "ready" | "forbidden" | "error">(() =>
+function useLiveSearch(query: string, folderId: string | null) {
+  const [results, setResults] = useState<SearchDisplayResult[] | null>(null);
+  const [status, setStatus] = useState<SearchApiStatus>(() =>
     getConfiguredApiBaseUrl() ? "loading" : "unconfigured",
   );
 
@@ -103,12 +184,23 @@ function useLiveSearch(query: string) {
       return;
     }
 
+    if (!folderId && !query.trim()) {
+      setResults([]);
+      setStatus("idle");
+      return;
+    }
+
     const controller = new AbortController();
     setStatus("loading");
     void getBootstrap(controller.signal)
-      .then((bootstrap) => searchKnowledge({ q: query, spaceId: bootstrap.activeSpaceId }, controller.signal))
-      .then((response) => {
-        setResults(toSearchResultItems(response));
+      .then((bootstrap) =>
+        folderId
+          ? toFolderSearchResultItems(bootstrap, folderId, query)
+          : searchKnowledge({ q: query, spaceId: bootstrap.activeSpaceId }, controller.signal)
+            .then((response) => toSearchResultItems(response, bootstrap)),
+      )
+      .then((nextResults) => {
+        setResults(nextResults);
         setStatus("ready");
       })
       .catch((error: unknown) => {
@@ -121,54 +213,9 @@ function useLiveSearch(query: string) {
       });
 
     return () => controller.abort();
-  }, [query]);
+  }, [folderId, query]);
 
   return { results, status };
-}
-
-function toSearchResultItems(response: SearchResponse): SearchResultItem[] {
-  return response.results.map((result, index) => ({
-    id: result.id,
-    type: result.type === "collection" || result.type === "person" ? result.type : "document",
-    title: result.title,
-    path: result.folderId ? `Folder ${result.folderId}` : "Workspace",
-    excerpt: result.excerpt,
-    updatedAt: formatDate(result.updatedAt),
-    status: "Published",
-    selected: index === 0,
-  }));
-}
-
-function searchStatusLabel(status: ReturnType<typeof useLiveSearch>["status"]) {
-  if (status === "ready") {
-    return "Live search API is connected.";
-  }
-
-  if (status === "loading") {
-    return "Loading search results.";
-  }
-
-  if (status === "forbidden") {
-    return "Sign in to load live search results.";
-  }
-
-  if (status === "error") {
-    return "Search API unavailable; demo results are shown.";
-  }
-
-  return "Configure VITE_NORTHSTAR_API_BASE_URL to load live search results.";
-}
-
-function formatDate(value: string) {
-  try {
-    return new Intl.DateTimeFormat("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    }).format(new Date(value));
-  } catch {
-    return value;
-  }
 }
 
 function SearchFilters() {
@@ -230,18 +277,30 @@ function FilterOption({ group, option }: { group: SearchFilterGroup; option: Sea
   );
 }
 
-function SearchResultRow({ result }: { result: SearchResultItem }) {
+function SearchResultRow({ query, result }: { query: string; result: SearchDisplayResult | SearchResultItem }) {
   const Icon = result.type === "collection" ? Folder : result.type === "person" ? UserRound : FileText;
+  const href = "href" in result
+    ? result.href
+    : result.type === "document"
+      ? "#editor"
+      : result.type === "collection"
+        ? createLibrariesHash({ collectionId: result.id })
+        : "#workspace-members";
 
   return (
-    <article className={["search-discovery-result", result.selected ? "is-selected" : ""].join(" ")}>
+    <a
+      aria-label={`Open ${result.title}`}
+      className={["search-discovery-result", result.selected ? "is-selected" : ""].join(" ")}
+      href={href}
+      title={result.title}
+    >
       <div className="search-discovery-result-icon">
         {result.type === "person" ? <span>AK</span> : <Icon className="h-5 w-5" />}
       </div>
       <div className="min-w-0">
-        <h2>{highlightQuery(result.title)}</h2>
+        <h2>{highlightQuery(result.title, query)}</h2>
         <p className="search-discovery-path">{result.path}</p>
-        {result.excerpt ? <p className="search-discovery-excerpt">{highlightQuery(result.excerpt)}</p> : null}
+        {result.excerpt ? <p className="search-discovery-excerpt">{highlightQuery(result.excerpt, query)}</p> : null}
         {result.type === "collection" ? (
           <p className="search-discovery-path">
             Collection&nbsp;&nbsp;-&nbsp;&nbsp;{result.documentCount} documents
@@ -272,11 +331,11 @@ function SearchResultRow({ result }: { result: SearchResultItem }) {
         ) : null}
         {result.status ? <StatusBadge status={result.status} /> : <MoreHorizontal className="ml-auto h-4 w-4" />}
       </div>
-    </article>
+    </a>
   );
 }
 
-function SearchPreview() {
+function SearchPreview({ query }: { query: string }) {
   return (
     <aside className="search-discovery-preview hidden h-full w-[470px] shrink-0 overflow-y-auto border-l border-[var(--ns-border)] xl:block">
       <div className="search-discovery-preview-inner">
@@ -288,7 +347,7 @@ function SearchPreview() {
           <FileText className="mt-1 h-5 w-5 shrink-0 text-[var(--ns-slate-500)]" />
           <div className="min-w-0">
             <h2>
-              {selectedSearchDetail.code} {highlightQuery(selectedSearchDetail.title)}
+              {selectedSearchDetail.code} {highlightQuery(selectedSearchDetail.title, query)}
             </h2>
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <StatusBadge status={selectedSearchDetail.status} />
@@ -315,7 +374,7 @@ function SearchPreview() {
         </PreviewSection>
 
         <PreviewSection title="Excerpt">
-          <div className="search-discovery-excerpt-box">{highlightQuery(selectedSearchDetail.excerpt)}</div>
+          <div className="search-discovery-excerpt-box">{highlightQuery(selectedSearchDetail.excerpt, query)}</div>
         </PreviewSection>
 
         <PreviewSection title="Tags">
@@ -379,18 +438,30 @@ function StatusBadge({ status }: { status: "Published" | "Draft" }) {
   );
 }
 
-function highlightQuery(text: string): ReactNode {
-  const queryParts = ["Decision Framework", "Decision", "Framework", "decision", "framework"];
-  const pattern = new RegExp(`(${queryParts.join("|")})`, "gi");
+function highlightQuery(text: string, query: string): ReactNode {
+  const queryParts = query
+    .split(/\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (queryParts.length === 0) {
+    return text;
+  }
+
+  const pattern = new RegExp(`(${queryParts.map(escapeRegExp).join("|")})`, "gi");
   const parts = text.split(pattern).filter(Boolean);
 
   return parts.map((part, index) =>
-    queryParts.some((query) => query.toLowerCase() === part.toLowerCase()) ? (
+    queryParts.some((queryPart) => queryPart.toLowerCase() === part.toLowerCase()) ? (
       <mark key={`${part}-${index}`}>{part}</mark>
     ) : (
       <span key={`${part}-${index}`}>{part}</span>
     ),
   );
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function getInitials(name: string) {

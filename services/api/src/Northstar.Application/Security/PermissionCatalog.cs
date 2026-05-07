@@ -23,6 +23,7 @@ public sealed class PermissionCatalog : IPermissionCatalog
                 PermissionActions.WorkspaceManageMembers,
                 PermissionActions.WorkspaceManagePermissions,
                 PermissionActions.WorkspaceViewAudit,
+                PermissionActions.OrganizationManageSettings,
                 PermissionActions.CollectionView,
                 PermissionActions.CollectionEdit,
                 PermissionActions.CollectionCreateDocument,

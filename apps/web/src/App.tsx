@@ -1,20 +1,25 @@
 import { useEffect, useState } from "react";
 import { DocumentSharePermissionsPage } from "./components/DocumentSharePermissionsPage";
 import { KnowledgeEditorPage } from "./components/KnowledgeEditorPage";
+import { LibrariesPage } from "./components/LibrariesPage";
 import { NorthstarLoginPage } from "./components/NorthstarLoginPage";
 import { PermissionAdminSurfacesPage } from "./components/PermissionAdminSurfacesPage";
 import { SearchDiscoveryPage } from "./components/SearchDiscoveryPage";
 import { VersionHistoryComparePage } from "./components/VersionHistoryComparePage";
 import { WorkspaceHomePage } from "./components/WorkspaceHomePage";
+import { WorkspaceSettingsPage } from "./components/WorkspaceSettingsPage";
 import { WorkspaceUpdatesPage } from "./components/WorkspaceUpdatesPage";
 import { getStoredAccessToken, subscribeToAuthChanges } from "./lib/apiClient";
+import { getEditorDocumentIdFromHash, getHashRoute } from "./lib/hashRouting";
 
 const protectedHashes = new Set([
   "#home",
   "#dashboard",
+  "#libraries",
   "#editor",
   "#search",
   "#discovery",
+  "#settings",
   "#versions",
   "#compare",
   "#version-history",
@@ -47,43 +52,53 @@ export default function App() {
     };
   }, []);
 
-  if (protectedHashes.has(hash) && !isAuthenticated) {
+  const route = getHashRoute(hash);
+
+  if (protectedHashes.has(route) && !isAuthenticated) {
     return <NorthstarLoginPage />;
   }
 
-  if (hash === "#editor") {
-    return <KnowledgeEditorPage />;
+  if (route === "#editor") {
+    return <KnowledgeEditorPage requestedDocumentId={getEditorDocumentIdFromHash(hash)} />;
   }
 
-  if (hash === "#home" || hash === "#dashboard") {
+  if (route === "#home" || route === "#dashboard") {
     return <WorkspaceHomePage />;
   }
 
-  if (hash === "#search" || hash === "#discovery") {
+  if (route === "#libraries") {
+    return <LibrariesPage />;
+  }
+
+  if (route === "#search" || route === "#discovery") {
     return <SearchDiscoveryPage />;
   }
 
-  if (hash === "#versions" || hash === "#compare" || hash === "#version-history") {
+  if (route === "#settings") {
+    return <WorkspaceSettingsPage />;
+  }
+
+  if (route === "#versions" || route === "#compare" || route === "#version-history") {
     return <VersionHistoryComparePage />;
   }
 
-  if (hash === "#share" || hash === "#permissions") {
+  if (route === "#share" || route === "#permissions") {
     return <DocumentSharePermissionsPage />;
   }
 
-  if (hash === "#workspace-members" || hash === "#members" || hash === "#permission-admin") {
+  if (route === "#workspace-members" || route === "#members" || route === "#permission-admin") {
     return <PermissionAdminSurfacesPage initialTab="members" />;
   }
 
-  if (hash === "#workspace-groups" || hash === "#groups") {
+  if (route === "#workspace-groups" || route === "#groups") {
     return <PermissionAdminSurfacesPage initialTab="groups" />;
   }
 
-  if (hash === "#scim") {
+  if (route === "#scim") {
     return <PermissionAdminSurfacesPage initialTab="scim" />;
   }
 
-  if (hash === "#updates" || hash === "#notifications") {
+  if (route === "#updates" || route === "#notifications") {
     return <WorkspaceUpdatesPage />;
   }
 

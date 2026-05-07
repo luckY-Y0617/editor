@@ -1,54 +1,77 @@
 import {
-  ArrowUp,
+  AtSign,
+  Bell,
+  CalendarDays,
   CheckCircle2,
-  ChevronDown,
-  Circle,
-  Crosshair,
+  Clock3,
   FileText,
-  Info,
-  Layers3,
+  Hourglass,
   Link,
+  ListChecks,
   MessageSquare,
+  MoreHorizontal,
+  PenSquare,
   Plus,
   Send,
-  Upload,
+  Share2,
+  UserRound,
   Users,
   type LucideIcon,
 } from "lucide-react";
 import { type CSSProperties, type ReactNode, useEffect, useMemo, useState } from "react";
 import { WorkspaceHomeSidebar } from "./WorkspaceHomeSidebar";
 import { WorkspaceHomeTopBar } from "./WorkspaceHomeTopBar";
-import { ApiClientError, getConfiguredApiBaseUrl } from "../lib/apiClient";
-import { getBootstrap, type BootstrapResponse, type KnowledgeDocumentSummaryDto, type KnowledgeFolderDto } from "../lib/appApi";
+import { ApiClientError, getConfiguredApiBaseUrl, isUuid } from "../lib/apiClient";
 import {
-  activeDocumentRows,
-  collectionSpotlightCounts,
-  dashboardActivity,
-  dashboardInsights,
-  dashboardPeople,
-  documentOwnerIdsByDocumentId,
-  getDashboardPerson,
-  pinnedCollectionIds,
-  workspaceUpdates,
-  type ActiveDocumentRow,
-  type CollectionSpotlight,
-  type DashboardActivity,
-  type DashboardInsight,
-  type DashboardUpdate,
-} from "../data/workspaceHomeData";
-import { initialKnowledgeDocuments, knowledgeFolders } from "../data/knowledgeDocuments";
+  getBootstrap,
+  getDocumentActivity,
+  getWorkspaceMembers,
+  getWorkspaceNotifications,
+  type BootstrapResponse,
+  type DocumentActivityResponse,
+} from "../lib/appApi";
+import {
+  createHomeQuickActions,
+  createDemoWorkspaceHomeModel,
+  createEmptyWorkspaceHomeModel,
+  createLiveWorkspaceHomeModel,
+  type HomeActivityRow,
+  type HomeAgendaRow,
+  type HomeAttentionRow,
+  type HomeConversationRow,
+  type HomeContributorRow,
+  type HomeDocumentRow,
+  type HomeQuickActionRow,
+  type HomeSignalRow,
+  type WorkspaceHomeModel,
+  type WorkspaceHomeSupplementalData,
+} from "../lib/workspaceHomeModel";
+import { getQuickActionLabel, t, type DisplayLocale, useDisplayLanguage } from "../lib/i18n";
 import coordinatePatternUrl from "../assets/svg/patterns/coordinate-ticks.svg";
 import routePatternUrl from "../assets/svg/patterns/route-line.svg";
 import topographicPatternUrl from "../assets/svg/patterns/topographic-lines.svg";
 import dashedRoutePatternUrl from "../assets/svg/decorative/dashed-route-lines.svg";
-import type { KnowledgeDocument } from "../types/editor";
 
-type StatCard = {
-  id: string;
-  label: string;
-  value: string;
-  detail: string;
+type HomeDataStatus = "idle" | "loading" | "ready" | "forbidden" | "error";
+
+type HomeSupplementalState = {
+  activity: HomeDataStatus;
+  contributors: HomeDataStatus;
+  data: WorkspaceHomeSupplementalData;
+  updates: HomeDataStatus;
+};
+
+type QuickAction = {
   icon: LucideIcon;
+};
+
+const quickActionIcons: Record<HomeQuickActionRow["id"], QuickAction> = {
+  "log-note": { icon: PenSquare },
+  "more-actions": { icon: MoreHorizontal },
+  "new-decision": { icon: Hourglass },
+  "new-document": { icon: FileText },
+  "request-access": { icon: Users },
+  "share-update": { icon: Share2 },
 };
 
 const workspaceHomePatternStyle = {
@@ -59,152 +82,117 @@ const workspaceHomePatternStyle = {
 } as CSSProperties;
 
 export function WorkspaceHomePage() {
-  const bootstrap = useBootstrapData();
-  const recentDocuments = useMemo(() => createRecentDocuments(bootstrap.data), [bootstrap.data]);
-  const collectionSpotlights = useMemo(() => createCollectionSpotlights(bootstrap.data), [bootstrap.data]);
-  const workspaceName = bootstrap.data?.workspace.name ?? "Northstar";
-  const statCards: StatCard[] = [
-    {
-      id: "documents",
-      label: "Documents",
-      value: String(bootstrap.data?.documents.length ?? 213),
-      detail: bootstrap.status === "ready" ? "Live bootstrap" : "Demo fallback",
-      icon: FileText,
-    },
-    {
-      id: "collections",
-      label: "Collections",
-      value: String(bootstrap.data?.folders.length ?? 48),
-      detail: bootstrap.status === "ready" ? "Live bootstrap" : "Demo fallback",
-      icon: Layers3,
-    },
-    {
-      id: "active-documents",
-      label: "Active Documents",
-      value: "7",
-      detail: "2 new this week",
-      icon: Crosshair,
-    },
-    {
-      id: "team-members",
-      label: "Team Members",
-      value: "24",
-      detail: "2 this week",
-      icon: Users,
-    },
-  ];
+  const { locale } = useDisplayLanguage();
+  const [bootstrapRetryKey, setBootstrapRetryKey] = useState(0);
+  const [supplementalRetryKey, setSupplementalRetryKey] = useState(0);
+  const bootstrap = useBootstrapData(bootstrapRetryKey);
+  const supplemental = useHomeSupplementalData(bootstrap.data, bootstrap.status, supplementalRetryKey);
+  const homeModel = useMemo(() => {
+    if (bootstrap.status === "ready" && bootstrap.data) {
+      return createLiveWorkspaceHomeModel(bootstrap.data, supplemental.data);
+    }
+
+    if (bootstrap.status === "unconfigured") {
+      return createDemoWorkspaceHomeModel();
+    }
+
+    return createEmptyWorkspaceHomeModel(bootstrap.status);
+  }, [bootstrap.data, bootstrap.status, supplemental.data]);
+
+  const canRetry = bootstrap.status === "error" || bootstrap.status === "forbidden";
 
   return (
     <main className="workspace-home-shell flex h-screen flex-col overflow-hidden" style={workspaceHomePatternStyle}>
       <WorkspaceHomeTopBar />
       <div className="workspace-home-body flex min-h-0 flex-1 overflow-hidden">
-        <WorkspaceHomeSidebar starredCollections={collectionSpotlights} />
+        <WorkspaceHomeSidebar
+          activeItem="home"
+          currentLibraryCollections={homeModel.collections}
+        />
         <section className="workspace-home-content editor-scrollbar min-w-0 flex-1 overflow-y-auto">
-          <div className="workspace-home-mobile-nav md:hidden" aria-label="Workspace navigation">
-            <a aria-current="page" href="#home">
-              Home
-            </a>
-            <a href="#editor">Library</a>
-            <a href="#editor">Documents</a>
-            <a href="#home">Activity</a>
-          </div>
+          <MobileHomeNav locale={locale} />
 
-          <div className="workspace-home-grid">
-            <div className="workspace-home-main">
+          <div className="workspace-home-dashboard">
+            <div className="workspace-home-dashboard-main">
               <header className="workspace-home-heading">
                 <div className="min-w-0">
-                  <h1>Welcome back, {workspaceName}</h1>
-                  <p>{bootstrapStatusLabel(bootstrap.status)}</p>
+                  <h1>{t(locale, "home.goodMorning", { workspaceName: homeModel.workspaceName })}</h1>
+                  <p>{bootstrapStatusLabel(bootstrap.status, locale)}</p>
+                  {canRetry ? (
+                    <button
+                      className="workspace-home-text-link mt-2"
+                      onClick={() => setBootstrapRetryKey((current) => current + 1)}
+                      type="button"
+                    >
+                      {t(locale, "common.retry")}
+                    </button>
+                  ) : null}
                 </div>
-                <a className="workspace-home-primary-action" href="#editor" title="Create a document in the editor">
-                  <Plus className="h-4 w-4" />
-                  <span>New Document</span>
-                  <ChevronDown className="h-4 w-4" />
-                </a>
               </header>
 
-              <section className="workspace-home-stat-grid" aria-label="Workspace summary">
-                {statCards.map((card) => (
-                  <DashboardStatCard card={card} key={card.id} />
-                ))}
-              </section>
+              <QuickActions actions={createHomeQuickActions(homeModel)} locale={locale} />
 
-              <div className="workspace-home-section-grid">
-                <DashboardPanel action="View all" title="Recent Documents">
-                  <div className="workspace-home-list">
-                    {recentDocuments.map((document, index) => (
-                      <RecentDocumentRow document={document} index={index} key={document.id} />
-                    ))}
-                  </div>
-                </DashboardPanel>
+              <div className="workspace-home-top-card-grid">
+                <HomePanel icon={CalendarDays} title={t(locale, "home.today")}>
+                  <p className="workspace-home-panel-kicker">{getTodayLabel(locale)}</p>
+                  <AgendaList items={homeModel.agendaRows} />
+                  <PanelLink href="#updates">View full agenda</PanelLink>
+                </HomePanel>
 
-                <DashboardPanel action="View all" title="Pinned Collections">
-                  <div className="workspace-home-list">
-                    {collectionSpotlights.map((collection) => (
-                      <CollectionRow collection={collection} key={collection.id} />
-                    ))}
-                  </div>
-                </DashboardPanel>
+                <HomePanel badge={homeModel.waitingRows.length} icon={ListChecks} title={t(locale, "home.waitingOnYou")}>
+                  <AttentionList items={homeModel.waitingRows} status={supplemental.updates} />
+                  <PanelLink href="#updates">View all</PanelLink>
+                </HomePanel>
+
+                <HomePanel badge={homeModel.conversationRows.length} icon={MessageSquare} title={t(locale, "home.activeConversations")}>
+                  <ConversationList emptyLabel="No active conversation data." items={homeModel.conversationRows} />
+                  <PanelLink href="#updates">View all</PanelLink>
+                </HomePanel>
+
+                <HomePanel icon={Clock3} title={t(locale, "home.recentlyTouched")}>
+                  <RecentlyTouchedList documents={homeModel.documentRows} locale={locale} status={bootstrap.status} />
+                  <PanelLink href="#libraries">View all</PanelLink>
+                </HomePanel>
               </div>
 
-              <div className="workspace-home-section-grid">
-                <DashboardPanel title="Active Documents">
-                  <ActiveDocumentsTable rows={activeDocumentRows} />
-                </DashboardPanel>
+              <div className="workspace-home-bottom-grid">
+                <HomePanel actionLabel={t(locale, "home.allActivity")} icon={Users} title={t(locale, "home.teamActivity")}>
+                  <TeamActivityList
+                    items={homeModel.activityRows}
+                    locale={locale}
+                    mode={homeModel.mode}
+                    onRetry={() => setSupplementalRetryKey((current) => current + 1)}
+                    status={supplemental.activity}
+                  />
+                  <PanelLink href="#updates">View all activity</PanelLink>
+                </HomePanel>
 
-                <DashboardPanel action="View all" title="Recent Activity">
-                  <div className="workspace-home-activity-list">
-                    {dashboardActivity.map((activity) => (
-                      <ActivityRow activity={activity} key={activity.id} />
-                    ))}
-                  </div>
-                </DashboardPanel>
+                <HomePanel actionLabel="View archive" icon={MessageSquare} title={t(locale, "home.recentConversationsAndDecisions")}>
+                  <ConversationList emptyLabel="No recent conversation or decision data." items={homeModel.recentDecisionRows} variant="stacked" />
+                  <PanelLink href="#updates">View all conversations</PanelLink>
+                </HomePanel>
               </div>
             </div>
 
-            <aside className="workspace-home-insights" aria-label="Workspace insights">
-              <DashboardPanel title="Insights this week">
-                <div className="workspace-home-chart" aria-hidden="true">
-                  <svg viewBox="0 0 260 82" role="img">
-                    <path d="M0 62 C24 58 34 47 54 52 C78 59 82 30 106 38 C136 48 141 9 165 19 C187 28 197 7 214 21 C230 35 237 27 260 31" />
-                    <path d="M0 72 C32 68 43 63 62 65 C84 67 95 45 118 51 C145 59 160 38 182 42 C204 46 218 37 260 45" />
-                    <path d="M0 75 C40 74 58 70 80 72 C112 75 132 59 154 62 C188 66 205 57 260 59" />
-                  </svg>
-                </div>
-                <div className="workspace-home-list">
-                  {dashboardInsights.map((insight) => (
-                    <InsightRow insight={insight} key={insight.id} />
-                  ))}
-                </div>
-              </DashboardPanel>
+            <aside className="workspace-home-signal-rail" aria-label={t(locale, "home.workspaceSignals")}>
+              <HomePanel icon={Bell} title={t(locale, "home.workspaceSignals")}>
+                <SignalList items={homeModel.signalRows} />
+                <PanelLink href="#updates">View all signals</PanelLink>
+              </HomePanel>
 
-              <DashboardPanel title="Top contributors">
-                <div className="space-y-2.5">
-                  {dashboardPeople.map((person) => (
-                    <div className="workspace-home-contributor" key={person.id}>
-                      <span className="workspace-home-avatar">{person.initials}</span>
-                      <span className="min-w-0 flex-1 truncate">{person.name}</span>
-                      <span className="tabular-nums text-[var(--ns-slate-700)]">{person.documentCount}</span>
-                    </div>
-                  ))}
-                </div>
-                <button className="workspace-home-text-link mt-4" title="View all contributors" type="button">
-                  View all contributors
-                </button>
-              </DashboardPanel>
+              <HomePanel icon={Users} title={t(locale, "home.topContributors")}>
+                <p className="workspace-home-panel-kicker">{homeModel.mode === "live" ? t(locale, "home.workspaceMembers") : "30 days"}</p>
+                <ContributorList items={homeModel.contributorRows} status={supplemental.contributors} />
+                <PanelLink href="#workspace-members">View leaderboard</PanelLink>
+              </HomePanel>
 
-              <DashboardPanel title="Workspace updates">
-                <div className="workspace-home-list">
-                  {workspaceUpdates.map((update) => (
-                    <WorkspaceUpdateRow key={update.id} update={update} />
-                  ))}
-                </div>
-                <button className="workspace-home-text-link mt-4" title="View all updates" type="button">
-                  View all updates
-                </button>
-              </DashboardPanel>
+              <HomePanel icon={AtSign} title={t(locale, "home.notificationDigest")}>
+                <SignalList items={homeModel.digestRows} />
+                <PanelLink href="#updates">View all notifications</PanelLink>
+              </HomePanel>
             </aside>
           </div>
+
           <div className="workspace-home-coordinate-footer" aria-hidden="true">
             47.61 / 122.33
             <span>+</span>
@@ -215,42 +203,73 @@ export function WorkspaceHomePage() {
   );
 }
 
-function DashboardStatCard({ card }: { card: StatCard }) {
-  const Icon = card.icon;
-
+function MobileHomeNav({ locale }: { locale: DisplayLocale }) {
   return (
-    <article className="workspace-home-stat-card">
-      <span className="workspace-home-stat-icon">
-        <Icon className="h-6 w-6" />
-      </span>
-      <div className="min-w-0">
-        <div className="text-xs font-semibold text-[var(--ns-navy-800)]">{card.label}</div>
-        <div className="mt-1 text-2xl leading-none text-[var(--ns-navy-900)]">{card.value}</div>
-        <div className="mt-2 flex items-center gap-1.5 text-xs text-[#3f8c86]">
-          <ArrowUp className="h-3 w-3" />
-          {card.detail}
-        </div>
-      </div>
-    </article>
+    <div className="workspace-home-mobile-nav md:hidden" aria-label="Workspace navigation">
+      <a aria-current="page" href="#home">
+        {t(locale, "nav.home")}
+      </a>
+      <a href="#libraries">{t(locale, "nav.libraries")}</a>
+      <a href="#search">{t(locale, "nav.search")}</a>
+      <a href="#updates">{t(locale, "nav.updates")}</a>
+      <a href="#workspace-members">{t(locale, "nav.members")}</a>
+      <a href="#settings">{t(locale, "nav.settings")}</a>
+    </div>
   );
 }
 
-function DashboardPanel({
-  action,
+function QuickActions({ actions, locale }: { actions: HomeQuickActionRow[]; locale: DisplayLocale }) {
+  return (
+    <section className="workspace-home-quick-actions" aria-label={t(locale, "home.quickActions")}>
+      <h2>{t(locale, "home.quickActions")}</h2>
+      <div>
+        {actions.map((action) => {
+          const Icon = quickActionIcons[action.id].icon;
+          const label = getQuickActionLabel(locale, action.id);
+
+          return action.isEnabled && action.href ? (
+            <a href={action.href} key={action.id} title={label}>
+              <Icon className="h-4 w-4" />
+              <span>{label}</span>
+            </a>
+          ) : (
+            <button disabled key={action.id} title={action.disabledReason ?? `${label} is unavailable`} type="button">
+              <Icon className="h-4 w-4" />
+              <span>{label}</span>
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function HomePanel({
+  actionLabel,
+  badge,
   children,
+  icon: Icon,
   title,
 }: {
-  action?: string;
+  actionLabel?: string;
+  badge?: number;
   children: ReactNode;
+  icon: LucideIcon;
   title: string;
 }) {
   return (
     <section className="workspace-home-panel">
       <div className="workspace-home-panel-header">
-        <h2>{title}</h2>
-        {action ? (
-          <button className="workspace-home-text-link" title={action} type="button">
-            {action}
+        <div className="workspace-home-panel-title">
+          <span>
+            <Icon className="h-4 w-4" />
+          </span>
+          <h2>{title}</h2>
+          {typeof badge === "number" && badge > 0 ? <mark>{badge}</mark> : null}
+        </div>
+        {actionLabel ? (
+          <button className="workspace-home-text-link" title={actionLabel} type="button">
+            {actionLabel}
           </button>
         ) : null}
       </div>
@@ -259,77 +278,81 @@ function DashboardPanel({
   );
 }
 
-function RecentDocumentRow({ document, index }: { document: KnowledgeDocument; index: number }) {
-  const person = getDashboardPerson(documentOwnerIdsByDocumentId[document.id] ?? dashboardPeople[0].id);
-
-  return (
-    <a className="workspace-home-row" href="#editor" title={document.title}>
-      <FileText className="h-4 w-4 shrink-0 text-[var(--ns-slate-500)]" />
-      <span className="min-w-0 flex-1 truncate font-semibold text-[var(--ns-blue-600)]">{document.title}</span>
-      <span className="hidden w-28 truncate text-[var(--ns-slate-700)] sm:block">{person.name}</span>
-      <span className="hidden w-28 text-right text-[var(--ns-slate-700)] sm:block">
-        {index === 0 ? "Today, 1:48 PM" : formatDate(document.updatedAt)}
-      </span>
-      <span className={["workspace-home-status-dot", index < 3 ? "is-green" : "is-blue"].join(" ")} />
-    </a>
-  );
-}
-
-function createRecentDocuments(bootstrap: BootstrapResponse | null): KnowledgeDocument[] {
-  if (!bootstrap) {
-    return [...initialKnowledgeDocuments]
-      .filter((document) => document.id !== "doc-editor-experience")
-      .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime())
-      .slice(0, 5);
+function AgendaList({ items }: { items: HomeAgendaRow[] }) {
+  if (items.length === 0) {
+    return <PanelMessage>No calendar source connected.</PanelMessage>;
   }
 
-  return [...bootstrap.documents]
-    .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime())
-    .slice(0, 5)
-    .map(toKnowledgeDocument);
-}
-
-function CollectionRow({ collection }: { collection: CollectionSpotlight }) {
   return (
-    <a className="workspace-home-row" href="#editor" title={collection.displayTitle}>
-      <Layers3 className="h-4 w-4 shrink-0 text-[var(--ns-slate-500)]" />
-      <span className="min-w-0 flex-1 truncate font-semibold text-[var(--ns-blue-600)]">
-        {collection.displayTitle}
-      </span>
-      <span className="tabular-nums text-[var(--ns-slate-700)]">{collection.documentCount}</span>
-    </a>
+    <div className="workspace-home-agenda-list">
+      {items.map((item) => (
+        <div className="workspace-home-agenda-row" key={item.id}>
+          <time>{item.time}</time>
+          <span aria-hidden="true" />
+          <div className="min-w-0">
+            <strong>{item.title}</strong>
+            <p>
+              {item.detail}
+              {item.meta ? <em>{item.meta}</em> : null}
+            </p>
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 
-function ActiveDocumentsTable({ rows }: { rows: ActiveDocumentRow[] }) {
+function AttentionList({ items, status }: { items: HomeAttentionRow[]; status: HomeDataStatus }) {
+  if (items.length === 0) {
+    return <PanelMessage>{getSupplementalMessage(status, "Nothing waiting on you.")}</PanelMessage>;
+  }
+
   return (
-    <div className="workspace-home-table">
-      <div className="workspace-home-table-head">
-        <span>Document</span>
-        <span>Owner</span>
-        <span>Status</span>
-        <span>Progress</span>
-        <span>Updated</span>
-      </div>
-      {rows.map((row) => {
-        const person = getDashboardPerson(row.ownerId);
+    <div className="workspace-home-compact-list">
+      {items.map((item) => (
+        <a className="workspace-home-signal-row" href={item.href} key={item.id} title={item.title}>
+          <span>
+            <Link className="h-4 w-4" />
+          </span>
+          <div className="min-w-0">
+            <strong>{item.title}</strong>
+            <p>{item.detail}</p>
+          </div>
+        </a>
+      ))}
+    </div>
+  );
+}
+
+function ConversationList({
+  emptyLabel,
+  items,
+  variant = "compact",
+}: {
+  emptyLabel: string;
+  items: HomeConversationRow[];
+  variant?: "compact" | "stacked";
+}) {
+  if (items.length === 0) {
+    return <PanelMessage>{emptyLabel}</PanelMessage>;
+  }
+
+  return (
+    <div className={variant === "stacked" ? "workspace-home-stacked-list" : "workspace-home-compact-list"}>
+      {items.map((item) => {
+        const Icon = item.kind === "decision" ? Hourglass : item.kind === "activity" ? FileText : MessageSquare;
 
         return (
-          <a className="workspace-home-table-row" href="#editor" key={row.id} title={row.title}>
-            <span className="min-w-0 truncate font-semibold text-[var(--ns-blue-600)]">{row.title}</span>
-            <span className="workspace-home-table-owner">
-              <span className="workspace-home-mini-avatar">{person.initials}</span>
-              <span className="min-w-0 truncate">{person.name}</span>
+          <a className="workspace-home-signal-row" href={item.href} key={item.id} title={item.title}>
+            <span>
+              <Icon className="h-4 w-4" />
             </span>
-            <span className="workspace-home-state">
-              <Circle className={["h-2 w-2 fill-current", getStatusClassName(row.status)].join(" ")} />
-              {row.status}
-            </span>
-            <span className="workspace-home-progress">
-              <i style={{ width: `${row.progress}%` }} />
-              <em>{row.progress}%</em>
-            </span>
-            <span className="text-right text-[var(--ns-slate-700)]">{row.updatedAt}</span>
+            <div className="min-w-0">
+              {variant === "stacked" ? <small>{formatKind(item.kind)}</small> : null}
+              <strong>{item.title}</strong>
+              <p>{item.detail}</p>
+            </div>
+            {item.badge ? <mark className={item.tone === "orange" ? "is-orange" : ""}>{item.badge}</mark> : null}
           </a>
         );
       })}
@@ -337,98 +360,142 @@ function ActiveDocumentsTable({ rows }: { rows: ActiveDocumentRow[] }) {
   );
 }
 
-function ActivityRow({ activity }: { activity: DashboardActivity }) {
-  const person = getDashboardPerson(activity.actorId);
-  const Icon = getActivityIcon(activity.kind);
+function RecentlyTouchedList({
+  documents,
+  locale,
+  status,
+}: {
+  documents: HomeDocumentRow[];
+  locale: DisplayLocale;
+  status: ReturnType<typeof useBootstrapData>["status"];
+}) {
+  if (documents.length === 0) {
+    return <PanelMessage>{getDocumentListMessage(status)}</PanelMessage>;
+  }
 
   return (
-    <a className="workspace-home-row" href="#editor" title={`${person.name} ${activity.action} ${activity.target}`}>
-      <Icon className="h-4 w-4 shrink-0 text-[var(--ns-slate-500)]" />
-      <span className="min-w-0 flex-1 truncate">
-        <span className="font-semibold text-[var(--ns-blue-600)]">{person.name}</span>
-        <span className="text-[var(--ns-slate-700)]"> {activity.action} </span>
-        <span className="font-semibold text-[var(--ns-blue-600)]">{activity.target}</span>
-      </span>
-      <span className="hidden w-28 text-right text-[var(--ns-slate-700)] sm:block">{activity.date}</span>
-    </a>
-  );
-}
-
-function InsightRow({ insight }: { insight: DashboardInsight }) {
-  return (
-    <div className="workspace-home-row">
-      <Info className="h-4 w-4 shrink-0 text-[var(--ns-slate-500)]" />
-      <span className="min-w-0 flex-1 truncate">{insight.label}</span>
-      <span className="tabular-nums font-semibold text-[var(--ns-navy-800)]">{insight.value}</span>
-      <span className="inline-flex items-center gap-1 text-xs text-[#3f8c86]">
-        <ArrowUp className="h-3 w-3" />
-        {insight.change}
-      </span>
+    <div className="workspace-home-compact-list">
+      {documents.slice(0, 3).map((document) => (
+        <a className="workspace-home-signal-row" href={document.href} key={document.id} title={document.title}>
+          <span>
+            <FileText className="h-4 w-4" />
+          </span>
+          <div className="min-w-0">
+            <strong>{document.title}</strong>
+            <p>
+              {formatDate(document.updatedAt, locale)} - {document.folderTitle}
+            </p>
+          </div>
+        </a>
+      ))}
     </div>
   );
 }
 
-function WorkspaceUpdateRow({ update }: { update: DashboardUpdate }) {
-  const Icon = update.kind === "template" ? CheckCircle2 : update.kind === "map" ? FileText : Upload;
+function TeamActivityList({
+  items,
+  locale,
+  mode,
+  onRetry,
+  status,
+}: {
+  items: HomeActivityRow[];
+  locale: DisplayLocale;
+  mode: WorkspaceHomeModel["mode"];
+  onRetry: () => void;
+  status: HomeDataStatus;
+}) {
+  if (items.length === 0) {
+    return (
+      <PanelMessage onRetry={mode === "live" && isRetryableStatus(status) ? onRetry : undefined}>
+        {getSupplementalMessage(status, "No active-document activity available.")}
+      </PanelMessage>
+    );
+  }
 
   return (
-    <button className="workspace-home-row" title={update.title} type="button">
-      <Icon className="h-4 w-4 shrink-0 text-[var(--ns-slate-500)]" />
-      <span className="min-w-0 flex-1 truncate text-left font-semibold text-[var(--ns-blue-600)]">
-        {update.title}
-      </span>
-      <span className="hidden w-24 text-right text-[var(--ns-slate-700)] sm:block">{update.date}</span>
-    </button>
+    <div className="workspace-home-activity-feed">
+      {items.map((item) => (
+        <a className="workspace-home-activity-item" href={item.href} key={item.id} title={item.title}>
+          <span className="workspace-home-avatar">{getInitials(item.title)}</span>
+          <div className="min-w-0">
+            <strong>{item.title}</strong>
+            <p>{item.detail}</p>
+          </div>
+          <time>{formatDate(item.date, locale)}</time>
+        </a>
+      ))}
+    </div>
   );
 }
 
-function createCollectionSpotlights(bootstrap: BootstrapResponse | null): CollectionSpotlight[] {
-  if (bootstrap) {
-    return [...bootstrap.folders]
-      .sort((left, right) => Number(left.sortOrder) - Number(right.sortOrder))
-      .slice(0, 5)
-      .map(toCollectionSpotlight);
+function SignalList({ items }: { items: HomeSignalRow[] }) {
+  if (items.length === 0) {
+    return <PanelMessage>No live signal data.</PanelMessage>;
   }
 
-  return pinnedCollectionIds
-    .map((collectionId) => {
-      const folder = knowledgeFolders.find((item) => item.id === collectionId);
-
-      if (!folder) {
-        return null;
-      }
-
-      return {
-        id: collectionId,
-        displayTitle: stripCollectionPrefix(folder.title),
-        documentCount:
-          collectionSpotlightCounts[collectionId] ??
-          initialKnowledgeDocuments.filter((document) => document.folderId === collectionId).length,
-      };
-    })
-    .filter((collection): collection is CollectionSpotlight => collection !== null);
+  return (
+    <div className="workspace-home-compact-list">
+      {items.map((item) => (
+        <a className="workspace-home-signal-row" href={item.href} key={item.id} title={`${item.value} ${item.label}`}>
+          <span>
+            <Clock3 className="h-4 w-4" />
+          </span>
+          <div className="min-w-0">
+            <strong>
+              {item.value} {item.label}
+            </strong>
+            <p>{item.detail}</p>
+          </div>
+        </a>
+      ))}
+    </div>
+  );
 }
 
-function toKnowledgeDocument(document: KnowledgeDocumentSummaryDto): KnowledgeDocument {
-  return {
-    id: document.id,
-    title: document.title,
-    folderId: document.folderId,
-    updatedAt: document.updatedAt,
-    tags: document.tags,
-    content: { type: "doc", content: [] },
-  };
+function ContributorList({ items, status }: { items: HomeContributorRow[]; status: HomeDataStatus }) {
+  if (items.length === 0) {
+    return <PanelMessage>{getSupplementalMessage(status, "No workspace members available.")}</PanelMessage>;
+  }
+
+  return (
+    <div className="workspace-home-contributor-list">
+      {items.slice(0, 3).map((item) => (
+        <a className="workspace-home-contributor" href={item.href} key={item.id} title={item.name}>
+          <span className="workspace-home-avatar">{item.initials}</span>
+          <span className="min-w-0 flex-1">
+            <strong>{item.name}</strong>
+            <em>{item.contributionLabel}</em>
+          </span>
+        </a>
+      ))}
+    </div>
+  );
 }
 
-function toCollectionSpotlight(folder: KnowledgeFolderDto): CollectionSpotlight {
-  return {
-    id: folder.id,
-    displayTitle: stripCollectionPrefix(folder.title),
-    documentCount: folder.documentCount,
-  };
+function PanelLink({ children, href }: { children: ReactNode; href: string }) {
+  return (
+    <a className="workspace-home-panel-link" href={href}>
+      {children}
+      <span aria-hidden="true">{"->"}</span>
+    </a>
+  );
 }
 
-function useBootstrapData() {
+function PanelMessage({ children, onRetry }: { children: ReactNode; onRetry?: () => void }) {
+  return (
+    <div className="workspace-home-panel-message">
+      <span>{children}</span>
+      {onRetry ? (
+        <button className="workspace-home-text-link" onClick={onRetry} type="button">
+          Retry
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+function useBootstrapData(retryKey: number) {
   const [data, setData] = useState<BootstrapResponse | null>(null);
   const [status, setStatus] = useState<"unconfigured" | "loading" | "ready" | "forbidden" | "error">(() =>
     getConfiguredApiBaseUrl() ? "loading" : "unconfigured",
@@ -458,71 +525,179 @@ function useBootstrapData() {
       });
 
     return () => controller.abort();
-  }, []);
+  }, [retryKey]);
 
   return { data, status };
 }
 
-function bootstrapStatusLabel(status: ReturnType<typeof useBootstrapData>["status"]) {
-  if (status === "ready") {
-    return "Live workspace bootstrap is connected.";
+function useHomeSupplementalData(
+  bootstrap: BootstrapResponse | null,
+  bootstrapStatus: ReturnType<typeof useBootstrapData>["status"],
+  retryKey: number,
+) {
+  const [state, setState] = useState<HomeSupplementalState>({
+    activity: "idle",
+    contributors: "idle",
+    data: {},
+    updates: "idle",
+  });
+
+  useEffect(() => {
+    if (bootstrapStatus !== "ready" || !bootstrap) {
+      setState({
+        activity: bootstrapStatus === "loading" ? "loading" : "idle",
+        contributors: bootstrapStatus === "loading" ? "loading" : "idle",
+        data: {},
+        updates: bootstrapStatus === "loading" ? "loading" : "idle",
+      });
+      return;
+    }
+
+    const controller = new AbortController();
+    const shouldLoadActivity = isUuid(bootstrap.activeDocumentId);
+    setState({
+      activity: shouldLoadActivity ? "loading" : "ready",
+      contributors: "loading",
+      data: {},
+      updates: "loading",
+    });
+
+    void Promise.allSettled([
+      shouldLoadActivity
+        ? getDocumentActivity(bootstrap.activeDocumentId, controller.signal)
+        : Promise.resolve<DocumentActivityResponse>({ items: [] }),
+      getWorkspaceNotifications(bootstrap.workspace.id, controller.signal),
+      getWorkspaceMembers(bootstrap.workspace.id, controller.signal),
+    ]).then(([activityResult, updatesResult, contributorsResult]) => {
+      if (controller.signal.aborted) {
+        return;
+      }
+
+      setState({
+        activity: getRequestStatus(activityResult),
+        contributors: getRequestStatus(contributorsResult),
+        data: {
+          activityItems: activityResult.status === "fulfilled" ? activityResult.value.items : [],
+          members: contributorsResult.status === "fulfilled" ? contributorsResult.value.members : [],
+          notifications: updatesResult.status === "fulfilled" ? updatesResult.value.notifications : [],
+        },
+        updates: getRequestStatus(updatesResult),
+      });
+    });
+
+    return () => controller.abort();
+  }, [bootstrap, bootstrapStatus, retryKey]);
+
+  return state;
+}
+
+function bootstrapStatusLabel(status: ReturnType<typeof useBootstrapData>["status"], locale: DisplayLocale) {
+  if (status === "ready" || status === "unconfigured") {
+    return locale === "zh-CN" ? "这是今天工作区的最新情况。" : "Here's what's happening across your workspace today.";
   }
 
   if (status === "loading") {
-    return "Loading workspace bootstrap.";
+    return locale === "zh-CN" ? "正在加载工作区信号。" : "Loading workspace signals.";
   }
 
   if (status === "forbidden") {
-    return "Sign in to load live workspace data.";
+    return locale === "zh-CN" ? "登录后加载实时工作区数据。" : "Sign in to load live workspace data.";
+  }
+
+  return locale === "zh-CN"
+    ? "工作区 API 不可用；主页显示可用的本地状态。"
+    : "Workspace API unavailable; Home is showing available local state.";
+}
+
+function getRequestStatus<T>(result: PromiseSettledResult<T>): HomeDataStatus {
+  if (result.status === "fulfilled") {
+    return "ready";
+  }
+
+  if (result.reason instanceof ApiClientError && (result.reason.status === 401 || result.reason.status === 403)) {
+    return "forbidden";
+  }
+
+  return "error";
+}
+
+function getSupplementalMessage(status: HomeDataStatus, emptyMessage: string) {
+  if (status === "loading") {
+    return "Loading workspace data...";
+  }
+
+  if (status === "forbidden") {
+    return "Not available for this session.";
   }
 
   if (status === "error") {
-    return "Workspace API unavailable; demo data is shown.";
+    return "Live workspace data could not be loaded.";
   }
 
-  return "Configure VITE_NORTHSTAR_API_BASE_URL to load live workspace data.";
+  return emptyMessage;
 }
 
-function stripCollectionPrefix(title: string) {
-  return title.replace(/^\d+\.\s*/, "");
+function getDocumentListMessage(status: ReturnType<typeof useBootstrapData>["status"]) {
+  if (status === "loading") {
+    return "Loading documents...";
+  }
+
+  if (status === "ready") {
+    return "No documents yet.";
+  }
+
+  if (status === "unconfigured") {
+    return "No demo documents available.";
+  }
+
+  return "Live workspace data could not be loaded.";
 }
 
-function formatDate(value: string) {
+function isRetryableStatus(status: HomeDataStatus) {
+  return status === "error" || status === "forbidden";
+}
+
+function formatKind(value: HomeConversationRow["kind"]) {
+  if (value === "decision") {
+    return "Decision";
+  }
+
+  if (value === "activity") {
+    return "Activity";
+  }
+
+  if (value === "notification") {
+    return "Notification";
+  }
+
+  return "Conversation";
+}
+
+function formatDate(value: string, locale: DisplayLocale = "en") {
   try {
-    return new Intl.DateTimeFormat("en-US", {
+    return new Intl.DateTimeFormat(locale === "zh-CN" ? "zh-CN" : "en-US", {
       month: "short",
       day: "numeric",
-      year: "numeric",
     }).format(new Date(value));
   } catch {
     return value;
   }
 }
 
-function getStatusClassName(status: ActiveDocumentRow["status"]) {
-  if (status === "Review") {
-    return "text-[#b57c20]";
-  }
-
-  if (status === "Not Started") {
-    return "text-[var(--ns-slate-500)]";
-  }
-
-  return "text-[var(--ns-blue-600)]";
+function getTodayLabel(locale: DisplayLocale) {
+  return new Intl.DateTimeFormat(locale === "zh-CN" ? "zh-CN" : "en-US", {
+    month: "long",
+    day: "numeric",
+    weekday: "long",
+  }).format(new Date());
 }
 
-function getActivityIcon(kind: DashboardActivity["kind"]): LucideIcon {
-  switch (kind) {
-    case "published":
-      return Send;
-    case "commented":
-      return MessageSquare;
-    case "created":
-      return Plus;
-    case "moved":
-      return Link;
-    case "edited":
-    default:
-      return FileText;
-  }
+function getInitials(value: string) {
+  return value
+    .split(/[\s._-]+/)
+    .filter(Boolean)
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
 }

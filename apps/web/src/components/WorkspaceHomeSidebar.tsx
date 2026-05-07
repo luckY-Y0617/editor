@@ -1,35 +1,52 @@
 import {
-  Activity,
-  FileText,
+  Bell,
   Home,
   Layers3,
   Library,
-  Map,
+  Search,
   Settings,
-  Star,
-  StarOff,
-  SwatchBook,
+  UsersRound,
 } from "lucide-react";
 import { AtlasIcon } from "./AtlasIcon";
+import { t, useDisplayLanguage } from "../lib/i18n";
 import compassMarkUrl from "../assets/svg/decorative/compass-mark-small.svg";
-import type { CollectionSpotlight } from "../data/workspaceHomeData";
 
 type WorkspaceHomeSidebarProps = {
-  starredCollections: CollectionSpotlight[];
+  activeItem?: WorkspaceNavItemId;
+  collectionsTitle?: string;
+  currentLibraryCollections?: WorkspaceSidebarCollection[];
+  showCollections?: boolean;
+};
+
+type WorkspaceNavItemId = "home" | "libraries" | "search" | "settings" | "updates" | "members";
+
+type WorkspaceSidebarCollection = {
+  displayTitle: string;
+  documentCount: number;
+  href: string;
+  id: string;
 };
 
 const workspaceNavItems = [
-  { label: "Home", icon: Home, active: true, href: "#home" },
-  { label: "Library", icon: Library, href: "#editor" },
-  { label: "Documents", icon: FileText, href: "#editor" },
-  { label: "Collections", icon: Layers3, href: "#home" },
-  { label: "Maps", icon: Map, href: "#home" },
-  { label: "Templates", icon: SwatchBook, href: "#home", deferred: true },
-  { label: "Activity", icon: Activity, href: "#home" },
-  { label: "Settings", icon: Settings, href: "#home", deferred: true },
+  { id: "home" as const, labelKey: "nav.home" as const, icon: Home, href: "#home" },
+  { id: "libraries" as const, labelKey: "nav.libraries" as const, icon: Library, href: "#libraries" },
+  { id: "search" as const, labelKey: "nav.search" as const, icon: Search, href: "#search" },
+  { id: "updates" as const, labelKey: "nav.updates" as const, icon: Bell, href: "#updates" },
+  { id: "members" as const, labelKey: "nav.members" as const, icon: UsersRound, href: "#workspace-members" },
+  { id: "settings" as const, labelKey: "nav.settings" as const, icon: Settings, href: "#settings" },
 ];
 
-export function WorkspaceHomeSidebar({ starredCollections }: WorkspaceHomeSidebarProps) {
+export function WorkspaceHomeSidebar({
+  activeItem = "home",
+  collectionsTitle = "Current Library Collections",
+  currentLibraryCollections = [],
+  showCollections = true,
+}: WorkspaceHomeSidebarProps) {
+  const { locale } = useDisplayLanguage();
+  const resolvedCollectionsTitle = collectionsTitle === "Current Library Collections"
+    ? t(locale, "nav.currentLibraryCollections")
+    : collectionsTitle;
+
   return (
     <aside className="workspace-home-sidebar hidden h-full w-[320px] shrink-0 overflow-hidden border-r border-[var(--ns-border)] md:flex md:flex-col">
       <div className="workspace-home-ruler" aria-hidden="true">
@@ -44,60 +61,59 @@ export function WorkspaceHomeSidebar({ starredCollections }: WorkspaceHomeSideba
 
       <div className="workspace-home-sidebar-content editor-scrollbar relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-6 pl-[72px]">
         <div className="mb-5 text-[11px] font-semibold uppercase tracking-normal text-[var(--ns-slate-700)]">
-          Workspace
+          {t(locale, "nav.workspace")}
         </div>
 
         <nav className="space-y-1" aria-label="Workspace navigation">
           {workspaceNavItems.map((item) => {
             const Icon = item.icon;
+            const label = t(locale, item.labelKey);
 
             return (
               <a
-                aria-current={item.active ? "page" : undefined}
+                aria-current={activeItem === item.id ? "page" : undefined}
                 className={[
                   "workspace-home-nav-item",
-                  item.active ? "is-active" : "",
-                  item.deferred ? "is-deferred" : "",
+                  activeItem === item.id ? "is-active" : "",
                 ].join(" ")}
                 href={item.href}
-                key={item.label}
-                title={item.deferred ? `${item.label} is planned for a later phase` : item.label}
+                key={item.id}
+                title={label}
               >
                 <Icon className="h-4 w-4 shrink-0" />
-                <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                <span className="min-w-0 flex-1 truncate">{label}</span>
               </a>
             );
           })}
         </nav>
 
-        <section className="mt-8 border-t border-[var(--ns-border)] pt-5">
-          <div className="mb-3 text-[11px] font-semibold uppercase tracking-normal text-[var(--ns-slate-700)]">
-            Starred Collections
-          </div>
-          <div className="space-y-1.5">
-            {starredCollections.length > 0 ? (
-              starredCollections.map((collection) => (
-                <a
-                  className="workspace-home-starred-row"
-                  href="#editor"
-                  key={collection.id}
-                  title={collection.displayTitle}
-                >
-                  <Star className="h-3.5 w-3.5 shrink-0 text-[var(--ns-slate-500)]" />
-                  <span className="min-w-0 flex-1 truncate">{collection.displayTitle}</span>
-                  <span className="shrink-0 tabular-nums text-[var(--ns-slate-500)]">
-                    {collection.documentCount}
-                  </span>
-                </a>
-              ))
-            ) : (
-              <div className="flex items-center gap-2 text-xs leading-5 text-[var(--ns-slate-500)]">
-                <StarOff className="h-3.5 w-3.5" />
-                No starred collections
-              </div>
-            )}
-          </div>
-        </section>
+        {showCollections ? (
+          <section className="mt-8 border-t border-[var(--ns-border)] pt-5">
+            <div className="mb-3 text-[11px] font-semibold uppercase tracking-normal text-[var(--ns-slate-700)]">
+              {resolvedCollectionsTitle}
+            </div>
+            <div className="space-y-1.5">
+              {currentLibraryCollections.length > 0 ? (
+                currentLibraryCollections.map((collection) => (
+                  <a
+                    className="workspace-home-starred-row"
+                    href={collection.href}
+                    key={collection.id}
+                    title={collection.displayTitle}
+                  >
+                    <Layers3 className="h-3.5 w-3.5 shrink-0 text-[var(--ns-slate-500)]" />
+                    <span className="min-w-0 flex-1 truncate">{collection.displayTitle}</span>
+                    <span className="shrink-0 tabular-nums text-[var(--ns-slate-500)]">
+                      {collection.documentCount}
+                    </span>
+                  </a>
+                ))
+              ) : (
+                <div className="text-xs leading-5 text-[var(--ns-slate-500)]">{t(locale, "nav.noCurrentLibraryCollections")}</div>
+              )}
+            </div>
+          </section>
+        ) : null}
 
         <div className="mt-auto pt-10 text-center text-[var(--ns-slate-500)]">
           <AtlasIcon className="mx-auto h-20 w-20 opacity-35" src={compassMarkUrl} />

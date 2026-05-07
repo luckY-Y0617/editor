@@ -5,6 +5,7 @@ export type WorkspaceDto = {
   id: string;
   name: string;
   currentSpaceId: string;
+  organizationId: string;
 };
 
 export type SpaceDto = {
@@ -65,10 +66,12 @@ export type SearchResponse = {
 
 export type CreateDocumentResponse = {
   document: KnowledgeDocumentDto;
-  map: {
-    folders: KnowledgeFolderDto[];
-    documents: KnowledgeDocumentSummaryDto[];
-  };
+  map: KnowledgeMapResponse;
+};
+
+export type KnowledgeMapResponse = {
+  folders: KnowledgeFolderDto[];
+  documents: KnowledgeDocumentSummaryDto[];
 };
 
 export type GetDocumentResponse = {
@@ -79,6 +82,126 @@ export type UpdateDocumentResponse = {
   document: KnowledgeDocumentDto;
 };
 
+export type MoveDocumentResponse = {
+  document: KnowledgeDocumentSummaryDto;
+  map: KnowledgeMapResponse;
+};
+
+export type CollectionMutationResponse = {
+  collection: KnowledgeFolderDto;
+  map: KnowledgeMapResponse;
+};
+
+export type ActivityTimelineItemDto = {
+  id: string;
+  title: string;
+  date: string;
+  detail: string;
+};
+
+export type DocumentActivityResponse = {
+  items: ActivityTimelineItemDto[];
+};
+
+export type PermissionNotificationDto = {
+  id: string;
+  workspaceId: string;
+  recipientUserId: string;
+  actorUserId?: string | null;
+  type: string;
+  resourceType?: string | null;
+  resourceId?: string | null;
+  accessRequestId?: string | null;
+  permissionGrantId?: string | null;
+  title: string;
+  body?: string | null;
+  actionUrl?: string | null;
+  readAt?: string | null;
+  createdAt: string;
+};
+
+export type PermissionNotificationsResponse = {
+  notifications: PermissionNotificationDto[];
+  unreadCount: number;
+};
+
+export type PermissionNotificationPreferenceDto = {
+  id: string;
+  workspaceId: string;
+  userId: string;
+  resourceType?: string | null;
+  resourceId?: string | null;
+  watched: boolean;
+  muted: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type PermissionNotificationPreferencesResponse = {
+  preferences: PermissionNotificationPreferenceDto[];
+};
+
+export type WorkspaceMemberDto = {
+  userId: string;
+  email?: string | null;
+  displayName: string;
+  role: string;
+  status: string;
+  joinedAt?: string | null;
+};
+
+export type WorkspaceMembersResponse = {
+  members: WorkspaceMemberDto[];
+};
+
+export type OrganizationWorkspaceDto = {
+  id: string;
+  name: string;
+  slug: string;
+  currentSpaceId: string;
+  currentUserRole: string;
+  createdAt: string;
+};
+
+export type OrganizationProfileDto = {
+  id: string;
+  name: string;
+  slug: string;
+  status: string;
+  workspaces: OrganizationWorkspaceDto[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type OrganizationProfileResponse = {
+  organization: OrganizationProfileDto;
+};
+
+export type UpdateOrganizationProfileRequest = {
+  name: string;
+  slug: string;
+};
+
+export type OrganizationMemberWorkspaceDto = {
+  workspaceId: string;
+  workspaceName: string;
+  role: string;
+  status: string;
+  joinedAt?: string | null;
+};
+
+export type OrganizationMemberDto = {
+  userId: string;
+  email?: string | null;
+  displayName: string;
+  status: string;
+  workspaces: OrganizationMemberWorkspaceDto[];
+};
+
+export type OrganizationMembersResponse = {
+  members: OrganizationMemberDto[];
+};
+
 export function getBootstrap(signal?: AbortSignal) {
   return apiFetch<BootstrapResponse>("/bootstrap", { signal });
 }
@@ -86,6 +209,54 @@ export function getBootstrap(signal?: AbortSignal) {
 export function searchKnowledge(request: { q: string; spaceId: string }, signal?: AbortSignal) {
   const params = new URLSearchParams({ q: request.q, spaceId: request.spaceId });
   return apiFetch<SearchResponse>(`/search?${params.toString()}`, { signal });
+}
+
+export function getSpaceMap(spaceId: string, signal?: AbortSignal) {
+  return apiFetch<KnowledgeMapResponse>(`/spaces/${spaceId}/map`, { signal });
+}
+
+export function createCollection(
+  spaceId: string,
+  request: { sortOrder?: number | null; title: string },
+  signal?: AbortSignal,
+) {
+  return apiFetch<CollectionMutationResponse>(`/spaces/${spaceId}/collections`, {
+    body: request,
+    method: "POST",
+    signal,
+  });
+}
+
+export function updateCollection(
+  spaceId: string,
+  collectionId: string,
+  request: { sortOrder?: number | null; title?: string | null },
+  signal?: AbortSignal,
+) {
+  return apiFetch<CollectionMutationResponse>(`/spaces/${spaceId}/collections/${collectionId}`, {
+    body: request,
+    method: "PATCH",
+    signal,
+  });
+}
+
+export function deleteCollection(spaceId: string, collectionId: string, signal?: AbortSignal) {
+  return apiFetch<KnowledgeMapResponse>(`/spaces/${spaceId}/collections/${collectionId}`, {
+    method: "DELETE",
+    signal,
+  });
+}
+
+export function reorderCollections(
+  spaceId: string,
+  request: { collectionIds: string[] },
+  signal?: AbortSignal,
+) {
+  return apiFetch<KnowledgeMapResponse>(`/spaces/${spaceId}/collections/order`, {
+    body: request,
+    method: "PUT",
+    signal,
+  });
 }
 
 export function createDocument(request: { folderId: string; title?: string | null }, signal?: AbortSignal) {
@@ -98,6 +269,99 @@ export function createDocument(request: { folderId: string; title?: string | nul
 
 export function getDocument(documentId: string, signal?: AbortSignal) {
   return apiFetch<GetDocumentResponse>(`/documents/${documentId}`, { signal });
+}
+
+export function moveDocument(
+  documentId: string,
+  request: { folderId: string; sortOrder?: number | null },
+  signal?: AbortSignal,
+) {
+  return apiFetch<MoveDocumentResponse>(`/documents/${documentId}/location`, {
+    body: request,
+    method: "PATCH",
+    signal,
+  });
+}
+
+export function archiveDocument(documentId: string, signal?: AbortSignal) {
+  return apiFetch<MoveDocumentResponse>(`/documents/${documentId}/archive`, {
+    method: "PATCH",
+    signal,
+  });
+}
+
+export function restoreDocument(documentId: string, signal?: AbortSignal) {
+  return apiFetch<MoveDocumentResponse>(`/documents/${documentId}/restore`, {
+    method: "PATCH",
+    signal,
+  });
+}
+
+export function deleteDocument(documentId: string, signal?: AbortSignal) {
+  return apiFetch<void>(`/documents/${documentId}`, {
+    method: "DELETE",
+    signal,
+  });
+}
+
+export function getDocumentActivity(documentId: string, signal?: AbortSignal) {
+  return apiFetch<DocumentActivityResponse>(`/documents/${documentId}/activity`, { signal });
+}
+
+export function getWorkspaceNotifications(workspaceId?: string | null, signal?: AbortSignal) {
+  const params = new URLSearchParams();
+  if (workspaceId) {
+    params.set("workspaceId", workspaceId);
+  }
+
+  return apiFetch<PermissionNotificationsResponse>(`/notifications${params.size ? `?${params.toString()}` : ""}`, { signal });
+}
+
+export function markWorkspaceNotificationRead(notificationId: string, signal?: AbortSignal) {
+  return apiFetch<PermissionNotificationDto>(`/notifications/${notificationId}/read`, {
+    body: { read: true },
+    method: "PATCH",
+    signal,
+  });
+}
+
+export function markAllWorkspaceNotificationsRead(workspaceId?: string | null, signal?: AbortSignal) {
+  return apiFetch<void>("/notifications/read-all", {
+    body: { workspaceId: workspaceId ?? null },
+    method: "PATCH",
+    signal,
+  });
+}
+
+export function getWorkspaceNotificationPreferences(workspaceId: string, signal?: AbortSignal) {
+  const params = new URLSearchParams({ workspaceId });
+  return apiFetch<PermissionNotificationPreferencesResponse>(`/notifications/preferences?${params.toString()}`, {
+    signal,
+  });
+}
+
+export function getWorkspaceMembers(workspaceId: string, signal?: AbortSignal) {
+  return apiFetch<WorkspaceMembersResponse>(`/workspaces/${workspaceId}/members`, { signal });
+}
+
+export function getOrganizationProfile(organizationId: string, signal?: AbortSignal) {
+  return apiFetch<OrganizationProfileResponse>(`/organizations/${organizationId}/profile`, { signal });
+}
+
+export function updateOrganizationProfile(
+  organizationId: string,
+  request: UpdateOrganizationProfileRequest,
+  signal?: AbortSignal,
+) {
+  return apiFetch<OrganizationProfileResponse>(`/organizations/${organizationId}/profile`, {
+    body: request,
+    method: "PATCH",
+    signal,
+  });
+}
+
+export function getOrganizationMembers(organizationId: string, signal?: AbortSignal) {
+  return apiFetch<OrganizationMembersResponse>(`/organizations/${organizationId}/members`, { signal });
 }
 
 export function updateDocument(

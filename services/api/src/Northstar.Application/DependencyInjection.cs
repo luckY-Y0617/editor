@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Northstar.Application.Bootstrap;
 using Northstar.Application.Files;
 using Northstar.Application.Knowledge;
+using Northstar.Application.Organizations;
 using Northstar.Application.Security;
 using Northstar.Application.Workspaces;
 
@@ -12,6 +13,7 @@ public static class DependencyInjection
     public static IServiceCollection AddApplication(this IServiceCollection services)
     {
         services.AddScoped<IBootstrapService, BootstrapService>();
+        services.AddScoped<ICollectionService, CollectionService>();
         services.AddScoped<IKnowledgeMapService, KnowledgeMapService>();
         services.AddScoped<IDocumentService, DocumentService>();
         services.AddScoped<IDocumentContextService, DocumentContextService>();
@@ -19,6 +21,8 @@ public static class DependencyInjection
         services.AddScoped<ICommentService, CommentService>();
         services.AddScoped<ISearchService, SearchService>();
         services.AddScoped<ISpaceTransferService, SpaceTransferService>();
+        services.AddScoped<IOrganizationSettingsQueryService, OrganizationSettingsQueryService>();
+        services.AddScoped<IOrganizationSettingsCommandService, OrganizationSettingsCommandService>();
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IAuthSecurityStateService, AuthSecurityStateService>();
         services.AddScoped<IAuthMfaService, AuthMfaService>();

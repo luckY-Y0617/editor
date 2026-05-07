@@ -10,9 +10,10 @@ public sealed class Workspace
         Slug = string.Empty;
     }
 
-    public Workspace(string name, string slug, Guid? createdBy = null, Guid? id = null)
+    public Workspace(string name, string slug, Guid? createdBy = null, Guid? id = null, Guid? organizationId = null)
     {
         Id = id ?? Guid.NewGuid();
+        OrganizationId = organizationId ?? Guid.Empty;
         Name = Required(name, nameof(name));
         Slug = Required(slug, nameof(slug));
         CreatedBy = createdBy;
@@ -21,6 +22,7 @@ public sealed class Workspace
     }
 
     public Guid Id { get; private set; }
+    public Guid OrganizationId { get; private set; }
     public string Name { get; private set; }
     public string Slug { get; private set; }
     public Guid? CreatedBy { get; private set; }
@@ -32,6 +34,17 @@ public sealed class Workspace
     public void SetDefaultSpace(Guid spaceId)
     {
         DefaultSpaceId = spaceId;
+        Touch();
+    }
+
+    public void SetOrganization(Guid organizationId)
+    {
+        if (organizationId == Guid.Empty)
+        {
+            throw new DomainException(DomainErrorCodes.ValidationError, "organizationId is required.");
+        }
+
+        OrganizationId = organizationId;
         Touch();
     }
 

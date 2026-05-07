@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Northstar.Domain.Knowledge.Spaces;
+using Northstar.Domain.Organizations;
 using Northstar.Domain.Users;
 using Northstar.Domain.Workspaces;
 
@@ -17,6 +18,10 @@ public sealed class WorkspaceConfiguration : IEntityTypeConfiguration<Workspace>
         builder.Property(workspace => workspace.Id)
             .HasColumnName("id")
             .HasDefaultValueSql("gen_random_uuid()");
+
+        builder.Property(workspace => workspace.OrganizationId)
+            .HasColumnName("organization_id")
+            .IsRequired();
 
         builder.Property(workspace => workspace.Name)
             .HasColumnName("name")
@@ -44,6 +49,14 @@ public sealed class WorkspaceConfiguration : IEntityTypeConfiguration<Workspace>
         builder.HasIndex(workspace => workspace.Slug)
             .IsUnique()
             .HasDatabaseName("workspaces_slug_key");
+
+        builder.HasIndex(workspace => workspace.OrganizationId)
+            .HasDatabaseName("ix_workspaces_organization_id");
+
+        builder.HasOne<Organization>()
+            .WithMany()
+            .HasForeignKey(workspace => workspace.OrganizationId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne<Space>()
             .WithMany()

@@ -2,7 +2,7 @@ using System.Text.Json;
 
 namespace Northstar.Contracts.Knowledge;
 
-public sealed record WorkspaceDto(string Id, string Name, string CurrentSpaceId);
+public sealed record WorkspaceDto(string Id, string Name, string CurrentSpaceId, string OrganizationId);
 
 public sealed record SpaceDto(string Id, string Name);
 
@@ -70,3 +70,12 @@ public sealed record MoveDocumentResponse(
     KnowledgeDocumentSummaryDto Document,
     KnowledgeMapResponse Map);
 
+public sealed record CreateCollectionRequest(string Title, decimal? SortOrder);
+
+public sealed record UpdateCollectionRequest(string? Title, decimal? SortOrder);
+
+public sealed record ReorderCollectionsRequest(IReadOnlyList<string> CollectionIds);
+
+public sealed record CollectionMutationResponse(
+    KnowledgeFolderDto Collection,
+    KnowledgeMapResponse Map);

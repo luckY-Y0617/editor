@@ -8,6 +8,8 @@ public static class PermissionActions
     public const string WorkspaceManagePermissions = "workspace.manage_permissions";
     public const string WorkspaceViewAudit = "workspace.view_audit";
 
+    public const string OrganizationManageSettings = "organization.manage_settings";
+
     public const string CollectionView = "collection.view";
     public const string CollectionEdit = "collection.edit";
     public const string CollectionCreateDocument = "collection.create_document";

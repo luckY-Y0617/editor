@@ -135,6 +135,38 @@ describe("apiClient", () => {
       expect(getStoredRefreshToken()).toBe(null);
     });
   });
+
+  test("surfaces network failures as ApiClientError before a response exists", async () => {
+    await withMockWindow(async () => {
+      let errorMessage = "";
+      let errorStatus = -1;
+
+      const fetchFn: typeof fetch = async () => {
+        throw new TypeError("Failed to fetch");
+      };
+
+      try {
+        await apiFetch("/auth/login", {
+          apiBaseUrl: "https://northstar.test/api/v1",
+          auth: false,
+          body: { email: "owner@northstar.local", password: "secret" },
+          fetchFn,
+          method: "POST",
+        });
+      } catch (error) {
+        if (error instanceof Error) {
+          errorMessage = error.message;
+        }
+
+        errorStatus = error instanceof Error && "status" in error ? Number(error.status) : -1;
+      }
+
+      expect(errorStatus).toBe(0);
+      expect(errorMessage).toBe(
+        "Could not reach API endpoint https://northstar.test/api/v1/auth/login. Failed to fetch",
+      );
+    });
+  });
 });
 
 async function withMockWindow(run: () => Promise<void>) {

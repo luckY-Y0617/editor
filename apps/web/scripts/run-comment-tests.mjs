@@ -8,6 +8,7 @@ const cacheDir = path.join(appRoot, ".comment-test-cache");
 const bundlePath = path.join(cacheDir, "comment-tests.mjs");
 
 const testFiles = [
+  "src/lib/authClient.test.ts",
   "src/lib/apiClient.test.ts",
   "src/lib/commentAnchorMatching.test.ts",
   "src/lib/commentComposerModel.test.ts",
@@ -16,6 +17,14 @@ const testFiles = [
   "src/lib/commentAnchorRelocation.test.ts",
   "src/lib/commentSelectionUx.test.ts",
   "src/lib/commentThreadState.test.ts",
+  "src/lib/hashRouting.test.ts",
+  "src/lib/i18n.test.ts",
+  "src/lib/librariesPageModel.test.ts",
+  "src/lib/permissionAdminModel.test.ts",
+  "src/lib/searchDiscoveryModel.test.ts",
+  "src/lib/workspaceSettingsModel.test.ts",
+  "src/lib/workspaceHomeModel.test.ts",
+  "src/lib/workspaceUpdatesModel.test.ts",
   "src/extensions/CommentDecorations.test.ts",
   "src/extensions/BlockIdentity.test.ts",
   "src/utils/knowledgeTransfer.test.ts",

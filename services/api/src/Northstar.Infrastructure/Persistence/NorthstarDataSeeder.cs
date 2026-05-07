@@ -10,6 +10,7 @@ using Northstar.Domain.Knowledge.Links;
 using Northstar.Domain.Knowledge.Spaces;
 using Northstar.Domain.Knowledge.Tags;
 using Northstar.Domain.Knowledge.Versions;
+using Northstar.Domain.Organizations;
 using Northstar.Domain.Shared;
 using Northstar.Domain.Users;
 using Northstar.Domain.Workspaces;
@@ -86,7 +87,8 @@ public sealed class NorthstarDataSeeder : INorthstarDataSeeder
     {
         var user = await EnsureUserAsync(cancellationToken);
         await EnsureOwnerCredentialAsync(user, cancellationToken);
-        var workspace = await EnsureWorkspaceAsync(user.Id, cancellationToken);
+        var organization = await EnsureOrganizationAsync(cancellationToken);
+        var workspace = await EnsureWorkspaceAsync(organization.Id, user.Id, cancellationToken);
         var space = await EnsureSpaceAsync(workspace.Id, user.Id, cancellationToken);
         await EnsureWorkspaceMemberAsync(workspace.Id, user.Id, cancellationToken);
         await EnsureCollectionsAsync(workspace.Id, space.Id, user.Id, cancellationToken);
@@ -136,17 +138,44 @@ public sealed class NorthstarDataSeeder : INorthstarDataSeeder
         return user;
     }
 
-    private async Task<Workspace> EnsureWorkspaceAsync(Guid userId, CancellationToken cancellationToken)
+    private async Task<Organization> EnsureOrganizationAsync(CancellationToken cancellationToken)
+    {
+        var organization = await _dbContext.Organizations
+            .FirstOrDefaultAsync(organization => organization.Slug == SeedDataIds.OrganizationSlug, cancellationToken);
+
+        if (organization is not null)
+        {
+            return organization;
+        }
+
+        organization = new Organization("Northstar", SeedDataIds.OrganizationSlug, SeedDataIds.OrganizationId);
+        await _dbContext.Organizations.AddAsync(organization, cancellationToken);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        return organization;
+    }
+
+    private async Task<Workspace> EnsureWorkspaceAsync(Guid organizationId, Guid userId, CancellationToken cancellationToken)
     {
         var workspace = await _dbContext.Workspaces
             .FirstOrDefaultAsync(workspace => workspace.Slug == SeedDataIds.WorkspaceSlug, cancellationToken);
 
         if (workspace is not null)
         {
+            if (workspace.OrganizationId != organizationId)
+            {
+                workspace.SetOrganization(organizationId);
+            }
+
             return workspace;
         }
 
-        workspace = new Workspace("Northstar", SeedDataIds.WorkspaceSlug, userId, SeedDataIds.WorkspaceId);
+        workspace = new Workspace(
+            "Northstar",
+            SeedDataIds.WorkspaceSlug,
+            userId,
+            SeedDataIds.WorkspaceId,
+            organizationId);
         await _dbContext.Workspaces.AddAsync(workspace, cancellationToken);
         await _dbContext.SaveChangesAsync(cancellationToken);
 

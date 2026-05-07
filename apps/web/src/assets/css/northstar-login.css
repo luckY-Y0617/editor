@@ -286,11 +286,12 @@
   position: relative;
   z-index: 2;
   display: grid;
+  overflow: auto;
   padding: clamp(44px, 6vh, 72px) clamp(32px, 6vw, 84px) clamp(32px, 4.7vh, 52px);
 }
 
 .login-heading {
-  margin-bottom: 28px;
+  margin-bottom: 18px;
 }
 
 .login-heading h1 {
@@ -306,6 +307,44 @@
   color: rgba(47, 57, 72, 0.72);
   font-size: 16px;
   line-height: 1.5;
+}
+
+.auth-mode-switch {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  margin-bottom: 22px;
+  padding: 4px;
+  border: 1px solid rgba(15, 41, 71, 0.16);
+  border-radius: 4px;
+  background: rgba(15, 41, 71, 0.05);
+}
+
+.auth-mode-switch button {
+  height: 34px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: rgba(8, 28, 50, 0.68);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  transition:
+    background-color 150ms ease,
+    box-shadow 150ms ease,
+    color 150ms ease;
+}
+
+.auth-mode-switch button.is-active {
+  background: rgba(255, 253, 248, 0.92);
+  color: var(--ns-login-navy-deep);
+  box-shadow: 0 1px 4px rgba(15, 41, 71, 0.1);
+}
+
+.auth-mode-switch button:focus-visible {
+  outline: 2px solid rgba(31, 77, 138, 0.52);
+  outline-offset: 2px;
 }
 
 .field-label {
@@ -448,7 +487,8 @@
 
 .sign-in-button:focus-visible,
 .sso-button:focus-visible,
-.login-links a:focus-visible {
+.login-links a:focus-visible,
+.login-link-button:focus-visible {
   outline: 2px solid rgba(31, 77, 138, 0.52);
   outline-offset: 3px;
 }
@@ -552,7 +592,22 @@
   transition: color 150ms ease;
 }
 
-.login-links a:hover {
+.login-link-button {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  border: 0;
+  background: transparent;
+  color: #145496;
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+  text-align: left;
+  transition: color 150ms ease;
+}
+
+.login-links a:hover,
+.login-link-button:hover {
   color: #0c365e;
   text-decoration: underline;
 }

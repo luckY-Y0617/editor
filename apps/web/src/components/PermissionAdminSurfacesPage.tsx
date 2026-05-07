@@ -3,7 +3,6 @@ import {
   Copy,
   Database,
   KeyRound,
-  LockKeyhole,
   RefreshCw,
   ServerCog,
   ShieldCheck,
@@ -13,8 +12,9 @@ import {
   X,
 } from "lucide-react";
 import { type CSSProperties, type ReactNode, useEffect, useMemo, useState } from "react";
-import { AtlasIcon } from "./AtlasIcon";
+import { WorkspaceHomeSidebar } from "./WorkspaceHomeSidebar";
 import { WorkspaceHomeTopBar } from "./WorkspaceHomeTopBar";
+import { getCurrentUser } from "../lib/authClient";
 import {
   PermissionAdminApiError,
   addWorkspaceMember,
@@ -39,7 +39,13 @@ import {
   type WorkspaceGroupDto,
   type WorkspaceMemberDto,
 } from "../lib/permissionAdminApi";
-import compassMarkUrl from "../assets/svg/decorative/compass-mark-small.svg";
+import {
+  getCurrentWorkspaceRole,
+  getMemberActionCapability,
+  getRoleChangeOptions,
+  toPermissionMutationError,
+  type CurrentWorkspaceRole,
+} from "../lib/permissionAdminModel";
 import coordinatePatternUrl from "../assets/svg/patterns/coordinate-ticks.svg";
 import routePatternUrl from "../assets/svg/patterns/route-line.svg";
 import topographicPatternUrl from "../assets/svg/patterns/topographic-lines.svg";
@@ -53,6 +59,9 @@ const permissionAdminPatternStyle = {
   "--permission-admin-coordinate-pattern": `url(${coordinatePatternUrl})`,
   "--permission-admin-route-pattern": `url(${routePatternUrl})`,
   "--permission-admin-topographic-pattern": `url(${topographicPatternUrl})`,
+  "--workspace-home-coordinate-pattern": `url(${coordinatePatternUrl})`,
+  "--workspace-home-route-pattern": `url(${routePatternUrl})`,
+  "--workspace-home-topographic-pattern": `url(${topographicPatternUrl})`,
 } as CSSProperties;
 
 export function PermissionAdminSurfacesPage({ initialTab = "members" }: { initialTab?: PermissionAdminTab }) {
@@ -61,6 +70,7 @@ export function PermissionAdminSurfacesPage({ initialTab = "members" }: { initia
   const groups = useWorkspaceGroups(permissionAdminWorkspaceId);
   const scimDiscovery = useScimDiscovery(permissionAdminWorkspaceId);
   const scimTokens = useScimTokens(permissionAdminWorkspaceId);
+  const currentRole = useCurrentWorkspaceRole(permissionAdminWorkspaceId);
   const memberMutations = useMemberMutations(members.apiBaseUrl, permissionAdminWorkspaceId, members.reload);
 
   useEffect(() => {
@@ -71,7 +81,7 @@ export function PermissionAdminSurfacesPage({ initialTab = "members" }: { initia
     <main className="permission-admin-shell flex h-screen flex-col overflow-hidden" style={permissionAdminPatternStyle}>
       <WorkspaceHomeTopBar />
       <div className="permission-admin-body flex min-h-0 flex-1 overflow-hidden">
-        <PermissionAdminSidebar activeTab={activeTab} />
+        <WorkspaceHomeSidebar activeItem="members" showCollections={false} />
         <section className="permission-admin-feed editor-scrollbar min-w-0 flex-1 overflow-y-auto">
           <div className="permission-admin-feed-inner">
             <PermissionAdminHeader
@@ -103,6 +113,7 @@ export function PermissionAdminSurfacesPage({ initialTab = "members" }: { initia
                 groups={groups.groups}
                 memberMutations={memberMutations}
                 members={members.members}
+                currentRole={currentRole}
                 reloadGroups={groups.reload}
                 reloadMembers={members.reload}
                 status={members.status}
@@ -112,56 +123,6 @@ export function PermissionAdminSurfacesPage({ initialTab = "members" }: { initia
         </section>
       </div>
     </main>
-  );
-}
-
-function PermissionAdminSidebar({ activeTab }: { activeTab: PermissionAdminTab }) {
-  const navItems = [
-    { id: "members" as const, href: "#workspace-members", label: "Members", icon: UsersRound },
-    { id: "groups" as const, href: "#workspace-groups", label: "Groups", icon: ShieldCheck },
-    { id: "scim" as const, href: "#scim", label: "SCIM", icon: ServerCog },
-  ];
-
-  return (
-    <aside className="permission-admin-sidebar hidden h-full w-[320px] shrink-0 overflow-hidden md:flex md:flex-col">
-      <div className="permission-admin-ruler" aria-hidden="true">
-        <span>N 90</span>
-        <span>N 60</span>
-        <span>N 30</span>
-        <span>0</span>
-        <span>S 30</span>
-        <span>S 60</span>
-      </div>
-      <div className="permission-admin-sidebar-inner editor-scrollbar">
-        <nav aria-label="Permission admin navigation">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            return (
-              <a
-                aria-current={activeTab === item.id ? "page" : undefined}
-                className={["permission-admin-nav-item", activeTab === item.id ? "is-active" : ""].join(" ")}
-                href={item.href}
-                key={item.id}
-                title={item.label}
-              >
-                <Icon className="h-4 w-4 shrink-0" />
-                <span>{item.label}</span>
-                {activeTab === item.id ? <span className="permission-admin-active-dot" /> : null}
-              </a>
-            );
-          })}
-          <a className="permission-admin-nav-item" href="#permissions" title="Document permissions">
-            <LockKeyhole className="h-4 w-4 shrink-0" />
-            <span>Document Share</span>
-          </a>
-        </nav>
-
-        <div className="permission-admin-sidebar-note">
-          <AtlasIcon className="mx-auto h-20 w-20 opacity-35" src={compassMarkUrl} />
-          <p>Workspace-scoped admin surfaces use existing protected APIs only.</p>
-        </div>
-      </div>
-    </aside>
   );
 }
 
@@ -259,6 +220,7 @@ function ConnectionSummary({
 }
 
 function WorkspaceMembersPanel({
+  currentRole,
   groups,
   memberMutations,
   members,
@@ -266,6 +228,7 @@ function WorkspaceMembersPanel({
   reloadMembers,
   status,
 }: {
+  currentRole: CurrentWorkspaceRole;
   groups: WorkspaceGroupDto[] | null;
   memberMutations: ReturnType<typeof useMemberMutations>;
   members: WorkspaceMemberDto[] | null;
@@ -275,14 +238,14 @@ function WorkspaceMembersPanel({
 }) {
   return (
     <>
-      <AddMemberPanel mutations={memberMutations} status={status} />
+      <AddMemberPanel currentRole={currentRole} mutations={memberMutations} status={status} />
       <section className="permission-admin-section">
         <SectionTitle count={members?.length ?? 0} title="Workspace Members">
           <button className="permission-admin-icon-button" onClick={() => reloadMembers()} title="Refresh members" type="button">
             <RefreshCw className="h-4 w-4" />
           </button>
         </SectionTitle>
-        <WorkspaceMembersTable members={members} mutations={memberMutations} status={status} />
+        <WorkspaceMembersTable currentRole={currentRole} members={members} mutations={memberMutations} status={status} />
       </section>
 
       <section className="permission-admin-section">
@@ -298,15 +261,24 @@ function WorkspaceMembersPanel({
 }
 
 function AddMemberPanel({
+  currentRole,
   mutations,
   status,
 }: {
+  currentRole: CurrentWorkspaceRole;
   mutations: ReturnType<typeof useMemberMutations>;
   status: PermissionAdminApiStatus;
 }) {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<WorkspaceRoleOption>("viewer");
-  const canMutate = status === "ready" && mutations.canUse;
+  const addCapability = getMemberActionCapability({
+    action: "add-member",
+    apiConfigured: mutations.canUse,
+    currentRole,
+    operation: mutations.operation,
+    status,
+  });
+  const canMutate = addCapability.canUse;
   const isValid = email.trim().includes("@") && memberRoleOptions.includes(role);
 
   const submit = () => {
@@ -359,7 +331,7 @@ function AddMemberPanel({
             className="permission-admin-primary-action"
             disabled={!canMutate || !isValid || mutations.operation === "add-member"}
             onClick={submit}
-            title={!canMutate ? statusLabel(status) : undefined}
+            title={!canMutate ? addCapability.reason ?? statusLabel(status) : "Add an existing user to this workspace"}
             type="button"
           >
             <UserPlus className="h-4 w-4" />
@@ -373,10 +345,12 @@ function AddMemberPanel({
 }
 
 function WorkspaceMembersTable({
+  currentRole,
   members,
   mutations,
   status,
 }: {
+  currentRole: CurrentWorkspaceRole;
   members: WorkspaceMemberDto[] | null;
   mutations: ReturnType<typeof useMemberMutations>;
   status: PermissionAdminApiStatus;
@@ -414,49 +388,76 @@ function WorkspaceMembersTable({
         <span>Joined</span>
         <span>Actions</span>
       </div>
-      {members.map((member) => (
-        <article className="permission-admin-table-row is-members" key={member.userId}>
-          <span className="permission-admin-identity">
-            <Avatar initials={getInitials(member.displayName || member.email || member.userId)} tone={member.role} />
-            <span className="min-w-0">
-              <strong title={member.displayName || member.userId}>{member.displayName || "Unnamed user"}</strong>
-              <small>{shortId(member.userId)}</small>
+      {members.map((member) => {
+        const updateCapability = getMemberActionCapability({
+          action: "update-role",
+          apiConfigured: mutations.canUse,
+          currentRole,
+          member,
+          operation: mutations.operation,
+          status,
+        });
+        const removeCapability = getMemberActionCapability({
+          action: "remove-member",
+          apiConfigured: mutations.canUse,
+          currentRole,
+          member,
+          operation: mutations.operation,
+          status,
+        });
+        return (
+          <article className="permission-admin-table-row is-members" key={member.userId}>
+            <span className="permission-admin-identity">
+              <Avatar initials={getInitials(member.displayName || member.email || member.userId)} tone={member.role} />
+              <span className="min-w-0">
+                <strong title={member.displayName || member.userId}>{member.displayName || "Unnamed user"}</strong>
+                <small>{shortId(member.userId)}</small>
+              </span>
             </span>
-          </span>
-          <span className="permission-admin-cell-text">{member.email ?? "No email"}</span>
-          <WorkspaceRoleSelect
-            disabled={!mutations.canUse || mutations.operation === member.userId}
-            member={member}
-            onChange={(role) => mutations.updateRole(member.userId, role)}
-          />
-          <StatusPill label={member.status} />
-          <span className="permission-admin-cell-text">{member.joinedAt ? formatDateTime(member.joinedAt) : "Unknown"}</span>
-          <span className="permission-admin-row-actions">
-            <button
-              className="permission-admin-icon-button is-danger"
-              disabled={!mutations.canUse || mutations.operation === member.userId}
-              onClick={() => remove(member)}
-              title={confirmRemoveUserId === member.userId ? "Confirm member removal" : "Remove member"}
-              type="button"
-            >
-              {confirmRemoveUserId === member.userId ? "Confirm" : <Trash2 className="h-4 w-4" />}
-            </button>
-            <button className="permission-admin-icon-button" disabled title="Reactivate API is not available" type="button">
-              <RefreshCw className="h-4 w-4" />
-            </button>
-          </span>
-        </article>
-      ))}
+            <span className="permission-admin-cell-text">{member.email ?? "No email"}</span>
+            <WorkspaceRoleSelect
+              disabled={!updateCapability.canUse}
+              disabledReason={updateCapability.reason}
+              member={member}
+              onChange={(role) => mutations.updateRole(member.userId, role)}
+            />
+            <StatusPill label={member.status} />
+            <span className="permission-admin-cell-text">{member.joinedAt ? formatDateTime(member.joinedAt) : "Unknown"}</span>
+            <span className="permission-admin-row-actions">
+              <button
+                className="permission-admin-icon-button is-danger"
+                disabled={!removeCapability.canUse}
+                onClick={() => remove(member)}
+                title={
+                  !removeCapability.canUse
+                    ? removeCapability.reason ?? "Member removal is unavailable"
+                    : confirmRemoveUserId === member.userId
+                      ? "Confirm member removal"
+                      : "Remove member"
+                }
+                type="button"
+              >
+                {confirmRemoveUserId === member.userId ? "Confirm" : <Trash2 className="h-4 w-4" />}
+              </button>
+              <button className="permission-admin-icon-button" disabled title="Reactivate API is not available" type="button">
+                <RefreshCw className="h-4 w-4" />
+              </button>
+            </span>
+          </article>
+        );
+      })}
     </div>
   );
 }
 
 function WorkspaceRoleSelect({
   disabled,
+  disabledReason,
   member,
   onChange,
 }: {
   disabled: boolean;
+  disabledReason: string | null;
   member: WorkspaceMemberDto;
   onChange: (role: string) => Promise<WorkspaceMemberDto | null>;
 }) {
@@ -473,17 +474,22 @@ function WorkspaceRoleSelect({
       onChange={(event) => {
         const nextRole = event.target.value;
         setDraftRole(nextRole);
-        void onChange(nextRole);
+        void onChange(nextRole).then((updated) => {
+          if (!updated) {
+            setDraftRole(member.role);
+          }
+        });
       }}
-      title={member.role === "owner" ? "Owner can be downgraded only if backend ownership rules allow it" : "Update role"}
+      title={
+        disabled
+          ? disabledReason ?? "Role update is unavailable"
+          : member.role === "owner"
+            ? "Owner changes are checked by backend last-owner and step-up rules"
+            : "Update role"
+      }
       value={draftRole}
     >
-      {member.role === "owner" ? (
-        <option disabled value="owner">
-          Owner
-        </option>
-      ) : null}
-      {memberRoleOptions.map((role) => (
+      {getRoleChangeOptions(member).map((role) => (
         <option key={role} value={role}>
           {formatPermissionValue(role)}
         </option>
@@ -934,6 +940,36 @@ function useWorkspaceMembers(workspaceId: string | null) {
   return { apiBaseUrl, members, reload: loadMembers, status };
 }
 
+function useCurrentWorkspaceRole(workspaceId: string | null) {
+  const [role, setRole] = useState<CurrentWorkspaceRole>("unknown");
+
+  useEffect(() => {
+    if (!workspaceId) {
+      setRole("unknown");
+      return;
+    }
+
+    let isActive = true;
+    void getCurrentUser()
+      .then((response) => {
+        if (isActive) {
+          setRole(getCurrentWorkspaceRole(response.workspaces, workspaceId));
+        }
+      })
+      .catch(() => {
+        if (isActive) {
+          setRole("unknown");
+        }
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [workspaceId]);
+
+  return role;
+}
+
 function useWorkspaceGroups(workspaceId: string | null) {
   const apiBaseUrl = useMemo(() => getConfiguredPermissionAdminApiBaseUrl(), []);
   const [groups, setGroups] = useState<WorkspaceGroupDto[] | null>(null);
@@ -1207,15 +1243,7 @@ function getErrorStatus(error: unknown): PermissionAdminApiStatus {
 }
 
 function toMutationError(error: unknown, fallback: string) {
-  if (error instanceof PermissionAdminApiError && (error.status === 401 || error.status === 403)) {
-    return "You do not have permission to change this workspace.";
-  }
-
-  if (error instanceof PermissionAdminApiError && error.status === 409) {
-    return "The requested change conflicts with current workspace state.";
-  }
-
-  return fallback;
+  return toPermissionMutationError(error, fallback);
 }
 
 function getTokenStatus(token: ScimTokenDto) {

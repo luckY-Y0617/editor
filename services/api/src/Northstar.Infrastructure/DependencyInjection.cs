@@ -5,10 +5,12 @@ using Microsoft.Extensions.Options;
 using Northstar.Application.Common;
 using Northstar.Application.Files;
 using Northstar.Application.Knowledge;
+using Northstar.Application.Organizations;
 using Northstar.Application.Security;
 using Northstar.Application.Workspaces;
 using Northstar.Infrastructure.Files;
 using Northstar.Infrastructure.Knowledge;
+using Northstar.Infrastructure.Organizations;
 using Northstar.Infrastructure.Persistence;
 using Northstar.Infrastructure.Security;
 using Northstar.Infrastructure.Workspaces;
@@ -56,6 +58,7 @@ public static class DependencyInjection
         services.AddScoped<IUnitOfWork>(provider => provider.GetRequiredService<NorthstarDbContext>());
         services.AddScoped<ITransactionRunner, EfTransactionRunner>();
         services.AddScoped<INorthstarDataSeeder, NorthstarDataSeeder>();
+        services.AddScoped<ICollectionRepository, EfCollectionRepository>();
         services.AddScoped<IKnowledgeQueryService, EfKnowledgeQueryService>();
         services.AddScoped<IDocumentRepository, EfDocumentRepository>();
         services.AddScoped<ICommentRepository, EfCommentRepository>();
@@ -64,6 +67,7 @@ public static class DependencyInjection
         services.AddScoped<IDocumentActivityQueryService, EfDocumentActivityQueryService>();
         services.AddScoped<ISearchQueryService, EfSearchQueryService>();
         services.AddScoped<ISpaceTransferRepository, EfSpaceTransferRepository>();
+        services.AddScoped<IOrganizationSettingsRepository, EfOrganizationSettingsRepository>();
         services.AddScoped<IAuthRepository, EfAuthRepository>();
         services.AddSingleton<IIdpLoginPolicy, ConfiguredIdpLoginPolicy>();
         services.AddScoped<IPasswordHashService, PasswordHashService>();

@@ -1179,6 +1179,56 @@ namespace Northstar.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Northstar.Domain.Organizations.Organization", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("slug");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text")
+                        .HasDefaultValue("active")
+                        .HasColumnName("status");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Slug")
+                        .IsUnique()
+                        .HasDatabaseName("organizations_slug_key");
+
+                    b.ToTable("organizations", (string)null);
+                });
+
             modelBuilder.Entity("Northstar.Domain.Security.AccessRequest", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2536,6 +2586,10 @@ namespace Northstar.Infrastructure.Persistence.Migrations
                         .HasColumnType("text")
                         .HasColumnName("name");
 
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organization_id");
+
                     b.Property<string>("Slug")
                         .IsRequired()
                         .HasColumnType("text")
@@ -2552,6 +2606,9 @@ namespace Northstar.Infrastructure.Persistence.Migrations
                     b.HasIndex("CreatedBy");
 
                     b.HasIndex("DefaultSpaceId");
+
+                    b.HasIndex("OrganizationId")
+                        .HasDatabaseName("ix_workspaces_organization_id");
 
                     b.HasIndex("Slug")
                         .IsUnique()
@@ -3196,6 +3253,12 @@ namespace Northstar.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("DefaultSpaceId")
                         .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Northstar.Domain.Organizations.Organization", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Northstar.Domain.Workspaces.WorkspaceMember", b =>

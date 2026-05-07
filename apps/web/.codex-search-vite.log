@@ -1,0 +1,55 @@
+
+> knowledge-editor-shell@0.1.0 dev
+> vite --host 0.0.0.0 --port 5173
+
+Port 5173 is in use, trying another one...
+
+  [32m[1mVITE[22m v4.5.14[39m  [2mready in [0m[1m186[22m[2m[0m ms[22m
+
+  [32m➜[39m  [1mLocal[22m:   [36mhttp://localhost:[1m5174[22m/[39m
+  [32m➜[39m  [1mNetwork[22m: [36mhttp://192.168.1.8:[1m5174[22m/[39m
+[2m[32m  ➜[39m[22m[2m  press [22m[1mh[22m[2m to show help[22m
+[2m20:39:47[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/WorkspaceHomeTopBar.tsx, /src/index.css[22m
+[2m20:41:34[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/SearchDiscoveryPage.tsx, /src/index.css[22m
+[2m20:41:45[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m21:04:32[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/WorkspaceHomePage.tsx[22m
+[2m21:05:15[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/WorkspaceHomePage.tsx[22m
+[2m21:05:21[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/WorkspaceHomePage.tsx, /src/index.css[22m
+[2m21:07:09[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/WorkspaceHomePage.tsx, /src/index.css[22m
+[2m21:08:15[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m21:08:44[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/lib/workspaceHomeModel.test.ts[22m
+[2m21:09:10[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/WorkspaceHomePage.tsx, /src/index.css[22m
+[2m21:09:27[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/WorkspaceHomePage.tsx[22m
+[2m21:10:05[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/WorkspaceHomePage.tsx[22m
+[2m21:31:33[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/SearchDiscoveryPage.tsx, /src/index.css, /src/components/KnowledgeEditorPage.tsx, /src/components/WorkspaceHomePage.tsx, /src/components/LibrariesPage.tsx[22m
+[2m21:31:51[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/LibrariesPage.tsx[22m
+[2m21:32:09[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/lib/librariesPageModel.test.ts[22m
+[2m21:32:21[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/LibrariesPage.tsx[22m
+[2m21:33:03[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/LibrariesPage.tsx, /src/index.css[22m
+[2m21:33:27[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/LibrariesPage.tsx, /src/index.css[22m
+[2m21:33:43[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/LibrariesPage.tsx, /src/index.css[22m
+[2m21:34:14[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m21:34:40[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m21:34:53[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/LibrariesPage.tsx, /src/index.css[22m
+[2m21:46:22[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/SearchDiscoveryPage.tsx, /src/index.css, /src/components/KnowledgeEditorPage.tsx, /src/components/WorkspaceHomePage.tsx, /src/components/LibrariesPage.tsx[22m
+[2m21:47:02[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/LibrariesPage.tsx[22m
+[2m21:47:18[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/lib/librariesPageModel.test.ts[22m
+[2m21:48:14[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/LibrariesPage.tsx, /src/index.css[22m
+[2m21:48:47[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/LibrariesPage.tsx, /src/index.css[22m
+[2m21:49:21[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m21:49:31[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/LibrariesPage.tsx, /src/index.css[22m
+[2m21:49:43[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/LibrariesPage.tsx[22m
+[2m21:49:55[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/LibrariesPage.tsx, /src/index.css[22m
+[2m22:01:27[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/SearchDiscoveryPage.tsx, /src/index.css, /src/components/KnowledgeEditorPage.tsx, /src/components/WorkspaceHomePage.tsx, /src/components/LibrariesPage.tsx[22m
+[2m22:02:18[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/SearchDiscoveryPage.tsx, /src/index.css[22m
+[2m22:02:40[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/WorkspaceHomePage.tsx[22m
+[2m22:03:03[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/WorkspaceHomePage.tsx, /src/index.css[22m
+[2m22:03:47[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/WorkspaceUpdatesPage.tsx, /src/index.css[22m
+[2m22:04:12[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/SearchDiscoveryPage.tsx, /src/index.css, /src/components/KnowledgeEditorPage.tsx, /src/components/WorkspaceHomePage.tsx, /src/components/LibrariesPage.tsx[22m
+[2m22:04:23[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/WorkspaceUpdatesPage.tsx, /src/index.css[22m
+[2m22:04:46[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m22:05:36[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/lib/workspaceHomeModel.test.ts[22m
+[2m22:05:45[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/SearchDiscoveryPage.tsx, /src/index.css[22m
+[2m22:10:29[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/SearchDiscoveryPage.tsx, /src/index.css[22m
+[2m22:10:45[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/WorkspaceUpdatesPage.tsx, /src/index.css[22m
+[2m22:12:10[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/SearchDiscoveryPage.tsx, /src/index.css[22m
