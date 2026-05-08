@@ -336,12 +336,16 @@ type TranslationKey =
   | "topbar.workspaceSwitcher"
   | "topbar.workspaceSwitchingDeferred"
   | "topbar.workspaceHome"
+  | "updates.accessRequests"
   | "updates.all"
   | "updates.comments"
   | "updates.documentChanges"
+  | "updates.expiry"
   | "updates.general"
+  | "updates.grantsGroups"
   | "updates.access"
   | "updates.mentions"
+  | "updates.sharing"
   | "updates.unread"
   | "updates.heading"
   | "updates.latest"
@@ -431,7 +435,7 @@ const messages: Record<DisplayLocale, Messages> = {
     "settings.availableLibraries": "Available Libraries",
     "settings.archiveWorkspace": "Archive workspace",
     "settings.archiveWorkspaceDeferredReason": "Workspace archive/delete semantics are deferred for organization scope.",
-    "settings.accessIdentity": "Access & identity",
+    "settings.accessIdentity": "Permissions",
     "settings.assessment": "Assessment",
     "settings.categoryAndDigest": "Category And Digest",
     "settings.categoryPreferences": "Category preferences",
@@ -687,11 +691,14 @@ const messages: Record<DisplayLocale, Messages> = {
     "topbar.workspaceSwitchingDeferred": "Workspace switching is visible but not supported by this frontend route yet.",
     "topbar.workspaceHome": "Workspace Home",
     "updates.access": "Access / approvals",
+    "updates.accessRequests": "Access requests",
     "updates.all": "All",
     "updates.comments": "Comments",
     "updates.documentChanges": "Document changes",
+    "updates.expiry": "Expiry",
     "updates.general": "General",
-    "updates.heading": "Track comments, mentions, document changes, and workspace activity.",
+    "updates.grantsGroups": "Grants & groups",
+    "updates.heading": "Review workspace access requests, grants, groups, share links, and invite notifications.",
     "updates.latest": "Latest",
     "updates.markAllRead": "Mark all read",
     "updates.mentions": "Mentions",
@@ -699,8 +706,9 @@ const messages: Record<DisplayLocale, Messages> = {
     "updates.noNotifications": "No notifications",
     "updates.noNotificationsForFilter": "No notifications match this filter",
     "updates.shown": "{count} shown",
+    "updates.sharing": "Sharing links & invites",
     "updates.summary": "Summary",
-    "updates.title": "Updates",
+    "updates.title": "Access & sharing notifications",
     "updates.unread": "Unread",
   },
   "zh-CN": {
@@ -778,7 +786,7 @@ const messages: Record<DisplayLocale, Messages> = {
     "settings.availableLibraries": "可用资料库",
     "settings.archiveWorkspace": "归档工作区",
     "settings.archiveWorkspaceDeferredReason": "组织范围的工作区归档 / 删除语义暂未定义。",
-    "settings.accessIdentity": "\u8bbf\u95ee\u4e0e\u8eab\u4efd",
+    "settings.accessIdentity": "\u6743\u9650",
     "settings.assessment": "评估",
     "settings.categoryAndDigest": "分类与摘要",
     "settings.categoryPreferences": "分类偏好",
@@ -1034,11 +1042,14 @@ const messages: Record<DisplayLocale, Messages> = {
     "topbar.workspaceSwitchingDeferred": "\u5de5\u4f5c\u533a\u5207\u6362\u53ef\u89c1\uff0c\u4f46\u5f53\u524d\u524d\u7aef\u8def\u7531\u5c1a\u4e0d\u652f\u6301\u771f\u5b9e\u5207\u6362\u3002",
     "topbar.workspaceHome": "工作区主页",
     "updates.access": "访问 / 审批",
+    "updates.accessRequests": "访问请求",
     "updates.all": "全部",
     "updates.comments": "评论",
     "updates.documentChanges": "文档变更",
+    "updates.expiry": "过期",
     "updates.general": "常规",
-    "updates.heading": "跟踪评论、提及、文档变更和工作区动态。",
+    "updates.grantsGroups": "授权与组",
+    "updates.heading": "查看工作区访问请求、授权、组、分享链接和邀请通知。",
     "updates.latest": "最新",
     "updates.markAllRead": "全部标为已读",
     "updates.mentions": "提及",
@@ -1046,8 +1057,9 @@ const messages: Record<DisplayLocale, Messages> = {
     "updates.noNotifications": "暂无通知",
     "updates.noNotificationsForFilter": "没有符合当前筛选的通知",
     "updates.shown": "显示 {count} 条",
+    "updates.sharing": "分享链接与邀请",
     "updates.summary": "摘要",
-    "updates.title": "更新",
+    "updates.title": "访问与分享通知",
     "updates.unread": "未读",
   },
 };
@@ -1135,21 +1147,19 @@ export function getQuickActionLabel(locale: DisplayLocale, id: HomeQuickActionRo
 
 export function getWorkspaceUpdatesTabDisplayLabel(
   locale: DisplayLocale,
-  tab: "access" | "all" | "comments" | "documents" | "general" | "mentions" | "unread",
+  tab: "access" | "all" | "expiry" | "grants" | "sharing" | "unread",
 ) {
   switch (tab) {
     case "unread":
       return t(locale, "updates.unread");
-    case "comments":
-      return t(locale, "updates.comments");
-    case "mentions":
-      return t(locale, "updates.mentions");
     case "access":
-      return t(locale, "updates.access");
-    case "documents":
-      return t(locale, "updates.documentChanges");
-    case "general":
-      return t(locale, "updates.general");
+      return t(locale, "updates.accessRequests");
+    case "grants":
+      return t(locale, "updates.grantsGroups");
+    case "sharing":
+      return t(locale, "updates.sharing");
+    case "expiry":
+      return t(locale, "updates.expiry");
     case "all":
     default:
       return t(locale, "updates.all");

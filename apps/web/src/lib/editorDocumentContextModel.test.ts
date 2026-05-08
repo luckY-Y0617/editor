@@ -40,11 +40,123 @@ describe("editorDocumentContextModel", () => {
     ]);
     expect(model.activity).toEqual([
       {
+        actorName: "Alice Kim",
+        actionLabel: "updated",
+        documentTitle: "Mission",
+        href: `#editor?documentId=${relatedDocumentId}`,
         id: "activity-1",
         date: "May 15, 2024",
-        detail: "Alice Kim updated this document.",
-        title: "Document updated",
+        detail: "Alice Kim updated Mission.",
+        title: "Mission",
       },
+    ]);
+  });
+
+  test("keeps document activity readable when backend sends generic details", () => {
+    const model = createEditorDocumentContextPanelModel(null, {
+      items: [
+        {
+          actor: null,
+          date: "2024-05-15T10:00:00.000Z",
+          detail: "Updated content.",
+          document: {
+            id: relatedDocumentId,
+            title: "Mission",
+          },
+          id: "activity-generic",
+          title: "document.updated",
+        },
+      ],
+    });
+
+    expect(model.activity[0]).toMatchObject({
+      actorName: "Unknown user",
+      detail: "Unknown user updated Mission.",
+      documentTitle: "Mission",
+      href: `#editor?documentId=${relatedDocumentId}`,
+    });
+  });
+
+  test("groups repeated generic document update rows for display", () => {
+    const model = createEditorDocumentContextPanelModel(null, {
+      items: Array.from({ length: 4 }, (_, index) => ({
+        actor: {
+          id: "alice",
+          name: "Alice Kim",
+        },
+        date: `2024-05-15T10:0${3 - index}:00.000Z`,
+        detail: "Updated content.",
+        document: {
+          id: relatedDocumentId,
+          title: "Mission",
+        },
+        id: `activity-update-${index}`,
+        title: "document.updated",
+      })),
+    });
+
+    expect(model.activity.length).toBe(1);
+    expect(model.activity[0]).toMatchObject({
+      actorName: "Alice Kim",
+      detail: "Alice Kim updated Mission 4 times. 4 updates grouped.",
+      documentTitle: "Mission",
+      href: `#editor?documentId=${relatedDocumentId}`,
+      id: "activity-update-0:grouped-4",
+    });
+  });
+
+  test("does not group comment or access activity into document update noise", () => {
+    const model = createEditorDocumentContextPanelModel(null, {
+      items: [
+        {
+          actor: {
+            id: "alice",
+            name: "Alice Kim",
+          },
+          date: "2024-05-15T10:03:00.000Z",
+          detail: "Updated content.",
+          document: {
+            id: relatedDocumentId,
+            title: "Mission",
+          },
+          id: "activity-update-1",
+          title: "document.updated",
+        },
+        {
+          actor: {
+            id: "alice",
+            name: "Alice Kim",
+          },
+          date: "2024-05-15T10:02:00.000Z",
+          detail: "Comment created.",
+          document: {
+            id: relatedDocumentId,
+            title: "Mission",
+          },
+          id: "activity-comment",
+          title: "comment.created",
+        },
+        {
+          actor: {
+            id: "alice",
+            name: "Alice Kim",
+          },
+          date: "2024-05-15T10:01:00.000Z",
+          detail: "Updated content.",
+          document: {
+            id: relatedDocumentId,
+            title: "Mission",
+          },
+          id: "activity-update-2",
+          title: "document.updated",
+        },
+      ],
+    });
+
+    expect(model.activity.map((row) => row.id)).toEqual([
+      "activity-update-1",
+      "activity-comment",
+      "activity-update-2",
     ]);
   });
 
@@ -88,8 +200,16 @@ function createActivity(): DocumentActivityResponse {
   return {
     items: [
       {
+        actor: {
+          id: "alice",
+          name: "Alice Kim",
+        },
         date: "2024-05-15T10:00:00.000Z",
-        detail: "Alice Kim updated this document.",
+        detail: "Updated content.",
+        document: {
+          id: relatedDocumentId,
+          title: "Mission",
+        },
         id: "activity-1",
         title: "Document updated",
       },

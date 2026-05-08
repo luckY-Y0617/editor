@@ -86,7 +86,7 @@ export function PermissionAdminSurfacesPage({ initialTab = "members" }: { initia
     <main className="permission-admin-shell flex h-screen flex-col overflow-hidden" style={permissionAdminPatternStyle}>
       <WorkspaceHomeTopBar />
       <div className="permission-admin-body flex min-h-0 flex-1 overflow-hidden">
-        <WorkspaceHomeSidebar activeItem="members" showCollections={false} />
+        <WorkspaceHomeSidebar activeItem="settings" showCollections={false} />
         <section className="permission-admin-feed editor-scrollbar min-w-0 flex-1 overflow-y-auto">
           <div className="permission-admin-feed-inner">
             <PermissionAdminHeader
@@ -175,9 +175,9 @@ function PermissionAdminTabs({
   onChange: (tab: PermissionAdminTab) => void;
 }) {
   const tabs: Array<{ id: PermissionAdminTab; label: string; href: string }> = [
-    { id: "members", label: "Members", href: "#workspace-members" },
-    { id: "groups", label: "Groups", href: "#workspace-groups" },
-    { id: "scim", label: "SCIM", href: "#scim" },
+    { id: "members", label: "Members", href: "#settings?scope=workspace&tab=members" },
+    { id: "groups", label: "Groups", href: "#settings?scope=workspace&tab=permissions" },
+    { id: "scim", label: "SCIM", href: "#settings?scope=workspace&tab=integrations" },
   ];
 
   return (

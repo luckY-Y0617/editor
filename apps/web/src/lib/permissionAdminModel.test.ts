@@ -57,6 +57,42 @@ describe("permissionAdminModel", () => {
     expect(capability.reason).toContain("owners and admins");
   });
 
+  test("reports member mutation disabled reasons for unavailable API states", () => {
+    expect(
+      getMemberActionCapability({
+        action: "add-member",
+        apiConfigured: false,
+        currentRole: "owner",
+        operation: null,
+        status: "unconfigured",
+      }),
+    ).toEqual({
+      canUse: false,
+      reason: "Workspace members API is not configured.",
+    });
+
+    expect(
+      getMemberActionCapability({
+        action: "add-member",
+        apiConfigured: true,
+        currentRole: "owner",
+        operation: null,
+        status: "forbidden",
+      }).reason,
+    ).toContain("cannot manage workspace members");
+
+    expect(
+      getMemberActionCapability({
+        action: "update-role",
+        apiConfigured: true,
+        currentRole: "admin",
+        member: createMember(),
+        operation: "user-2",
+        status: "ready",
+      }).reason,
+    ).toContain("operation is in progress");
+  });
+
   test("allows admin member mutations while backend safety checks still apply", () => {
     const ownerCapability = getMemberActionCapability({
       action: "remove-member",

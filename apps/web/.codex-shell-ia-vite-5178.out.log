@@ -71,3 +71,13 @@
 [2m16:53:50[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/KnowledgeEditorPage.tsx, /src/index.css[22m
 [2m16:56:02[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/LibrariesPage.tsx, /src/index.css[22m
 [2m16:56:20[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/LibrariesPage.tsx, /src/index.css[22m
+[2m19:14:35[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/DocumentSharePermissionsPage.tsx, /src/components/SearchDiscoveryPage.tsx, /src/components/WorkspaceHomePage.tsx, /src/components/WorkspaceUpdatesPage.tsx, /src/components/LibrariesPage.tsx, /src/components/PermissionAdminSurfacesPage.tsx, /src/components/KnowledgeEditorPage.tsx, /src/components/WorkspaceSettingsPage.tsx[22m
+[2m19:14:51[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/WorkspaceHomePage.tsx[22m
+[2m19:14:59[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/WorkspaceHomePage.tsx[22m
+[2m19:15:08[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/WorkspaceHomePage.tsx, /src/index.css[22m
+[2m19:15:18[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/lib/workspaceHomeModel.test.ts[22m
+[2m19:15:28[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/WorkspaceHomePage.tsx[22m
+[2m19:15:36[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/lib/workspaceHomeModel.test.ts[22m
+[2m19:23:01[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/WorkspaceHomePage.tsx[22m
+[2m19:23:07[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/WorkspaceHomePage.tsx, /src/index.css[22m
+[2m19:23:15[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/lib/workspaceHomeModel.test.ts[22m

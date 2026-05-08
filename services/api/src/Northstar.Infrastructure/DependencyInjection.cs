@@ -74,6 +74,7 @@ public static class DependencyInjection
         services.AddScoped<IMfaSecretProtector, AesGcmMfaSecretProtector>();
         services.AddScoped<ITokenService, TokenService>();
         services.AddScoped<IWorkspaceMembershipQueryService, EfWorkspaceMembershipQueryService>();
+        services.AddScoped<IWorkspaceAgendaQueryService, EfWorkspaceAgendaQueryService>();
         services.AddScoped<IResourceWorkspaceResolver, EfResourceWorkspaceResolver>();
         services.AddScoped<IResourcePermissionRepository, EfResourcePermissionRepository>();
         services.AddScoped<IWorkspaceGroupRepository, EfWorkspaceGroupRepository>();

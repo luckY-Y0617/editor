@@ -14,11 +14,20 @@ import type {
   KnowledgeDocumentSummaryDto,
   KnowledgeFolderDto,
   PermissionNotificationDto,
+  WorkspaceAgendaItemDto,
+  WorkspaceAgendaResponse,
   WorkspaceMemberDto,
 } from "./appApi";
-import { createEditorHash, createLibrariesHash, normalizeInternalActionHash } from "./hashRouting";
+import {
+  createEditorHash,
+  createLibrariesHash,
+  createWorkspaceMembersHash,
+  createWorkspaceUpdatesHash,
+  normalizeInternalActionHash,
+} from "./hashRouting";
 
 export type HomeActivityRow = {
+  actorName?: string;
   date: string;
   detail: string;
   href: string;
@@ -28,10 +37,18 @@ export type HomeActivityRow = {
 };
 
 export type HomeAgendaRow = {
+  calendarStatus?: string;
+  connectedToCalendar?: boolean;
+  date?: string;
   detail: string;
+  durationMinutes?: number;
+  endTime?: string | null;
+  href?: string;
   id: string;
+  kind?: string;
   meta: string;
   source: HomeDataSource;
+  startTime?: string;
   time: string;
   title: string;
 };
@@ -120,6 +137,7 @@ export type HomeQuickActionRow = {
 
 export type WorkspaceHomeSupplementalData = {
   activityItems?: ActivityTimelineItemDto[];
+  agenda?: WorkspaceAgendaResponse;
   members?: WorkspaceMemberDto[];
   notifications?: PermissionNotificationDto[];
 };
@@ -204,9 +222,10 @@ export function createLiveWorkspaceHomeModel(
     .slice(0, 5)
     .map((document) => toHomeDocumentRow(document, folderTitlesById));
   const notifications = supplementalData.notifications ?? [];
-  const activityRows = (supplementalData.activityItems ?? [])
-    .slice(0, 5)
-    .map((item) => toHomeActivityRow(item, bootstrap.activeDocumentId));
+  const activeDocument = bootstrap.documents.find((document) => document.id === bootstrap.activeDocumentId) ?? null;
+  const activityRows = aggregateHomeActivityRows(
+    (supplementalData.activityItems ?? []).map((item) => toHomeActivityRow(item, activeDocument)),
+  ).slice(0, 5);
   const contributorRows = (supplementalData.members ?? []).slice(0, 5).map(toHomeContributorRow);
 
   return {
@@ -214,7 +233,7 @@ export function createLiveWorkspaceHomeModel(
     activeLibraryHref: createLibrariesHash({ libraryId: activeLibrary?.id ?? bootstrap.activeSpaceId }),
     activeLibraryName: activeLibrary?.name ?? "No library",
     activityRows,
-    agendaRows: [],
+    agendaRows: (supplementalData.agenda?.today ?? []).slice(0, 4).map(toHomeAgendaRow),
     collections: [...bootstrap.folders]
       .sort((left, right) => Number(left.sortOrder) - Number(right.sortOrder))
       .slice(0, 7)
@@ -247,6 +266,7 @@ export function createDemoWorkspaceHomeModel(): WorkspaceHomeModel {
     activeLibraryHref: "#libraries",
     activeLibraryName: "Demo Library",
     activityRows: dashboardActivity.slice(0, 5).map((activity) => ({
+      actorName: getDemoPersonName(activity.actorId),
       date: activity.date,
       detail: `${getDemoPersonName(activity.actorId)} ${activity.action} ${activity.target}`,
       href: "#editor",
@@ -347,7 +367,7 @@ export function createDemoWorkspaceHomeModel(): WorkspaceHomeModel {
     ],
     contributorRows: dashboardPeople.slice(0, 3).map((person) => ({
       contributionLabel: `${person.documentCount} contributions`,
-      href: "#workspace-members",
+      href: createWorkspaceMembersHash(),
       id: person.id,
       initials: person.initials,
       name: person.name,
@@ -367,7 +387,7 @@ export function createDemoWorkspaceHomeModel(): WorkspaceHomeModel {
       },
       {
         detail: "Awaiting responses",
-        href: "#share",
+        href: createWorkspaceUpdatesHash({ tab: "access" }),
         id: "digest-approvals",
         label: "approvals requested",
         source: "demo",
@@ -430,7 +450,7 @@ export function createDemoWorkspaceHomeModel(): WorkspaceHomeModel {
       },
       {
         detail: "pending",
-        href: "#share",
+        href: createWorkspaceUpdatesHash({ tab: "access" }),
         id: "signal-access",
         label: "access requests",
         source: "demo",
@@ -459,7 +479,7 @@ export function createDemoWorkspaceHomeModel(): WorkspaceHomeModel {
     waitingRows: [
       {
         detail: "Documents awaiting your review",
-        href: "#share",
+        href: createWorkspaceUpdatesHash({ tab: "access" }),
         id: "waiting-approvals",
         kind: "approval",
         source: "demo",
@@ -467,7 +487,7 @@ export function createDemoWorkspaceHomeModel(): WorkspaceHomeModel {
       },
       {
         detail: "Needs your response",
-        href: "#share",
+        href: createWorkspaceUpdatesHash({ tab: "access" }),
         id: "waiting-access-request",
         kind: "access",
         source: "demo",
@@ -514,21 +534,173 @@ export function createEmptyWorkspaceHomeModel(status: "error" | "forbidden" | "l
   };
 }
 
-function toHomeActivityRow(item: ActivityTimelineItemDto, activeDocumentId: string): HomeActivityRow {
+export function aggregateHomeActivityRows(rows: HomeActivityRow[]): HomeActivityRow[] {
+  const groupedRows: HomeActivityRow[] = [];
+  let index = 0;
+
+  while (index < rows.length) {
+    const current = rows[index];
+    const groupKey = getHomeActivityGroupKey(current);
+
+    if (!groupKey) {
+      groupedRows.push(current);
+      index += 1;
+      continue;
+    }
+
+    const group = [current];
+    let nextIndex = index + 1;
+
+    while (nextIndex < rows.length) {
+      const next = rows[nextIndex];
+      if (getHomeActivityGroupKey(next) !== groupKey || !isWithinActivityGroupWindow(current.date, next.date)) {
+        break;
+      }
+
+      group.push(next);
+      nextIndex += 1;
+    }
+
+    groupedRows.push(group.length > 1 ? createGroupedHomeActivityRow(group) : current);
+    index = nextIndex;
+  }
+
+  return groupedRows;
+}
+
+function toHomeActivityRow(item: ActivityTimelineItemDto, activeDocument: KnowledgeDocumentSummaryDto | null): HomeActivityRow {
+  const actorName = item.actor?.name?.trim() || undefined;
+  const documentId = item.document?.id ?? activeDocument?.id ?? null;
+  const documentTitle = item.document?.title?.trim() || activeDocument?.title || "Untitled document";
+  const actionLabel = formatActivityAction(item.title, item.detail);
+
   return {
+    actorName,
     date: item.date,
-    detail: item.detail,
-    href: createEditorHash(activeDocumentId),
+    detail: actorName ? `${actorName} ${actionLabel}.` : `${capitalizeSentence(actionLabel)}.`,
+    href: createEditorHash(documentId),
     id: item.id,
     source: "live",
-    title: item.title,
+    title: documentTitle,
   };
+}
+
+const activityGroupWindowMs = 15 * 60 * 1000;
+
+function createGroupedHomeActivityRow(group: HomeActivityRow[]): HomeActivityRow {
+  const latest = group[0];
+  const documentTitle = latest.title || "this document";
+  const actorName = latest.actorName?.trim();
+  const actionVerb = getGroupedActivityVerb(latest.detail);
+  const actionText = actorName
+    ? `${actorName} ${actionVerb} ${documentTitle}`
+    : `${documentTitle} was ${actionVerb}`;
+
+  return {
+    ...latest,
+    detail: `${actionText} ${group.length} times. ${group.length} updates grouped.`,
+    id: `${latest.id}:grouped-${group.length}`,
+  };
+}
+
+function getHomeActivityGroupKey(row: HomeActivityRow) {
+  if (!isGroupableHomeActivityRow(row)) {
+    return null;
+  }
+
+  return [
+    normalizeActivityGroupValue(row.actorName ?? "unknown-user"),
+    normalizeActivityGroupValue(row.title),
+  ].join("|");
+}
+
+function isGroupableHomeActivityRow(row: HomeActivityRow) {
+  const detail = row.detail.trim().toLowerCase();
+
+  return (
+    detail.includes("updated this document") ||
+    detail.includes("updated document content") ||
+    detail.includes("edited") ||
+    detail.includes("saved draft") ||
+    detail.includes("autosave")
+  );
+}
+
+function getGroupedActivityVerb(detail: string) {
+  return detail.toLowerCase().includes("edited") ? "edited" : "updated";
+}
+
+function isWithinActivityGroupWindow(left: string, right: string) {
+  const leftTime = Date.parse(left);
+  const rightTime = Date.parse(right);
+
+  if (!Number.isFinite(leftTime) || !Number.isFinite(rightTime)) {
+    return true;
+  }
+
+  return Math.abs(leftTime - rightTime) <= activityGroupWindowMs;
+}
+
+function normalizeActivityGroupValue(value: string) {
+  return value.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function formatActivityAction(action: string, detail: string) {
+  const normalizedAction = action.trim().toLowerCase();
+  if (normalizedAction === "document.updated") {
+    const normalizedDetail = normalizeActivityDetail(detail, "updated this document");
+    return normalizedDetail.startsWith("updated ") ? normalizeUpdatedActivityLabel(normalizedDetail) : "updated this document";
+  }
+
+  if (normalizedAction === "document.created") {
+    return "created this document";
+  }
+
+  if (normalizedAction === "document.moved") {
+    return "moved this document";
+  }
+
+  if (normalizedAction === "document.archived") {
+    return "archived this document";
+  }
+
+  if (normalizedAction === "document.restored") {
+    return "restored this document";
+  }
+
+  if (normalizedAction === "document.imported") {
+    return "imported this document";
+  }
+
+  return normalizeActivityDetail(detail, humanizeNotificationType(action).toLowerCase());
+}
+
+function normalizeActivityDetail(detail: string, fallback: string) {
+  const normalized = detail.trim();
+  if (!normalized) {
+    return fallback;
+  }
+
+  const withoutPeriod = normalized.endsWith(".") ? normalized.slice(0, -1) : normalized;
+  return withoutPeriod.charAt(0).toLowerCase() + withoutPeriod.slice(1);
+}
+
+function normalizeUpdatedActivityLabel(value: string) {
+  if (value === "updated content") {
+    return "updated document content";
+  }
+
+  return value;
+}
+
+function capitalizeSentence(value: string) {
+  return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
 function toHomeContributorRow(member: WorkspaceMemberDto): HomeContributorRow {
   return {
     contributionLabel: `${formatRole(member.role)} - ${formatRole(member.status)}`,
-    href: "#workspace-members",
+    href: createWorkspaceMembersHash(),
     id: member.userId,
     initials: createInitials(member.displayName),
     name: member.displayName,
@@ -548,6 +720,45 @@ function toHomeUpdateRow(notification: PermissionNotificationDto): HomeUpdateRow
     title: notification.title,
     type: notification.type,
   };
+}
+
+function toHomeAgendaRow(item: WorkspaceAgendaItemDto): HomeAgendaRow {
+  return {
+    calendarStatus: item.calendarStatus,
+    connectedToCalendar: item.connectedToCalendar,
+    date: item.date,
+    detail: item.detail || formatAgendaRange(item),
+    durationMinutes: item.durationMinutes,
+    endTime: item.endTime,
+    href: createAgendaHref(item),
+    id: item.id,
+    kind: item.kind,
+    meta: item.category,
+    source: "live",
+    startTime: item.startTime,
+    time: item.startTime,
+    title: item.title,
+  };
+}
+
+function createAgendaHref(item: WorkspaceAgendaItemDto) {
+  if (item.resourceType === "document" && item.resourceId && isUuid(item.resourceId)) {
+    return createEditorHash(item.resourceId);
+  }
+
+  if (item.actionUrl) {
+    return normalizeInternalActionHash(item.actionUrl);
+  }
+
+  return undefined;
+}
+
+function formatAgendaRange(item: WorkspaceAgendaItemDto) {
+  if (!item.endTime) {
+    return item.startTime;
+  }
+
+  return `${item.startTime} - ${item.endTime}`;
 }
 
 function createWaitingRows(notifications: PermissionNotificationDto[]): HomeAttentionRow[] {
@@ -647,7 +858,7 @@ function createSignalRows(bootstrap: BootstrapResponse, notifications: Permissio
     },
     {
       detail: "from permission workflow",
-      href: "#share",
+      href: createWorkspaceUpdatesHash({ tab: "access" }),
       id: "signal-access-requests",
       label: "access requests",
       source: "live",
@@ -672,7 +883,7 @@ function createNotificationDigestRows(notifications: PermissionNotificationDto[]
     },
     {
       detail: "Permission workflow",
-      href: "#share",
+      href: createWorkspaceUpdatesHash({ tab: "access" }),
       id: "digest-access",
       label: "access request updates",
       source: "live",

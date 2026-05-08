@@ -93,10 +93,18 @@ export type CollectionMutationResponse = {
 };
 
 export type ActivityTimelineItemDto = {
+  actor?: {
+    id: string;
+    name: string;
+  } | null;
   id: string;
   title: string;
   date: string;
   detail: string;
+  document?: {
+    id: string;
+    title: string;
+  } | null;
 };
 
 export type DocumentActivityResponse = {
@@ -189,6 +197,31 @@ export type WorkspaceMembersResponse = {
   members: WorkspaceMemberDto[];
 };
 
+export type WorkspaceAgendaItemDto = {
+  id: string;
+  title: string;
+  detail: string;
+  category: string;
+  kind: "break" | "document" | "meeting" | "task" | string;
+  date: string;
+  startTime: string;
+  endTime?: string | null;
+  durationMinutes: number;
+  resourceType?: string | null;
+  resourceId?: string | null;
+  actionUrl?: string | null;
+  connectedToCalendar: boolean;
+  calendarStatus: string;
+};
+
+export type WorkspaceAgendaResponse = {
+  workspaceId: string;
+  date: string;
+  calendarStatus: string;
+  today: WorkspaceAgendaItemDto[];
+  upcoming: WorkspaceAgendaItemDto[];
+};
+
 export type OrganizationWorkspaceDto = {
   id: string;
   name: string;
@@ -240,6 +273,42 @@ export type OrganizationMembersResponse = {
 export type ShareLinkRole = "commenter" | "viewer";
 
 export type ShareLinkAudience = "external" | "public" | "workspace";
+export type PermissionGrantRole = "admin" | "commenter" | "editor" | "owner" | "viewer";
+export type PermissionGrantSubjectType = "group" | "user";
+
+export type PermissionPolicyDto = {
+  inheritanceMode: string;
+  linkMode: string;
+  defaultLinkRole: string | null;
+};
+
+export type PermissionGrantDto = {
+  id: string;
+  subjectType: string;
+  subjectId: string;
+  roleKey: string;
+  grantedBy: string | null;
+  grantedAt: string;
+  expiresAt: string | null;
+  reason: string | null;
+};
+
+export type EffectivePermissionResponse = {
+  allowedActions: string[];
+  effectiveRole: string | null;
+  source: string;
+  inheritanceMode: string;
+};
+
+export type ResourcePermissionsResponse = {
+  resourceType: string;
+  resourceId: string;
+  policy: PermissionPolicyDto;
+  grants: PermissionGrantDto[];
+  effectiveAccess: EffectivePermissionResponse;
+  inheritedFrom: string;
+  availableRoles: string[];
+};
 
 export type ShareLinkDto = {
   id: string;
@@ -272,6 +341,50 @@ export type CreateShareLinkResponse = {
   link: ShareLinkDto;
   token: string;
   url: string;
+};
+
+export type EmailInviteDto = {
+  id: string;
+  workspaceId: string;
+  resourceType: string;
+  resourceId: string;
+  email: string;
+  roleKey: ShareLinkRole;
+  status: "accepted" | "expired" | "pending" | "revoked";
+  invitedBy: string | null;
+  acceptedBy: string | null;
+  revokedBy: string | null;
+  createdAt: string;
+  expiresAt: string;
+  acceptedAt: string | null;
+  revokedAt: string | null;
+  expiredAt: string | null;
+  deliveryStatus: string;
+  deliveryProvider: string;
+  deliveryAttemptedAt: string | null;
+  deliveryErrorCode: string | null;
+};
+
+export type EmailInvitesResponse = {
+  invites: EmailInviteDto[];
+};
+
+export type CreateEmailInviteRequest = {
+  email: string;
+  roleKey: ShareLinkRole;
+  expiresAt: string;
+};
+
+export type CreateEmailInviteResponse = {
+  invite: EmailInviteDto;
+  token: string;
+  url: string;
+  delivery?: {
+    status: string;
+    provider: string;
+    attemptedAt: string | null;
+    errorCode: string | null;
+  };
 };
 
 export function getBootstrap(signal?: AbortSignal) {
@@ -431,6 +544,11 @@ export function getWorkspaceMembers(workspaceId: string, signal?: AbortSignal) {
   return apiFetch<WorkspaceMembersResponse>(`/workspaces/${workspaceId}/members`, { signal });
 }
 
+export function getWorkspaceAgenda(workspaceId: string, date: string, signal?: AbortSignal) {
+  const params = new URLSearchParams({ date });
+  return apiFetch<WorkspaceAgendaResponse>(`/workspaces/${workspaceId}/agenda?${params.toString()}`, { signal });
+}
+
 export function getOrganizationProfile(organizationId: string, signal?: AbortSignal) {
   return apiFetch<OrganizationProfileResponse>(`/organizations/${organizationId}/profile`, { signal });
 }
@@ -455,6 +573,53 @@ export function getDocumentShareLinks(documentId: string, signal?: AbortSignal) 
   return apiFetch<ShareLinksResponse>(`/permissions/resources/document/${documentId}/share-links`, { signal });
 }
 
+export function getDocumentResourcePermissions(documentId: string, signal?: AbortSignal) {
+  return apiFetch<ResourcePermissionsResponse>(`/permissions/resources/document/${documentId}`, { signal });
+}
+
+export function createDocumentPermissionGrant(
+  documentId: string,
+  request: {
+    subjectType: PermissionGrantSubjectType;
+    subjectId: string;
+    roleKey: string;
+    expiresAt?: string | null;
+    reason?: string | null;
+  },
+  signal?: AbortSignal,
+) {
+  return apiFetch<PermissionGrantDto>(`/permissions/resources/document/${documentId}/grants`, {
+    body: request,
+    method: "POST",
+    signal,
+  });
+}
+
+export function updateDocumentPermissionGrant(
+  documentId: string,
+  grantId: string,
+  request: {
+    roleKey: string;
+    expiresAt?: string | null;
+    reason?: string | null;
+  },
+  signal?: AbortSignal,
+) {
+  return apiFetch<PermissionGrantDto>(`/permissions/resources/document/${documentId}/grants/${grantId}`, {
+    body: request,
+    method: "PATCH",
+    signal,
+  });
+}
+
+export function revokeDocumentPermissionGrant(documentId: string, grantId: string, reason?: string | null, signal?: AbortSignal) {
+  return apiFetch<void>(`/permissions/resources/document/${documentId}/grants/${grantId}`, {
+    body: { reason: reason ?? null },
+    method: "DELETE",
+    signal,
+  });
+}
+
 export function createDocumentShareLink(
   documentId: string,
   request: CreateShareLinkRequest,
@@ -469,6 +634,29 @@ export function createDocumentShareLink(
 
 export function revokeShareLink(shareLinkId: string, signal?: AbortSignal) {
   return apiFetch<void>(`/permissions/share-links/${shareLinkId}`, {
+    method: "DELETE",
+    signal,
+  });
+}
+
+export function getDocumentEmailInvites(documentId: string, signal?: AbortSignal) {
+  return apiFetch<EmailInvitesResponse>(`/permissions/resources/document/${documentId}/email-invites`, { signal });
+}
+
+export function createDocumentEmailInvite(
+  documentId: string,
+  request: CreateEmailInviteRequest,
+  signal?: AbortSignal,
+) {
+  return apiFetch<CreateEmailInviteResponse>(`/permissions/resources/document/${documentId}/email-invites`, {
+    body: request,
+    method: "POST",
+    signal,
+  });
+}
+
+export function revokeEmailInvite(inviteId: string, signal?: AbortSignal) {
+  return apiFetch<void>(`/permissions/email-invites/${inviteId}`, {
     method: "DELETE",
     signal,
   });

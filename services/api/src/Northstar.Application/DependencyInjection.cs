@@ -44,6 +44,7 @@ public static class DependencyInjection
         services.AddScoped<IEmailInviteDeliveryOutboxProcessor, EmailInviteDeliveryOutboxProcessor>();
         services.AddScoped<IDocumentPermissionFilterService, DocumentPermissionFilterService>();
         services.AddScoped<IWorkspaceAccessService, WorkspaceAccessService>();
+        services.AddScoped<IWorkspaceAgendaService, WorkspaceAgendaService>();
         services.AddScoped<IWorkspaceMembersService, WorkspaceMembersService>();
         services.AddScoped<IWorkspaceGroupService, WorkspaceGroupService>();
         services.AddScoped<IIamSyncService, IamSyncService>();

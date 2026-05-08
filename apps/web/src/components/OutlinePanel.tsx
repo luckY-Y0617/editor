@@ -48,16 +48,23 @@ type OutlinePanelProps = {
   commentThreads?: CommentThread[];
   contextLoadStatus?: EditorContextLoadStatus;
   documentStatusLabel: string;
+  folderHref: string;
+  folderTitle: string;
+  libraryHref: string;
+  libraryName: string;
   outlineItems: OutlineItem[];
   pendingCommentComposer?: PendingCommentComposer | null;
   relatedDocumentRows?: EditorRelatedDocumentRow[];
   saveStatusLabel: string;
+  shareHref: string;
   textLength: number;
   updatedAtLabel: string;
   versionTrailRows?: EditorVersionTrailRow[];
+  onAddCommentMessage?: (threadId: string, body: string) => Promise<void> | void;
   onCancelPendingComment?: () => void;
   onCommentThreadClick?: (thread: CommentThread) => void;
   onCreateCommentThread?: (request: CreateCommentThreadRequest) => void;
+  onOpenShare?: () => void;
   onPendingCommentBodyChange?: (body: string) => void;
   onOutlineItemClick: (item: OutlineItem) => void;
   onReopenCommentThread?: (threadId: string) => void;
@@ -81,9 +88,15 @@ export function OutlinePanel({
   commentThreads = [],
   contextLoadStatus = "demo",
   documentStatusLabel,
+  folderHref,
+  folderTitle,
+  libraryHref,
+  libraryName,
+  onAddCommentMessage,
   onCancelPendingComment,
   onCommentThreadClick,
   onCreateCommentThread,
+  onOpenShare,
   onPendingCommentBodyChange,
   onOutlineItemClick,
   onReopenCommentThread,
@@ -93,6 +106,7 @@ export function OutlinePanel({
   pendingCommentComposer,
   relatedDocumentRows,
   saveStatusLabel,
+  shareHref,
   textLength,
   updatedAtLabel,
   versionTrailRows,
@@ -271,6 +285,7 @@ export function OutlinePanel({
             commentRelocationResults={commentRelocationResults}
             commentThreads={commentThreads}
             onCancelPendingComment={onCancelPendingComment}
+            onAddCommentMessage={onAddCommentMessage}
             onCommentThreadClick={onCommentThreadClick}
             onCreateCommentThread={onCreateCommentThread}
             onPendingCommentBodyChange={onPendingCommentBodyChange}
@@ -285,6 +300,19 @@ export function OutlinePanel({
           <>
             <PanelSection title="Document Info">
               <dl className="atlas-info-list">
+                <InfoRow label="Document">
+                  <span title={activeDocument.title}>{activeDocument.title || "Untitled Field Note"}</span>
+                </InfoRow>
+                <InfoRow label="Library">
+                  <a href={libraryHref} title={`Open ${libraryName}`}>
+                    {libraryName}
+                  </a>
+                </InfoRow>
+                <InfoRow label="Folder">
+                  <a href={folderHref} title={`Open ${folderTitle}`}>
+                    {folderTitle}
+                  </a>
+                </InfoRow>
                 <InfoRow label="Status">
                   <span className="inline-flex items-center gap-2">
                     <span className="h-1.5 w-1.5 rounded-full bg-[#3f8c86]" />
@@ -298,6 +326,15 @@ export function OutlinePanel({
                 <InfoRow label="Reading time">{readingMinutes} min</InfoRow>
                 <InfoRow label="Save status">{saveStatusLabel}</InfoRow>
               </dl>
+            </PanelSection>
+
+            <PanelSection title="Access">
+              <div className="atlas-info-actions">
+                <button onClick={onOpenShare} type="button">
+                  Open Share drawer
+                </button>
+                <a href={shareHref}>Advanced permissions</a>
+              </div>
             </PanelSection>
 
             <PanelSection title="Tags">
@@ -325,18 +362,20 @@ export function OutlinePanel({
             ) : displayedActivityRows.length > 0 ? (
               <div className="atlas-activity-list">
                 {displayedActivityRows.map((item, index) => (
-                  <div className="atlas-activity-item" key={item.id}>
+                  <a className="atlas-activity-item" href={item.href} key={item.id} title={item.detail}>
                     <span className={["atlas-version-dot", index === 0 ? "is-active" : ""].join(" ")} />
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 text-xs">
                         <span className="min-w-0 flex-1 truncate font-semibold text-[var(--ns-navy-800)]">
-                          {item.title}
+                          {item.actorName}
+                          <span className="font-normal text-[var(--ns-slate-600)]"> {item.actionLabel} </span>
+                          {item.documentTitle}
                         </span>
                         <span className="shrink-0 text-[var(--ns-slate-500)]">{item.date}</span>
                       </div>
                       <p className="mt-1 text-xs leading-5 text-[var(--ns-slate-700)]">{item.detail}</p>
                     </div>
-                  </div>
+                  </a>
                 ))}
               </div>
             ) : (
@@ -351,6 +390,7 @@ export function OutlinePanel({
 
 function CommentsPanel({
   activeCommentThreadId,
+  onAddCommentMessage,
   commentLifecycleErrors,
   commentLifecyclePending,
   commentLoadState,
@@ -374,6 +414,7 @@ function CommentsPanel({
   commentRelocationResults: Record<string, AnchorRelocationResult>;
   commentThreads: CommentThread[];
   pendingCommentComposer?: PendingCommentComposer | null;
+  onAddCommentMessage?: (threadId: string, body: string) => Promise<void> | void;
   onCancelPendingComment?: () => void;
   onCommentThreadClick?: (thread: CommentThread) => void;
   onCreateCommentThread?: (request: CreateCommentThreadRequest) => void;
@@ -459,6 +500,7 @@ function CommentsPanel({
               lifecyclePending={Boolean(commentLifecyclePending[thread.id])}
               matchResult={commentMatchResults[thread.id]}
               onClick={() => onCommentThreadClick?.(thread)}
+              onReply={onAddCommentMessage ? (body) => onAddCommentMessage(thread.id, body) : undefined}
               onReopen={() => onReopenCommentThread?.(thread.id)}
               onResolve={() => onResolveCommentThread?.(thread.id)}
               relocationResult={commentRelocationResults[thread.id]}
@@ -557,6 +599,7 @@ function CommentThreadItem({
   lifecyclePending,
   matchResult,
   onClick,
+  onReply,
   onReopen,
   onResolve,
   relocationResult,
@@ -568,32 +611,43 @@ function CommentThreadItem({
   lifecyclePending?: boolean;
   matchResult?: AnchorMatchResult;
   onClick: () => void;
+  onReply?: (body: string) => Promise<void> | void;
   onReopen: () => void;
   onResolve: () => void;
   relocationResult?: AnchorRelocationResult;
   thread: CommentThread;
 }) {
-  const firstComment = thread.comments[0];
+  const [replyBody, setReplyBody] = useState("");
+  const [replyError, setReplyError] = useState<string | null>(null);
+  const [replyIsOpen, setReplyIsOpen] = useState(false);
+  const [replyIsSubmitting, setReplyIsSubmitting] = useState(false);
   const runtimeMatch = useMemo(
     () => matchResult ?? createFallbackMatchResult(thread.anchorStatus),
     [matchResult, thread.anchorStatus],
   );
-  const anchorJson = useMemo(
-    () =>
-      JSON.stringify(
-        {
-          anchor: thread.anchor,
-          runtimeMatch,
-          relocationResult,
-        },
-        null,
-        2,
-      ),
-    [relocationResult, runtimeMatch, thread.anchor],
-  );
   const createdAt = formatThreadTime(thread.createdAt);
   const anchorStatusMeta = getAnchorStatusMeta(runtimeMatch, relocationResult);
   const AnchorStatusIcon = anchorStatusMeta.icon;
+  const canReply = Boolean(onReply) && thread.status === "open";
+  const canSubmitReply = isCommentBodySubmittable(replyBody) && !replyIsSubmitting;
+
+  const submitReply = async () => {
+    if (!onReply || !canSubmitReply) {
+      return;
+    }
+
+    setReplyIsSubmitting(true);
+    setReplyError(null);
+    try {
+      await onReply(replyBody);
+      setReplyBody("");
+      setReplyIsOpen(false);
+    } catch (error) {
+      setReplyError(error instanceof Error && error.message.trim() ? error.message : "Reply failed. Try again.");
+    } finally {
+      setReplyIsSubmitting(false);
+    }
+  };
 
   return (
     <article
@@ -634,9 +688,21 @@ function CommentThreadItem({
         </div>
       </button>
 
-      <p className="mt-2 text-xs leading-5 text-[var(--ns-slate-700)]">
-        {firstComment?.body ?? "No comment body"}
-      </p>
+      <div className="atlas-comment-message-list">
+        {thread.comments.length > 0 ? (
+          thread.comments.map((comment) => (
+            <div className="atlas-comment-message" key={comment.id}>
+              <div>
+                <strong title={comment.author.name}>{comment.author.name}</strong>
+                <span>{formatThreadTime(comment.createdAt)}</span>
+              </div>
+              <p>{comment.body}</p>
+            </div>
+          ))
+        ) : (
+          <p className="mt-2 text-xs leading-5 text-[var(--ns-slate-700)]">No comment body</p>
+        )}
+      </div>
 
       {runtimeMatch.status !== "active" || runtimeMatch.confidence !== "exact" ? (
         <div className={["mt-2 border px-2 py-1.5 text-xs leading-5", anchorStatusMeta.noticeClassName].join(" ")}>
@@ -648,6 +714,17 @@ function CommentThreadItem({
         <span className={["text-[11px] uppercase tracking-normal", anchorStatusMeta.className].join(" ")}>
           {anchorStatusMeta.label}
         </span>
+        <span className="flex shrink-0 items-center gap-1.5">
+        {canReply ? (
+          <button
+            className="inline-flex h-7 items-center gap-1.5 border border-[var(--ns-border)] bg-white/70 px-2 text-[11px] font-semibold text-[var(--ns-slate-700)] hover:border-[rgba(15,92,156,0.28)] hover:text-[var(--ns-blue-600)]"
+            disabled={replyIsSubmitting || lifecyclePending}
+            onClick={() => setReplyIsOpen((isOpen) => !isOpen)}
+            type="button"
+          >
+            Reply
+          </button>
+        ) : null}
         {thread.status === "open" ? (
           <button
             aria-busy={lifecyclePending}
@@ -671,20 +748,34 @@ function CommentThreadItem({
             {lifecyclePending ? "Reopening" : "Reopen"}
           </button>
         )}
+        </span>
       </div>
+
+      {replyIsOpen ? (
+        <div className="atlas-comment-reply">
+          <textarea
+            disabled={replyIsSubmitting}
+            onChange={(event) => setReplyBody(event.target.value)}
+            placeholder="Write a reply..."
+            value={replyBody}
+          />
+          {replyError ? <p role="alert">{replyError}</p> : null}
+          <div>
+            <button disabled={replyIsSubmitting} onClick={() => setReplyIsOpen(false)} type="button">
+              Cancel
+            </button>
+            <button disabled={!canSubmitReply} onClick={() => void submitReply()} type="button">
+              {replyIsSubmitting ? "Sending" : "Reply"}
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       {lifecycleError ? (
         <p className="mt-2 border border-[rgba(185,77,95,0.24)] bg-[rgba(185,77,95,0.08)] px-2 py-1.5 text-xs leading-5 text-[#8e3b4a]" role="alert">
           {lifecycleError}
         </p>
       ) : null}
-
-      <details className="mt-3 text-xs text-[var(--ns-slate-700)]">
-        <summary className="cursor-pointer font-semibold text-[var(--ns-blue-600)]">Anchor JSON</summary>
-        <pre className="mt-2 max-h-44 overflow-auto border border-[var(--ns-border)] bg-[rgba(251,248,241,0.72)] p-2 text-[10px] leading-4 text-[var(--ns-navy-800)]">
-          {anchorJson}
-        </pre>
-      </details>
     </article>
   );
 }
@@ -865,6 +956,10 @@ function toDemoBacklinkRow(item: (typeof backlinks)[number], index: number): Edi
 
 function toDemoActivityRow(item: (typeof activityTimeline)[number], index: number): EditorActivityRow {
   return {
+    actionLabel: "updated",
+    actorName: item.title,
+    documentTitle: item.title,
+    href: "#editor",
     id: `demo-activity-${index}`,
     date: item.date,
     detail: item.detail,

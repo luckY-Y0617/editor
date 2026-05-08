@@ -1,9 +1,11 @@
 import {
   AtSign,
   Bell,
+  CalendarCheck,
   CalendarDays,
   CheckCircle2,
   Clock3,
+  ExternalLink,
   FileText,
   Hourglass,
   Link,
@@ -16,6 +18,7 @@ import {
   Share2,
   UserRound,
   Users,
+  X,
   type LucideIcon,
 } from "lucide-react";
 import { type CSSProperties, type ReactNode, useEffect, useMemo, useState } from "react";
@@ -25,10 +28,13 @@ import { ApiClientError, getConfiguredApiBaseUrl, isUuid } from "../lib/apiClien
 import {
   getBootstrap,
   getDocumentActivity,
+  getWorkspaceAgenda,
   getWorkspaceMembers,
   getWorkspaceNotifications,
   type BootstrapResponse,
   type DocumentActivityResponse,
+  type WorkspaceAgendaItemDto,
+  type WorkspaceAgendaResponse,
 } from "../lib/appApi";
 import {
   createHomeQuickActions,
@@ -46,6 +52,7 @@ import {
   type WorkspaceHomeModel,
   type WorkspaceHomeSupplementalData,
 } from "../lib/workspaceHomeModel";
+import { createEditorHash, normalizeInternalActionHash } from "../lib/hashRouting";
 import { getQuickActionLabel, t, type DisplayLocale, useDisplayLanguage } from "../lib/i18n";
 import coordinatePatternUrl from "../assets/svg/patterns/coordinate-ticks.svg";
 import routePatternUrl from "../assets/svg/patterns/route-line.svg";
@@ -56,9 +63,27 @@ type HomeDataStatus = "idle" | "loading" | "ready" | "forbidden" | "error";
 
 type HomeSupplementalState = {
   activity: HomeDataStatus;
+  agenda: HomeDataStatus;
   contributors: HomeDataStatus;
   data: WorkspaceHomeSupplementalData;
   updates: HomeDataStatus;
+};
+
+type AgendaTab = "today" | "week";
+
+type AgendaDisplayItem = {
+  calendarStatus?: string;
+  category: string;
+  connectedToCalendar?: boolean;
+  date?: string;
+  detail: string;
+  durationMinutes?: number;
+  endTime?: string | null;
+  href?: string;
+  id: string;
+  kind?: string;
+  startTime: string;
+  title: string;
 };
 
 type QuickAction = {
@@ -85,6 +110,7 @@ export function WorkspaceHomePage() {
   const { locale } = useDisplayLanguage();
   const [bootstrapRetryKey, setBootstrapRetryKey] = useState(0);
   const [supplementalRetryKey, setSupplementalRetryKey] = useState(0);
+  const [isAgendaOpen, setIsAgendaOpen] = useState(false);
   const bootstrap = useBootstrapData(bootstrapRetryKey);
   const supplemental = useHomeSupplementalData(bootstrap.data, bootstrap.status, supplementalRetryKey);
   const homeModel = useMemo(() => {
@@ -136,7 +162,7 @@ export function WorkspaceHomePage() {
                 <HomePanel icon={CalendarDays} title={t(locale, "home.today")}>
                   <p className="workspace-home-panel-kicker">{getTodayLabel(locale)}</p>
                   <AgendaList items={homeModel.agendaRows} />
-                  <PanelLink href="#updates">View full agenda</PanelLink>
+                  <PanelButton onClick={() => setIsAgendaOpen(true)}>View full agenda</PanelButton>
                 </HomePanel>
 
                 <HomePanel badge={homeModel.waitingRows.length} icon={ListChecks} title={t(locale, "home.waitingOnYou")}>
@@ -156,7 +182,7 @@ export function WorkspaceHomePage() {
               </div>
 
               <div className="workspace-home-bottom-grid">
-                <HomePanel actionHref="#updates" actionLabel={t(locale, "home.allActivity")} icon={Users} title={t(locale, "home.teamActivity")}>
+                <HomePanel icon={Users} title={t(locale, "home.teamActivity")}>
                   <TeamActivityList
                     items={homeModel.activityRows}
                     locale={locale}
@@ -164,12 +190,10 @@ export function WorkspaceHomePage() {
                     onRetry={() => setSupplementalRetryKey((current) => current + 1)}
                     status={supplemental.activity}
                   />
-                  <PanelLink href="#updates">View all activity</PanelLink>
                 </HomePanel>
 
-                <HomePanel actionHref="#updates" actionLabel="View archive" icon={MessageSquare} title={t(locale, "home.recentConversationsAndDecisions")}>
+                <HomePanel icon={MessageSquare} title={t(locale, "home.recentConversationsAndDecisions")}>
                   <ConversationList emptyLabel="No recent conversation or decision data." items={homeModel.recentDecisionRows} variant="stacked" />
-                  <PanelLink href="#updates">View all conversations</PanelLink>
                 </HomePanel>
               </div>
             </div>
@@ -183,7 +207,7 @@ export function WorkspaceHomePage() {
               <HomePanel icon={Users} title={t(locale, "home.topContributors")}>
                 <p className="workspace-home-panel-kicker">{homeModel.mode === "live" ? t(locale, "home.workspaceMembers") : "30 days"}</p>
                 <ContributorList items={homeModel.contributorRows} status={supplemental.contributors} />
-                <PanelLink href="#workspace-members">View leaderboard</PanelLink>
+                <PanelLink href="#settings?scope=workspace&tab=members">View leaderboard</PanelLink>
               </HomePanel>
 
               <HomePanel icon={AtSign} title={t(locale, "home.notificationDigest")}>
@@ -199,6 +223,15 @@ export function WorkspaceHomePage() {
           </div>
         </section>
       </div>
+      {isAgendaOpen ? (
+        <HomeAgendaDrawer
+          agenda={supplemental.data.agenda}
+          fallbackItems={homeModel.agendaRows}
+          locale={locale}
+          onClose={() => setIsAgendaOpen(false)}
+          status={supplemental.agenda}
+        />
+      ) : null}
     </main>
   );
 }
@@ -212,7 +245,6 @@ function MobileHomeNav({ locale }: { locale: DisplayLocale }) {
       <a href="#libraries">{t(locale, "nav.libraries")}</a>
       <a href="#search">{t(locale, "nav.search")}</a>
       <a href="#updates">{t(locale, "nav.updates")}</a>
-      <a href="#workspace-members">{t(locale, "nav.members")}</a>
       <a href="#settings">{t(locale, "nav.settings")}</a>
     </div>
   );
@@ -286,24 +318,36 @@ function HomePanel({
 
 function AgendaList({ items }: { items: HomeAgendaRow[] }) {
   if (items.length === 0) {
-    return <PanelMessage>No calendar source connected.</PanelMessage>;
+    return <PanelMessage>No agenda items available.</PanelMessage>;
   }
 
   return (
     <div className="workspace-home-agenda-list">
-      {items.map((item) => (
-        <div className="workspace-home-agenda-row" key={item.id}>
-          <time>{item.time}</time>
-          <span aria-hidden="true" />
-          <div className="min-w-0">
-            <strong>{item.title}</strong>
-            <p>
-              {item.detail}
-              {item.meta ? <em>{item.meta}</em> : null}
-            </p>
+      {items.map((item) => {
+        const content = (
+          <>
+            <time>{item.time}</time>
+            <span aria-hidden="true" />
+            <div className="min-w-0">
+              <strong>{item.title}</strong>
+              <p>
+                {item.detail}
+                {item.meta ? <em>{item.meta}</em> : null}
+              </p>
+            </div>
+          </>
+        );
+
+        return item.href ? (
+          <a className="workspace-home-agenda-row" href={item.href} key={item.id} title={item.title}>
+            {content}
+          </a>
+        ) : (
+          <div className="workspace-home-agenda-row" key={item.id}>
+            {content}
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -423,7 +467,7 @@ function TeamActivityList({
     <div className="workspace-home-activity-feed">
       {items.map((item) => (
         <a className="workspace-home-activity-item" href={item.href} key={item.id} title={item.title}>
-          <span className="workspace-home-avatar">{getInitials(item.title)}</span>
+          <span className="workspace-home-avatar">{getInitials(item.actorName ?? item.title)}</span>
           <div className="min-w-0">
             <strong>{item.title}</strong>
             <p>{item.detail}</p>
@@ -488,6 +532,15 @@ function PanelLink({ children, href }: { children: ReactNode; href: string }) {
   );
 }
 
+function PanelButton({ children, onClick }: { children: ReactNode; onClick: () => void }) {
+  return (
+    <button className="workspace-home-panel-link" onClick={onClick} type="button">
+      {children}
+      <span aria-hidden="true">{"->"}</span>
+    </button>
+  );
+}
+
 function PanelMessage({ children, onRetry }: { children: ReactNode; onRetry?: () => void }) {
   return (
     <div className="workspace-home-panel-message">
@@ -498,6 +551,175 @@ function PanelMessage({ children, onRetry }: { children: ReactNode; onRetry?: ()
         </button>
       ) : null}
     </div>
+  );
+}
+
+function HomeAgendaDrawer({
+  agenda,
+  fallbackItems,
+  locale,
+  onClose,
+  status,
+}: {
+  agenda?: WorkspaceAgendaResponse;
+  fallbackItems: HomeAgendaRow[];
+  locale: DisplayLocale;
+  onClose: () => void;
+  status: HomeDataStatus;
+}) {
+  const [activeTab, setActiveTab] = useState<AgendaTab>("today");
+  const todayItems = agenda?.today.map(toAgendaDisplayItem) ?? fallbackItems.map(toAgendaDisplayItemFromRow);
+  const upcomingItems = agenda?.upcoming.map(toAgendaDisplayItem) ?? [];
+  const visibleItems = activeTab === "today" ? todayItems : [...todayItems, ...upcomingItems].slice(0, 8);
+  const text = getAgendaDrawerText(locale);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
+  return (
+    <div className="workspace-home-agenda-overlay" onMouseDown={onClose}>
+      <aside
+        aria-label={text.title}
+        aria-modal="true"
+        className="workspace-home-agenda-drawer"
+        onMouseDown={(event) => event.stopPropagation()}
+        role="dialog"
+      >
+        <header className="workspace-home-agenda-drawer-header">
+          <span className="workspace-home-agenda-drawer-icon">
+            <CalendarDays className="h-4 w-4" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <h2>{text.title}</h2>
+            <p>{formatAgendaDate(agenda?.date, locale)}</p>
+          </div>
+          <span className="workspace-home-agenda-status">
+            <span aria-hidden="true" />
+            {getCalendarStatusLabel(agenda?.calendarStatus, status, locale)}
+          </span>
+          <button className="workspace-home-agenda-close" onClick={onClose} type="button" aria-label={text.close}>
+            <X className="h-4 w-4" />
+          </button>
+        </header>
+
+        <div className="workspace-home-agenda-tabs" role="tablist" aria-label={text.tabsLabel}>
+          <button
+            aria-selected={activeTab === "today"}
+            className={activeTab === "today" ? "is-active" : ""}
+            onClick={() => setActiveTab("today")}
+            role="tab"
+            type="button"
+          >
+            {text.today}
+          </button>
+          <button
+            aria-selected={activeTab === "week"}
+            className={activeTab === "week" ? "is-active" : ""}
+            onClick={() => setActiveTab("week")}
+            role="tab"
+            type="button"
+          >
+            {text.week}
+          </button>
+        </div>
+
+        <div className="workspace-home-agenda-drawer-body">
+          {visibleItems.length > 0 ? (
+            <div className="workspace-home-agenda-timeline">
+              {visibleItems.map((item) => (
+                <AgendaDrawerItem item={item} key={item.id} locale={locale} />
+              ))}
+            </div>
+          ) : (
+            <PanelMessage>{getSupplementalMessage(status, text.empty)}</PanelMessage>
+          )}
+
+          {activeTab === "today" && upcomingItems.length > 0 ? (
+            <section className="workspace-home-agenda-later">
+              <h3>{text.later}</h3>
+              <div>
+                {upcomingItems.slice(0, 3).map((item) => (
+                  <AgendaLaterItem item={item} key={item.id} locale={locale} />
+                ))}
+              </div>
+            </section>
+          ) : null}
+        </div>
+
+        <footer className="workspace-home-agenda-footer">
+          <button disabled title={text.addDisabled} type="button">
+            <Plus className="h-4 w-4" />
+            {text.add}
+          </button>
+          <button disabled title={text.calendarDisabled} type="button">
+            {text.viewCalendar}
+            <ExternalLink className="h-4 w-4" />
+          </button>
+        </footer>
+      </aside>
+    </div>
+  );
+}
+
+function AgendaDrawerItem({ item, locale }: { item: AgendaDisplayItem; locale: DisplayLocale }) {
+  const content = (
+    <>
+      <div className="workspace-home-agenda-time">
+        <time>{item.startTime}</time>
+        <span className={item.kind === "task" ? "is-task" : item.kind === "break" ? "is-break" : ""} aria-hidden="true" />
+      </div>
+      <div className="workspace-home-agenda-event">
+        <div className="min-w-0">
+          <strong>{item.title}</strong>
+          <p>{formatAgendaItemMeta(item, locale)}</p>
+        </div>
+        {item.category ? <mark>{item.category}</mark> : null}
+        <span className="workspace-home-agenda-calendar-state">
+          <CalendarCheck className="h-4 w-4" />
+          {getAgendaItemStatusLabel(item, locale)}
+        </span>
+        <button disabled aria-label="More agenda actions" type="button">
+          <MoreHorizontal className="h-4 w-4" />
+        </button>
+      </div>
+    </>
+  );
+
+  return item.href ? (
+    <a className="workspace-home-agenda-timeline-row" href={item.href} title={item.title}>
+      {content}
+    </a>
+  ) : (
+    <div className="workspace-home-agenda-timeline-row">{content}</div>
+  );
+}
+
+function AgendaLaterItem({ item, locale }: { item: AgendaDisplayItem; locale: DisplayLocale }) {
+  const content = (
+    <>
+      <span>
+        <FileText className="h-4 w-4" />
+      </span>
+      <strong>{item.title}</strong>
+      <time>{formatAgendaItemDate(item.date, item.startTime, locale)}</time>
+      {item.category ? <mark>{item.category}</mark> : null}
+    </>
+  );
+
+  return item.href ? (
+    <a className="workspace-home-agenda-later-row" href={item.href} title={item.title}>
+      {content}
+    </a>
+  ) : (
+    <div className="workspace-home-agenda-later-row">{content}</div>
   );
 }
 
@@ -543,6 +765,7 @@ function useHomeSupplementalData(
 ) {
   const [state, setState] = useState<HomeSupplementalState>({
     activity: "idle",
+    agenda: "idle",
     contributors: "idle",
     data: {},
     updates: "idle",
@@ -552,6 +775,7 @@ function useHomeSupplementalData(
     if (bootstrapStatus !== "ready" || !bootstrap) {
       setState({
         activity: bootstrapStatus === "loading" ? "loading" : "idle",
+        agenda: bootstrapStatus === "loading" ? "loading" : "idle",
         contributors: bootstrapStatus === "loading" ? "loading" : "idle",
         data: {},
         updates: bootstrapStatus === "loading" ? "loading" : "idle",
@@ -563,6 +787,7 @@ function useHomeSupplementalData(
     const shouldLoadActivity = isUuid(bootstrap.activeDocumentId);
     setState({
       activity: shouldLoadActivity ? "loading" : "ready",
+      agenda: "loading",
       contributors: "loading",
       data: {},
       updates: "loading",
@@ -572,18 +797,21 @@ function useHomeSupplementalData(
       shouldLoadActivity
         ? getDocumentActivity(bootstrap.activeDocumentId, controller.signal)
         : Promise.resolve<DocumentActivityResponse>({ items: [] }),
+      getWorkspaceAgenda(bootstrap.workspace.id, getLocalIsoDate(), controller.signal),
       getWorkspaceNotifications(bootstrap.workspace.id, controller.signal),
       getWorkspaceMembers(bootstrap.workspace.id, controller.signal),
-    ]).then(([activityResult, updatesResult, contributorsResult]) => {
+    ]).then(([activityResult, agendaResult, updatesResult, contributorsResult]) => {
       if (controller.signal.aborted) {
         return;
       }
 
       setState({
         activity: getRequestStatus(activityResult),
+        agenda: getRequestStatus(agendaResult),
         contributors: getRequestStatus(contributorsResult),
         data: {
           activityItems: activityResult.status === "fulfilled" ? activityResult.value.items : [],
+          agenda: agendaResult.status === "fulfilled" ? agendaResult.value : undefined,
           members: contributorsResult.status === "fulfilled" ? contributorsResult.value.members : [],
           notifications: updatesResult.status === "fulfilled" ? updatesResult.value.notifications : [],
         },
@@ -625,6 +853,161 @@ function getRequestStatus<T>(result: PromiseSettledResult<T>): HomeDataStatus {
   }
 
   return "error";
+}
+
+function toAgendaDisplayItem(item: WorkspaceAgendaItemDto): AgendaDisplayItem {
+  return {
+    calendarStatus: item.calendarStatus,
+    category: item.category,
+    connectedToCalendar: item.connectedToCalendar,
+    date: item.date,
+    detail: item.detail,
+    durationMinutes: item.durationMinutes,
+    endTime: item.endTime,
+    href: createAgendaItemHref(item),
+    id: item.id,
+    kind: item.kind,
+    startTime: item.startTime,
+    title: item.title,
+  };
+}
+
+function toAgendaDisplayItemFromRow(item: HomeAgendaRow): AgendaDisplayItem {
+  return {
+    calendarStatus: item.calendarStatus,
+    category: item.meta,
+    connectedToCalendar: item.connectedToCalendar,
+    date: item.date,
+    detail: item.detail,
+    durationMinutes: item.durationMinutes,
+    endTime: item.endTime,
+    href: item.href,
+    id: item.id,
+    kind: item.kind,
+    startTime: item.startTime ?? item.time,
+    title: item.title,
+  };
+}
+
+function createAgendaItemHref(item: WorkspaceAgendaItemDto) {
+  if (item.resourceType === "document" && item.resourceId && isUuid(item.resourceId)) {
+    return createEditorHash(item.resourceId);
+  }
+
+  if (item.actionUrl) {
+    return normalizeInternalActionHash(item.actionUrl);
+  }
+
+  return undefined;
+}
+
+function getAgendaDrawerText(locale: DisplayLocale) {
+  if (locale === "zh-CN") {
+    return {
+      add: "添加事项",
+      addDisabled: "当前日程来自工作区读模型，写入事项需要真实日历集成。",
+      calendarDisabled: "当前没有外部日历链接。",
+      close: "关闭今日日程",
+      empty: "暂无日程事项。",
+      later: "稍后安排",
+      tabsLabel: "日程范围",
+      title: "今日日程",
+      today: "今天",
+      viewCalendar: "在日历中查看",
+      week: "本周",
+    };
+  }
+
+  return {
+    add: "Add item",
+    addDisabled: "This agenda is a workspace read model; writing items requires calendar integration.",
+    calendarDisabled: "No external calendar link is configured.",
+    close: "Close today agenda",
+    empty: "No agenda items yet.",
+    later: "Later",
+    tabsLabel: "Agenda range",
+    title: "Today agenda",
+    today: "Today",
+    viewCalendar: "View in calendar",
+    week: "This week",
+  };
+}
+
+function getCalendarStatusLabel(calendarStatus: string | undefined, status: HomeDataStatus, locale: DisplayLocale) {
+  if (status === "loading") {
+    return locale === "zh-CN" ? "加载中" : "Loading";
+  }
+
+  if (status === "error" || status === "forbidden") {
+    return locale === "zh-CN" ? "未连接" : "Unavailable";
+  }
+
+  if (calendarStatus === "connected") {
+    return locale === "zh-CN" ? "已连接到日历" : "Connected to calendar";
+  }
+
+  return locale === "zh-CN" ? "工作区日程" : "Workspace agenda";
+}
+
+function getAgendaItemStatusLabel(item: AgendaDisplayItem, locale: DisplayLocale) {
+  if (item.connectedToCalendar || item.calendarStatus === "connected") {
+    return locale === "zh-CN" ? "已连接到日历" : "Connected";
+  }
+
+  return locale === "zh-CN" ? "工作区日程" : "Workspace";
+}
+
+function formatAgendaDate(value: string | undefined, locale: DisplayLocale) {
+  return new Intl.DateTimeFormat(locale === "zh-CN" ? "zh-CN" : "en-US", {
+    month: "long",
+    day: "numeric",
+    weekday: "long",
+  }).format(parseDateOnly(value) ?? new Date());
+}
+
+function formatAgendaItemDate(value: string | undefined, startTime: string, locale: DisplayLocale) {
+  const date = parseDateOnly(value);
+  if (!date) {
+    return startTime;
+  }
+
+  const formattedDate = new Intl.DateTimeFormat(locale === "zh-CN" ? "zh-CN" : "en-US", {
+    month: "short",
+    day: "numeric",
+  }).format(date);
+
+  return `${formattedDate} ${startTime}`;
+}
+
+function formatAgendaItemMeta(item: AgendaDisplayItem, locale: DisplayLocale) {
+  if (!item.endTime) {
+    return item.kind === "task"
+      ? locale === "zh-CN" ? `截止 ${item.startTime}` : `Due ${item.startTime}`
+      : item.detail;
+  }
+
+  const duration = item.durationMinutes && item.durationMinutes > 0 ? item.durationMinutes : null;
+  const durationLabel = duration ? ` (${duration} ${locale === "zh-CN" ? "分钟" : "min"})` : "";
+  return `${item.startTime} - ${item.endTime}${durationLabel}`;
+}
+
+function parseDateOnly(value: string | undefined) {
+  if (!value) {
+    return null;
+  }
+
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+  if (!match) {
+    return null;
+  }
+
+  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+}
+
+function getLocalIsoDate() {
+  const now = new Date();
+  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 10);
 }
 
 function getSupplementalMessage(status: HomeDataStatus, emptyMessage: string) {

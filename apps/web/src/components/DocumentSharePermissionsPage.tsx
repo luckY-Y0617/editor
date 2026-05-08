@@ -229,27 +229,47 @@ export function DocumentSharePermissionsPage() {
           <div className="share-permissions-main-inner">
             <header className="share-permissions-heading">
               <div className="min-w-0">
-                <h1>Share &amp; Permissions</h1>
-                <p>Manage workspace-based access for this document.</p>
+                <h1>Advanced permissions</h1>
+                <p>
+                  Daily sharing is handled from the editor Share drawer. Use this page for direct grants, group access,
+                  inheritance policy, access requests, and permission audit context.
+                </p>
               </div>
-              <button
-                className="share-permissions-primary-action"
-                disabled={primaryDisabled}
-                onClick={() => {
-                  if (isForbidden) {
-                    requestAccess.request();
-                    return;
-                  }
+              <div className="share-permissions-heading-actions">
+                <a
+                  className="share-permissions-secondary-action"
+                  href={permissionApiDocumentId ? createEditorHash(permissionApiDocumentId) : "#editor"}
+                  title="Return to document editor"
+                >
+                  Back to document
+                </a>
+                <button
+                  className="share-permissions-primary-action"
+                  disabled={primaryDisabled}
+                  onClick={() => {
+                    if (isForbidden) {
+                      requestAccess.request();
+                      return;
+                    }
 
-                  setActiveTab("People");
-                }}
-                title={isForbidden ? "Request viewer access" : "Create a user or group document grant"}
-                type="button"
-              >
-                <UserPlus className="h-4 w-4" />
-                {isForbidden ? requestAccessButtonLabel(requestAccess.status) : "Add Grant"}
-              </button>
+                    setActiveTab("People");
+                  }}
+                  title={isForbidden ? "Request viewer access" : "Create a user or group document grant"}
+                  type="button"
+                >
+                  <UserPlus className="h-4 w-4" />
+                  {isForbidden ? requestAccessButtonLabel(requestAccess.status) : "Add Grant"}
+                </button>
+              </div>
             </header>
+
+            <section className="share-permissions-boundary-note">
+              <strong>Share drawer owns daily sharing.</strong>
+              <span>
+                Link creation, email invites, password-protected public links, and quick copy flows stay in the editor
+                drawer. Public links are created only through the dedicated share-link API.
+              </span>
+            </section>
 
             <nav className="share-permissions-tabs" aria-label="Share sections">
               {shareTabs.map((tab) => (
@@ -1208,276 +1228,32 @@ function ShareSettingsPanel({
   status: PermissionApiStatus;
 }) {
   const pendingRequests = accessRequests?.filter((request) => request.status === "pending") ?? [];
+  const activeLinkCount = shareLinks.links?.filter((link) => !link.revokedAt).length ?? 0;
+  const pendingInviteCount = emailInvites.invites?.filter((invite) => invite.status === "pending").length ?? 0;
 
   return (
     <aside className="share-permissions-settings editor-scrollbar overflow-y-auto">
       <div className="share-permissions-settings-inner">
-        <Panel title="Share links" icon={<Link2 className="h-5 w-5" />}>
-          {shareLinks.created ? (
-            <div className="share-permissions-generated-link">
-              <span>{shareLinks.created.url}</span>
-              <button
-                onClick={shareLinks.copyGeneratedUrl}
-                title="Copy generated link"
-                type="button"
-              >
-                <Copy className="h-4 w-4" />
-                URL
-              </button>
-              <div className="share-permissions-generated-actions">
-                <button
-                  onClick={shareLinks.copyGeneratedToken}
-                  title="Copy one-time token"
-                  type="button"
-                >
-                  Copy token
-                </button>
-                <button onClick={shareLinks.dismissCreated} title="Dismiss generated token" type="button">
-                  Dismiss
-                </button>
-              </div>
-              <small>
-                {formatPermissionValue(shareLinks.created.link.audience)} token is returned once and is not shown in
-                active link lists.
-              </small>
+        <Panel title="Share drawer summary" icon={<Link2 className="h-5 w-5" />}>
+          <div className="share-permissions-drawer-summary">
+            <div>
+              <span>Active links</span>
+              <strong>{shareLinks.links ? activeLinkCount : statusLabel(shareLinks.status)}</strong>
             </div>
-          ) : null}
-          {!shareLinks.canUse && shareLinks.capabilityReason ? (
-            <div className="share-permissions-inline-status is-muted">{shareLinks.capabilityReason}</div>
-          ) : null}
-          <div className="share-permissions-link-options">
-            <button
-              className={shareLinks.role === "viewer" ? "is-selected" : ""}
-              disabled={!shareLinks.canUse}
-              onClick={() => shareLinks.setRole("viewer")}
-              type="button"
-            >
-              <Eye className="h-4 w-4" />
-              Viewer
-            </button>
-            <button
-              className={shareLinks.role === "commenter" ? "is-selected" : ""}
-              disabled={!shareLinks.canUse}
-              onClick={() => shareLinks.setRole("commenter")}
-              type="button"
-            >
-              <UserRound className="h-4 w-4" />
-              Commenter
-            </button>
-          </div>
-          <button
-            className="share-permissions-inline-action"
-            disabled={!shareLinks.canUse || shareLinks.operation === "creating"}
-            onClick={shareLinks.createInternalLink}
-            title={shareLinks.capabilityReason ?? "Create a workspace-member share link"}
-            type="button"
-          >
-            {shareLinks.operation === "creating" ? "Creating" : "Create internal link"}
-          </button>
-          <div className="share-permissions-field-row">
-            <label htmlFor="external-share-email">External authenticated email</label>
-            <input
-              disabled={!shareLinks.canUse}
-              id="external-share-email"
-              onChange={(event) => shareLinks.setExternalEmail(event.target.value)}
-              placeholder="person@example.com"
-              type="email"
-              value={shareLinks.externalEmail}
-            />
-          </div>
-          <button
-            className="share-permissions-inline-action"
-            disabled={!shareLinks.canUse || !shareLinks.externalEmail.trim() || shareLinks.operation === "creating-external"}
-            onClick={shareLinks.createExternalLink}
-            type="button"
-          >
-            {shareLinks.operation === "creating-external" ? "Creating" : "Create external link"}
-          </button>
-          <div className="share-permissions-public-link-form">
-            <div className="share-permissions-public-link-heading">
-              <strong>Public document link</strong>
-              <small>Viewer only / dedicated share-link API</small>
-            </div>
-            <div className="share-permissions-public-link-grid">
-              <div className="share-permissions-field-row is-compact">
-                <label htmlFor="public-share-expiry">Expiry</label>
-                <input
-                  disabled={!shareLinks.canUse}
-                  id="public-share-expiry"
-                  min={shareLinks.minimumPublicExpiry}
-                  onChange={(event) => shareLinks.setPublicExpiresAt(event.target.value)}
-                  type="datetime-local"
-                  value={shareLinks.publicExpiresAt}
-                />
-              </div>
-              <div className="share-permissions-field-row is-compact">
-                <label htmlFor="public-share-password">Password</label>
-                <input
-                  autoComplete="new-password"
-                  disabled={!shareLinks.canUse}
-                  id="public-share-password"
-                  onChange={(event) => shareLinks.setPublicPassword(event.target.value)}
-                  placeholder="Optional"
-                  type="password"
-                  value={shareLinks.publicPassword}
-                />
-              </div>
-              <button
-                className="share-permissions-inline-action"
-                disabled={
-                  !shareLinks.canUse ||
-                  !shareLinks.canCreatePublicLink ||
-                  shareLinks.operation === "creating-public"
-                }
-                onClick={shareLinks.createPublicLink}
-                title={!shareLinks.canCreatePublicLink ? "Future expiry is required" : "Create public document link"}
-                type="button"
-              >
-                <LockKeyhole className="h-4 w-4" />
-                {shareLinks.operation === "creating-public" ? "Creating" : "Create public link"}
-              </button>
+            <div>
+              <span>Pending email invites</span>
+              <strong>{emailInvites.invites ? pendingInviteCount : statusLabel(emailInvites.status)}</strong>
             </div>
           </div>
-          {!shareLinks.links ? (
-            <div className="share-permissions-empty-state">{statusLabel(shareLinks.status)}</div>
-          ) : shareLinks.links.length === 0 ? (
-            <div className="share-permissions-empty-state">No active links</div>
-          ) : (
-            <div className="share-permissions-share-link-list">
-              {shareLinks.links.map((link) => (
-                <div className="share-permissions-share-link-row" key={link.id}>
-                  <span>
-                    <strong>
-                      {formatPermissionValue(link.roleKey)} / {link.audience}
-                    </strong>
-                    <small>
-                      {formatShareLinkMetadata(link)}
-                    </small>
-                  </span>
-                  <button
-                    className={shareLinks.revokeCandidateId === link.id ? "is-danger" : ""}
-                    disabled={shareLinks.operation === link.id}
-                    onClick={() => {
-                      if (shareLinks.revokeCandidateId === link.id) {
-                        shareLinks.revokeLink(link.id);
-                        return;
-                      }
-
-                      shareLinks.requestRevokeLink(link.id);
-                    }}
-                    title={
-                      shareLinks.revokeCandidateId === link.id
-                        ? "Click again to revoke this share link"
-                        : "Prepare to revoke this share link"
-                    }
-                    type="button"
-                  >
-                    {shareLinks.operation === link.id
-                      ? "Revoking"
-                      : shareLinks.revokeCandidateId === link.id
-                        ? "Confirm"
-                        : "Revoke"}
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-          {shareLinks.error ? <div className="share-permissions-inline-status is-error">{shareLinks.error}</div> : null}
-          {shareLinks.message ? <div className="share-permissions-inline-status">{shareLinks.message}</div> : null}
-        </Panel>
-
-        <Panel title="Email invites" icon={<UserPlus className="h-5 w-5" />}>
-          {emailInvites.created ? (
-            <div className="share-permissions-generated-link">
-              <span>{emailInvites.created.url}</span>
-              <button
-                onClick={() => void navigator.clipboard?.writeText(emailInvites.created?.url ?? "")}
-                title="Copy generated invite"
-                type="button"
-              >
-                <Copy className="h-4 w-4" />
-                URL
-              </button>
-              <div className="share-permissions-generated-actions">
-                <button
-                  onClick={() => void navigator.clipboard?.writeText(emailInvites.created?.token ?? "")}
-                  title="Copy one-time invite token"
-                  type="button"
-                >
-                  Copy token
-                </button>
-                <button onClick={emailInvites.dismissCreated} title="Dismiss generated invite" type="button">
-                  Dismiss
-                </button>
-              </div>
-              <small>Invite token is returned once. Copy it now; it is not shown in invite lists.</small>
-            </div>
-          ) : null}
-          <div className="share-permissions-field-row">
-            <label htmlFor="email-invite-address">Recipient email</label>
-            <input
-              id="email-invite-address"
-              onChange={(event) => emailInvites.setEmail(event.target.value)}
-              placeholder="person@example.com"
-              type="email"
-              value={emailInvites.email}
-            />
+          <p className="share-permissions-muted-copy">
+            Quick invite, copy link, password, expiry, and public-link creation are managed in the editor Share drawer.
+          </p>
+          <div className="share-permissions-policy-boundary">
+            <LockKeyhole className="h-4 w-4" />
+            <span title="Public links are created only through the dedicated share-link API">
+              Public links use the dedicated share-link API
+            </span>
           </div>
-          <div className="share-permissions-link-options">
-            <button
-              className={emailInvites.role === "viewer" ? "is-selected" : ""}
-              onClick={() => emailInvites.setRole("viewer")}
-              type="button"
-            >
-              <Eye className="h-4 w-4" />
-              Viewer
-            </button>
-            <button
-              className={emailInvites.role === "commenter" ? "is-selected" : ""}
-              onClick={() => emailInvites.setRole("commenter")}
-              type="button"
-            >
-              <UserRound className="h-4 w-4" />
-              Commenter
-            </button>
-          </div>
-          <button
-            className="share-permissions-inline-action"
-            disabled={!emailInvites.canUse || !emailInvites.email.trim() || emailInvites.operation === "creating"}
-            onClick={emailInvites.createInvite}
-            type="button"
-          >
-            {emailInvites.operation === "creating" ? "Creating" : "Create invite"}
-          </button>
-          {!emailInvites.invites ? (
-            <div className="share-permissions-empty-state">{statusLabel(emailInvites.status)}</div>
-          ) : emailInvites.invites.length === 0 ? (
-            <div className="share-permissions-empty-state">No email invites</div>
-          ) : (
-            <div className="share-permissions-share-link-list">
-              {emailInvites.invites.map((invite) => (
-                <div className="share-permissions-share-link-row" key={invite.id}>
-                  <span>
-                    <strong>
-                      {invite.email} / {invite.status}
-                    </strong>
-                    <small>
-                      {formatPermissionValue(invite.roleKey)} / expires {formatDate(invite.expiresAt)}
-                      {invite.deliveryStatus ? ` / delivery ${invite.deliveryStatus}` : ""}
-                    </small>
-                  </span>
-                  <button
-                    disabled={emailInvites.operation === invite.id || invite.status === "revoked" || invite.status === "expired"}
-                    onClick={() => emailInvites.revokeInvite(invite.id)}
-                    type="button"
-                  >
-                    Revoke
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-          {emailInvites.error ? <div className="share-permissions-inline-status is-error">{emailInvites.error}</div> : null}
         </Panel>
 
         <Panel title="Inherited workspace access" icon={<UsersRound className="h-5 w-5" />}>
@@ -1485,7 +1261,7 @@ function ShareSettingsPanel({
             <p>{permissions ? `Policy ${permissions.policy.inheritanceMode}; source ${permissions.effectiveAccess.source}.` : statusLabel(status)}</p>
             <span aria-hidden="true" />
           </div>
-          <a className="share-permissions-text-link" href="#workspace-members" title="Manage workspace members">
+          <a className="share-permissions-text-link" href="#settings?scope=workspace&tab=members" title="Manage workspace members">
             Manage workspace members
           </a>
         </Panel>

@@ -1,14 +1,20 @@
 import { describe, expect, test } from "../test/harness";
 import {
   createEditorHash,
+  createDocumentAdvancedPermissionsHash,
   createLibrariesHash,
   createOrganizationSettingsHash,
   createPersonalSettingsHash,
   createSearchHash,
   createSettingsHash,
   createShareHash,
+  createWorkspaceIntegrationsHash,
+  createWorkspaceMembersHash,
+  createWorkspacePermissionsHash,
+  createWorkspaceUpdatesHash,
   getEditorDocumentIdFromHash,
   getHashRoute,
+  getCanonicalHashRedirect,
   getLibrariesFiltersFromHash,
   getOrganizationSettingsPanelFromHash,
   getPostLoginRedirectHash,
@@ -51,6 +57,7 @@ describe("hashRouting", () => {
 
   test("creates and parses share document hashes only for UUID document ids", () => {
     expect(createShareHash(documentId)).toBe(`#share?documentId=${documentId}`);
+    expect(createDocumentAdvancedPermissionsHash(documentId)).toBe(`#share?documentId=${documentId}`);
     expect(createShareHash("doc-demo")).toBe("#share");
     expect(createShareHash(null)).toBe("#share");
     expect(getShareDocumentIdFromHash(`#share?documentId=${documentId}`)).toBe(documentId);
@@ -91,6 +98,11 @@ describe("hashRouting", () => {
 
   test("creates and parses workspace settings hashes", () => {
     expect(createSettingsHash()).toBe("#settings");
+    expect(createWorkspaceMembersHash()).toBe("#settings?scope=workspace&tab=members");
+    expect(createWorkspacePermissionsHash()).toBe("#settings?scope=workspace&tab=permissions");
+    expect(createWorkspaceIntegrationsHash()).toBe("#settings?scope=workspace&tab=integrations");
+    expect(createWorkspaceUpdatesHash()).toBe("#updates");
+    expect(createWorkspaceUpdatesHash({ tab: "access" })).toBe("#updates?tab=access");
     expect(createSettingsHash({ tab: "notifications" })).toBe("#settings?tab=notifications");
     expect(createSettingsHash({ spaceId: libraryId, tab: "general" })).toBe(`#settings?spaceId=${libraryId}`);
     expect(createSettingsHash({ spaceId: libraryId, tab: "security" })).toBe(`#settings?tab=security&spaceId=${libraryId}`);
@@ -194,7 +206,15 @@ describe("hashRouting", () => {
   });
 
   test("normalizes action urls to safe internal hashes only", () => {
-    expect(normalizeInternalActionHash("#workspace-members")).toBe("#workspace-members");
+    expect(normalizeInternalActionHash("#workspace-members")).toBe("#settings?scope=workspace&tab=members");
+    expect(normalizeInternalActionHash("#members")).toBe("#settings?scope=workspace&tab=members");
+    expect(normalizeInternalActionHash("#permission-admin")).toBe("#settings?scope=workspace&tab=permissions");
+    expect(normalizeInternalActionHash("#workspace-groups")).toBe("#settings?scope=workspace&tab=permissions");
+    expect(normalizeInternalActionHash("#groups")).toBe("#settings?scope=workspace&tab=permissions");
+    expect(normalizeInternalActionHash("#scim")).toBe("#settings?scope=workspace&tab=integrations");
+    expect(normalizeInternalActionHash("#permissions")).toBe("#settings?scope=workspace&tab=permissions");
+    expect(normalizeInternalActionHash("#share")).toBe("#settings?scope=workspace&tab=permissions");
+    expect(normalizeInternalActionHash(`#share?documentId=${documentId}`)).toBe(`#share?documentId=${documentId}`);
     expect(normalizeInternalActionHash("#settings?tab=notifications")).toBe("#settings?tab=notifications");
     expect(normalizeInternalActionHash("#personal-settings")).toBe("#personal-settings");
     expect(normalizeInternalActionHash("#organization-settings?panel=members")).toBe("#organization-settings?panel=members");
@@ -206,8 +226,23 @@ describe("hashRouting", () => {
     expect(normalizeInternalActionHash(null)).toBe("#updates");
   });
 
+  test("canonicalizes legacy permission and member routes", () => {
+    expect(getCanonicalHashRedirect("#workspace-members")).toBe("#settings?scope=workspace&tab=members");
+    expect(getCanonicalHashRedirect("#members")).toBe("#settings?scope=workspace&tab=members");
+    expect(getCanonicalHashRedirect("#permission-admin")).toBe("#settings?scope=workspace&tab=permissions");
+    expect(getCanonicalHashRedirect("#workspace-groups")).toBe("#settings?scope=workspace&tab=permissions");
+    expect(getCanonicalHashRedirect("#groups")).toBe("#settings?scope=workspace&tab=permissions");
+    expect(getCanonicalHashRedirect("#scim")).toBe("#settings?scope=workspace&tab=integrations");
+    expect(getCanonicalHashRedirect("#share")).toBe("#settings?scope=workspace&tab=permissions");
+    expect(getCanonicalHashRedirect(`#share?documentId=${documentId}`)).toBe(null);
+    expect(getCanonicalHashRedirect("#settings")).toBe(null);
+  });
+
   test("preserves safe protected target after login", () => {
     expect(getPostLoginRedirectHash("#settings")).toBe("#settings");
+    expect(getPostLoginRedirectHash("#workspace-members")).toBe("#settings?scope=workspace&tab=members");
+    expect(getPostLoginRedirectHash("#permission-admin")).toBe("#settings?scope=workspace&tab=permissions");
+    expect(getPostLoginRedirectHash("#scim")).toBe("#settings?scope=workspace&tab=integrations");
     expect(getPostLoginRedirectHash("#personal-settings")).toBe("#personal-settings");
     expect(getPostLoginRedirectHash("#organization-settings?panel=profile")).toBe("#organization-settings?panel=profile");
     expect(getPostLoginRedirectHash(`#settings?tab=notifications&spaceId=${libraryId}`)).toBe(

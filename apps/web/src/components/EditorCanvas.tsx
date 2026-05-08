@@ -42,6 +42,7 @@ type EditorCanvasProps = {
   outlineFocusRequest: OutlineFocusRequest | null;
   onCommentRuntimeStateChange?: (runtimeState: CommentRuntimeAnchorState) => void;
   onOpenCommentComposer?: (composer: PendingCommentComposer) => void;
+  onOpenShare?: () => void;
   onSelectCommentThread?: (threadId: string) => void;
   onTitleChange: (title: string) => void;
   onContentChange: (change: TiptapContentChange) => void;
@@ -65,6 +66,7 @@ export function EditorCanvas({
   onContentChange,
   onContentStatsChange,
   onOpenCommentComposer,
+  onOpenShare,
   onSelectCommentThread,
   onTitleChange,
   outlineFocusRequest,
@@ -102,10 +104,15 @@ export function EditorCanvas({
             <span className="h-1.5 w-1.5 rounded-full bg-[#3f8c86]" />
             {documentStatusLabel}
           </span>
-          <a className="atlas-row-button hidden sm:inline-flex" href={shareHref} title="Share document">
+          <button
+            className="atlas-row-button hidden sm:inline-flex"
+            onClick={onOpenShare ?? (() => { window.location.hash = shareHref; })}
+            title="Share document"
+            type="button"
+          >
             <AtlasIcon className="h-4 w-4" src={shareIcon} />
             Share
-          </a>
+          </button>
           <a className="atlas-icon-button" href={settingsHref} title="Library settings">
             <MoreHorizontal className="h-4 w-4" />
           </a>

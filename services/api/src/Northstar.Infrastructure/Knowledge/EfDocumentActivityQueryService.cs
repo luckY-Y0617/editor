@@ -22,7 +22,7 @@ public sealed class EfDocumentActivityQueryService : IDocumentActivityQueryServi
         var document = await _dbContext.Documents
             .AsNoTracking()
             .Where(document => document.Id == documentId && document.DeletedAt == null)
-            .Select(document => new { document.Id, document.WorkspaceId })
+            .Select(document => new { document.Id, document.Title, document.WorkspaceId })
             .FirstOrDefaultAsync(cancellationToken);
 
         if (document is null)
@@ -30,17 +30,22 @@ public sealed class EfDocumentActivityQueryService : IDocumentActivityQueryServi
             return null;
         }
 
-        var items = await _dbContext.ActivityEvents
-            .AsNoTracking()
-            .Where(activity => activity.WorkspaceId == document.WorkspaceId &&
+        var items = await (
+            from activity in _dbContext.ActivityEvents.AsNoTracking()
+            join actor in _dbContext.Users.AsNoTracking()
+                on activity.ActorId equals (Guid?)actor.Id into actorRows
+            from actor in actorRows.DefaultIfEmpty()
+            where activity.WorkspaceId == document.WorkspaceId &&
                 activity.EntityType == ActivityEntityTypes.Document &&
-                activity.EntityId == document.Id)
-            .OrderByDescending(activity => activity.CreatedAt)
-            .Select(activity => new ActivityTimelineItemDto(
+                activity.EntityId == document.Id
+            orderby activity.CreatedAt descending
+            select new ActivityTimelineItemDto(
                 activity.Id.ToString(),
                 activity.Action,
                 activity.CreatedAt,
-                activity.Summary))
+                activity.Summary,
+                actor == null ? null : new ActivityActorDto(actor.Id.ToString(), actor.DisplayName),
+                new ActivityDocumentDto(document.Id.ToString(), document.Title)))
             .ToListAsync(cancellationToken);
 
         return new DocumentActivityResponse(items);

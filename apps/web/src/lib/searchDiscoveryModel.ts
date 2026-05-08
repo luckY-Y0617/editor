@@ -1,5 +1,5 @@
 import type { BootstrapResponse, KnowledgeDocumentSummaryDto, SearchResponse } from "./appApi";
-import { createEditorHash, createLibrariesHash } from "./hashRouting";
+import { createEditorHash, createLibrariesHash, createWorkspaceMembersHash } from "./hashRouting";
 
 export type SearchApiStatus = "idle" | "unconfigured" | "loading" | "ready" | "forbidden" | "error";
 
@@ -114,7 +114,7 @@ export function toSearchResultItems(response: SearchResponse, bootstrap: Bootstr
           ? createEditorHash(result.id)
           : type === "collection"
             ? createLibrariesHash({ collectionId: result.id, libraryId: bootstrap.activeSpaceId })
-            : "#workspace-members",
+            : createWorkspaceMembersHash(),
       id: result.id,
       path: folderTitle ?? (type === "collection" ? "Folder" : "Workspace"),
       selected: index === 0,

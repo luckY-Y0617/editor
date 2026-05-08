@@ -7,7 +7,16 @@ import type {
   UpdatePermissionNotificationPreferenceRequest,
   UpdateOrganizationProfileRequest,
 } from "./appApi";
-import { createEditorHash, createLibrariesHash, createOrganizationSettingsHash, createPersonalSettingsHash, createSettingsHash } from "./hashRouting";
+import {
+  createEditorHash,
+  createLibrariesHash,
+  createOrganizationSettingsHash,
+  createPersonalSettingsHash,
+  createSettingsHash,
+  createWorkspaceIntegrationsHash,
+  createWorkspaceMembersHash,
+  createWorkspacePermissionsHash,
+} from "./hashRouting";
 import type { SettingsPanelId, WorkspaceSettingsScope, WorkspaceSettingsTab } from "./hashRouting";
 import type { NotificationApiStatus, NotificationPreferenceResourceRow } from "./workspaceUpdatesModel";
 import { toNotificationPreferenceResourceRows } from "./workspaceUpdatesModel";
@@ -386,13 +395,11 @@ export function createWorkspaceSettingsTabRows(
       ]
     : [
     { id: "general", label: "General", status: "live" },
-    { id: "members", label: "Members", status: "reused" },
     { id: "notifications", label: "Notifications", status: "live" },
+    { id: "members", label: "Members", status: "live" },
     { id: "permissions", label: "Permissions", status: "reused" },
-    { id: "integrations", label: "Integrations", status: "reused" },
     { id: "security", label: "Security", status: "live" },
-    { id: "plan", label: "Plan", status: "deferred" },
-    { id: "developer", label: "Developer", status: "deferred" },
+    { id: "integrations", label: "Integrations", status: "reused" },
   ];
 
   return tabs.map((tab) => ({
@@ -402,7 +409,13 @@ export function createWorkspaceSettingsTabRows(
       ? createSettingsHash({ scope: "organization", tab: tab.id })
       : scope === "library"
       ? createSettingsHash({ scope: "library", spaceId: options.spaceId, tab: tab.id })
-      : createSettingsHash({ tab: tab.id }),
+      : tab.id === "members"
+      ? createWorkspaceMembersHash()
+      : tab.id === "permissions"
+      ? createWorkspacePermissionsHash()
+      : tab.id === "integrations"
+      ? createWorkspaceIntegrationsHash()
+      : createSettingsHash({ scope: "workspace", tab: tab.id }),
     id: tab.id,
     label: tab.label,
     status: tab.status,
@@ -416,7 +429,8 @@ export function createSettingsNavGroups(): SettingsNavGroup[] {
       items: [
         createSettingsNavItem("workspace-general", "live"),
         createSettingsNavItem("workspace-notifications", "live"),
-        createSettingsNavItem("workspace-access-identity", "reused"),
+        createSettingsNavItem("workspace-members", "live"),
+        createSettingsNavItem("workspace-permissions", "reused"),
         createSettingsNavItem("workspace-security", "live"),
         createSettingsNavItem("workspace-integrations", "reused"),
       ],
@@ -460,6 +474,13 @@ export function normalizeSettingsPanel(filters: {
   scope?: WorkspaceSettingsScope | null;
   tab?: WorkspaceSettingsTab | null;
 }): NormalizedSettingsPanel {
+  if (filters.panel === "workspace-access-identity") {
+    return {
+      id: "workspace-permissions",
+      section: "workspace",
+    };
+  }
+
   if (filters.panel && getSettingsPanelSection(filters.panel) !== "organization" && getSettingsPanelSection(filters.panel) !== "personal") {
     return {
       id: filters.panel,
@@ -476,7 +497,10 @@ export function normalizeSettingsPanel(filters: {
   }
 
   if (filters.tab === "members" || filters.tab === "permissions") {
-    return { id: "workspace-access-identity", section: "workspace" };
+    return {
+      id: filters.tab === "members" ? "workspace-members" : "workspace-permissions",
+      section: "workspace",
+    };
   }
 
   if (filters.tab === "security") {
@@ -522,6 +546,14 @@ function createSettingsPanelHref(id: SettingsPanelId) {
 
   if (id === "organization-members") {
     return createOrganizationSettingsHash({ panel: "members" });
+  }
+
+  if (id === "workspace-members") {
+    return createWorkspaceMembersHash();
+  }
+
+  if (id === "workspace-permissions") {
+    return createWorkspacePermissionsHash();
   }
 
   return createSettingsHash({ panel: id });
@@ -587,7 +619,7 @@ export function toOrganizationSettingsAssessmentRows(): OrganizationAssessmentRo
     },
     {
       currentSource: "Workspace members API and Members surface exist, but membership is scoped to one workspace.",
-      href: "#workspace-members",
+      href: createWorkspaceMembersHash(),
       id: "global-members",
       implementationDependencies: "Requires Organization membership projection plus organization-level read authorization.",
       implementationRisk: "medium",
@@ -632,7 +664,7 @@ export function toOrganizationSettingsAssessmentRows(): OrganizationAssessmentRo
     },
     {
       currentSource: "Workspace-scoped SCIM discovery, users/groups, and token surfaces exist; OIDC/SAML UI is currently disabled.",
-      href: "#scim",
+      href: createWorkspaceIntegrationsHash(),
       id: "sso-scim-ownership",
       implementationDependencies: "Requires organization-owned identity configuration and token scope before org-wide SCIM is real.",
       implementationRisk: "high",

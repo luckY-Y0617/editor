@@ -1,13 +1,13 @@
 import {
-  AtSign,
-  Bell,
+  Clock3,
   ChevronDown,
   ChevronRight,
   Eye,
   FileText,
-  MessageSquare,
+  Link2,
   ShieldCheck,
   SlidersHorizontal,
+  UserCheck,
   UsersRound,
   Wrench,
 } from "lucide-react";
@@ -26,7 +26,7 @@ import {
 } from "../lib/appApi";
 import {
   filterWorkspaceNotifications,
-  getNotificationKind,
+  getWorkspaceUpdatesTabFromHash,
   getNotificationPreferenceStatusLabel,
   getNotificationStatusLabel,
   toNotificationPreferenceResourceRows,
@@ -38,10 +38,9 @@ import { getWorkspaceUpdatesTabDisplayLabel, t, useDisplayLanguage } from "../li
 import {
   mutedCollections,
   notificationGroups,
-  notificationPreferences,
   watchedDocuments,
   type NotificationKind,
-  type NotificationPreference,
+  type NotificationGroup,
   type WorkspaceNotification,
 } from "../data/workspaceUpdatesData";
 import compassMarkUrl from "../assets/svg/decorative/compass-mark-small.svg";
@@ -58,12 +57,12 @@ const updatesPatternStyle = {
   "--workspace-home-topographic-pattern": `url(${topographicPatternUrl})`,
 } as CSSProperties;
 
-const updatesTabs: WorkspaceUpdatesTab[] = ["all", "unread", "comments", "mentions", "access", "documents", "general"];
+const updatesTabs: WorkspaceUpdatesTab[] = ["all", "unread", "access", "grants", "sharing", "expiry"];
 const updatesApiWorkspaceId = getConfiguredNotificationWorkspaceId();
 
 export function WorkspaceUpdatesPage() {
   const { locale } = useDisplayLanguage();
-  const [activeTab, setActiveTab] = useState<WorkspaceUpdatesTab>("all");
+  const [activeTab, setActiveTab] = useState<WorkspaceUpdatesTab>(() => getWorkspaceUpdatesTabFromHash(window.location.hash));
   const { markAllRead, markRead, notifications, status, unreadCount } = usePermissionNotifications(updatesApiWorkspaceId);
   const preferences = useNotificationPreferences(updatesApiWorkspaceId);
   const filteredNotifications = useMemo(
@@ -72,7 +71,7 @@ export function WorkspaceUpdatesPage() {
   );
   const displayGroups = useMemo(() => {
     if (status === "unconfigured") {
-      return notificationGroups;
+      return filterDemoNotificationGroups(notificationGroups, activeTab);
     }
 
     if (status !== "ready") {
@@ -90,7 +89,7 @@ export function WorkspaceUpdatesPage() {
         notifications: filteredNotifications.map(toWorkspaceNotification),
       },
     ];
-  }, [filteredNotifications, locale, status]);
+  }, [activeTab, filteredNotifications, locale, status]);
   const totalCount = status === "ready"
     ? notifications.length
     : status === "unconfigured"
@@ -104,6 +103,12 @@ export function WorkspaceUpdatesPage() {
         0,
       )
       : 0;
+
+  useEffect(() => {
+    const syncActiveTabFromHash = () => setActiveTab(getWorkspaceUpdatesTabFromHash(window.location.hash));
+    window.addEventListener("hashchange", syncActiveTabFromHash);
+    return () => window.removeEventListener("hashchange", syncActiveTabFromHash);
+  }, []);
 
   return (
     <main className="updates-page-shell flex h-screen flex-col overflow-hidden" style={updatesPatternStyle}>
@@ -244,7 +249,6 @@ function NotificationRow({
             {notification.subject}
           </a>
           {notification.messageSuffix ? <span> {notification.messageSuffix}</span> : null}
-          {notification.versionBadge ? <em>{notification.versionBadge}</em> : null}
         </p>
         {notification.detail ? <small>{notification.detail}</small> : null}
       </div>
@@ -296,24 +300,12 @@ function UpdatesSummaryPanel({
           <AtlasIcon className="updates-page-summary-compass" src={compassMarkUrl} />
         </SummaryCard>
 
-        <SummaryCard title="Category Preferences">
-          <div className="updates-page-preferences">
-            {notificationPreferences.map((preference) => (
-              <PreferenceRow key={preference.id} preference={preference} />
-            ))}
-          </div>
-          <p className="updates-page-summary-note">Category toggles are deferred; resource watch and mute state is live-backed below.</p>
-        </SummaryCard>
-
-        <SummaryCard title="Email Digest">
-          <div className="updates-page-digest">
-            <span>Delivery frequency</span>
-            <button title="Email digest settings are deferred" type="button">
-              Daily
-              <ChevronDown className="h-4 w-4" />
-            </button>
-            <p>Delivered at 08:00 AM local time</p>
-          </div>
+        <SummaryCard title="Current backend contract">
+          <p className="updates-page-summary-note">
+            This inbox is limited to access requests, grants, group access, share links, email invites, and expiry
+            notifications. Category preferences for comments, mentions, document changes, versions, and system alerts
+            are not available in the current backend contract.
+          </p>
         </SummaryCard>
 
         <SummaryCard action="View all" actionHref="#search" title="Watched Documents">
@@ -380,26 +372,6 @@ function SummaryCard({
   );
 }
 
-function PreferenceRow({ preference }: { preference: NotificationPreference }) {
-  const Icon = getPreferenceIcon(preference.id);
-
-  return (
-    <div className="updates-page-preference-row">
-      <Icon className="h-4 w-4" />
-      <span className="min-w-0 flex-1 truncate">{preference.label}</span>
-      <button
-        aria-pressed={preference.enabled}
-        className={preference.enabled ? "is-on" : ""}
-        disabled
-        title="Category notification preference API is not available"
-        type="button"
-      >
-        <span />
-      </button>
-    </div>
-  );
-}
-
 function PreferenceResourceList({
   fallbackRows,
   preferences,
@@ -437,47 +409,41 @@ function PreferenceResourceList({
 
 function getNotificationIcon(kind: NotificationKind) {
   switch (kind) {
-    case "mention":
-      return AtSign;
-    case "comment":
-      return MessageSquare;
+    case "access":
+      return UsersRound;
+    case "grant":
+      return UserCheck;
+    case "sharing":
+      return Link2;
+    case "expiry":
+      return Clock3;
     case "permission":
-      return UsersRound;
-    case "system":
-      return ShieldCheck;
-    case "version":
-    case "document":
     default:
-      return FileText;
+      return ShieldCheck;
   }
 }
 
-function getPreferenceIcon(id: NotificationPreference["id"]) {
-  switch (id) {
-    case "mentions":
-      return Bell;
-    case "comments":
-      return MessageSquare;
-    case "access-requests":
-      return UsersRound;
-    case "system-alerts":
-      return ShieldCheck;
-    case "document-changes":
-    default:
-      return FileText;
-  }
+function getNotificationHref(_kind: NotificationKind) {
+  return "#settings?scope=workspace&tab=permissions";
 }
 
-function getNotificationHref(kind: NotificationKind) {
-  if (kind === "permission") {
-    return "#permissions";
-  }
+function filterDemoNotificationGroups(groups: NotificationGroup[], activeTab: WorkspaceUpdatesTab): NotificationGroup[] {
+  return groups
+    .map((group) => ({
+      ...group,
+      notifications: group.notifications.filter((notification) => {
+        if (activeTab === "all") {
+          return true;
+        }
 
-  if (kind === "version") {
-    return "#versions";
-  }
+        if (activeTab === "unread") {
+          return notification.unread;
+        }
 
-  return "#editor";
+        return notification.kind === (activeTab === "grants" ? "grant" : activeTab);
+      }),
+    }))
+    .filter((group) => group.notifications.length > 0);
 }
 
 function usePermissionNotifications(workspaceId: string | null) {
@@ -608,12 +574,12 @@ function getConfiguredNotificationWorkspaceId() {
 
 function getUpdatesUnavailableMessage(status: NotificationApiStatus) {
   if (status === "loading") {
-    return "Loading live notifications.";
+    return "Loading live access and sharing notifications.";
   }
 
   if (status === "forbidden") {
-    return "Sign in with notification access to load workspace updates.";
+    return "Sign in with notification access to load workspace access and sharing notifications.";
   }
 
-  return "Live notifications could not be loaded. Demo notifications are hidden while the API is configured.";
+  return "Live access and sharing notifications could not be loaded. Demo notifications are hidden while the API is configured.";
 }

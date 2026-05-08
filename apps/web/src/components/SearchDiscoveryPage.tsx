@@ -288,7 +288,7 @@ function SearchResultRow({ query, result }: { query: string; result: SearchDispl
       ? "#editor"
       : result.type === "collection"
         ? createLibrariesHash({ collectionId: result.id })
-        : "#workspace-members";
+        : "#settings?scope=workspace&tab=members";
 
   return (
     <a

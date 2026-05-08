@@ -5,7 +5,6 @@ import {
   Library,
   Search,
   Settings,
-  UsersRound,
 } from "lucide-react";
 import { AtlasIcon } from "./AtlasIcon";
 import { t, useDisplayLanguage } from "../lib/i18n";
@@ -18,7 +17,7 @@ type WorkspaceHomeSidebarProps = {
   showCollections?: boolean;
 };
 
-type WorkspaceNavItemId = "home" | "libraries" | "search" | "settings" | "updates" | "members";
+type WorkspaceNavItemId = "home" | "libraries" | "search" | "settings" | "updates";
 
 type WorkspaceSidebarCollection = {
   displayTitle: string;
@@ -32,7 +31,6 @@ const workspaceNavItems = [
   { id: "libraries" as const, labelKey: "nav.libraries" as const, icon: Library, href: "#libraries" },
   { id: "search" as const, labelKey: "nav.search" as const, icon: Search, href: "#search" },
   { id: "updates" as const, labelKey: "nav.updates" as const, icon: Bell, href: "#updates" },
-  { id: "members" as const, labelKey: "nav.members" as const, icon: UsersRound, href: "#workspace-members" },
   { id: "settings" as const, labelKey: "nav.settings" as const, icon: Settings, href: "#settings" },
 ];
 

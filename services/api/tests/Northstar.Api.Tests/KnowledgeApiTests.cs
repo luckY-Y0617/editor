@@ -118,6 +118,31 @@ public sealed class KnowledgeApiTests
     }
 
     [Fact]
+    public async Task WorkspaceAgenda_ReturnsDocumentBackedSchedule()
+    {
+        using var factory = new NorthstarApiFactory();
+        var client = factory.CreateClient();
+        await LoginOwnerAsync(client);
+        var bootstrap = await client.GetFromJsonAsync<BootstrapResponse>("/api/v1/bootstrap");
+
+        var response = await client.GetAsync($"/api/v1/workspaces/{bootstrap!.Workspace.Id}/agenda?date=2026-05-07");
+
+        response.EnsureSuccessStatusCode();
+        var agenda = await response.Content.ReadFromJsonAsync<WorkspaceAgendaResponse>(JsonOptions);
+        Assert.NotNull(agenda);
+        Assert.Equal(bootstrap.Workspace.Id, agenda.WorkspaceId);
+        Assert.Equal(new DateOnly(2026, 5, 7), agenda.Date);
+        Assert.Equal("workspace", agenda.CalendarStatus);
+        Assert.Contains(agenda.Today, item => item.Kind == "break" && item.StartTime == "12:00");
+        Assert.Contains(agenda.Today, item =>
+            item.ResourceType == "document" &&
+            item.ResourceId == bootstrap.ActiveDocumentId &&
+            !string.IsNullOrWhiteSpace(item.Title) &&
+            !string.IsNullOrWhiteSpace(item.Category));
+        Assert.NotEmpty(agenda.Upcoming);
+    }
+
+    [Fact]
     public async Task UpdateDocument_WithCurrentRevision_SucceedsAndIncrementsRevision()
     {
         using var factory = new NorthstarApiFactory();
@@ -238,7 +263,12 @@ public sealed class KnowledgeApiTests
         var activity = await client.GetFromJsonAsync<DocumentActivityResponse>($"/api/v1/documents/{document.Id}/activity");
 
         Assert.NotNull(activity);
-        Assert.Contains(activity.Items, item => item.Title == "document.created");
+        var created = Assert.Single(activity.Items.Where(item => item.Title == "document.created"));
+        Assert.NotNull(created.Actor);
+        Assert.False(string.IsNullOrWhiteSpace(created.Actor.Name));
+        Assert.NotNull(created.Document);
+        Assert.Equal(document.Id.ToString(), created.Document.Id);
+        Assert.Equal(document.Title, created.Document.Title);
     }
 
     [Fact]

@@ -456,7 +456,6 @@ export function LibrariesPage() {
             <a aria-current="page" href="#libraries">{t(locale, "nav.libraries")}</a>
             <a href="#search">{t(locale, "nav.search")}</a>
             <a href="#updates">{t(locale, "nav.updates")}</a>
-            <a href="#workspace-members">{t(locale, "nav.members")}</a>
             <a href="#settings">{t(locale, "nav.settings")}</a>
           </div>
 

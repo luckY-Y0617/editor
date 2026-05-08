@@ -34,6 +34,10 @@ export type EditorBacklinkRow = {
 };
 
 export type EditorActivityRow = {
+  actorName: string;
+  actionLabel: string;
+  documentTitle: string;
+  href: string;
   id: string;
   date: string;
   detail: string;
@@ -52,7 +56,7 @@ export function createEditorDocumentContextPanelModel(
   activity: DocumentActivityResponse | null,
 ): EditorDocumentContextPanelModel {
   return {
-    activity: activity?.items.map(toActivityRow) ?? [],
+    activity: aggregateEditorActivityRows(activity?.items.map(toActivityRow) ?? []),
     backlinks: context?.backlinks.map(toBacklinkRow) ?? [],
     relatedDocuments: context?.relatedDocuments.map(toRelatedDocumentRow) ?? [],
     versionTrail: context?.versionTrail.map(toVersionTrailRow) ?? [],
@@ -104,12 +108,145 @@ function toBacklinkRow(item: BacklinkItemDto): EditorBacklinkRow {
 }
 
 function toActivityRow(item: ActivityTimelineItemDto): EditorActivityRow {
+  const actorName = item.actor?.name?.trim() || "Unknown user";
+  const documentTitle = item.document?.title?.trim() || item.title?.trim() || "this document";
+  const actionLabel = formatActivityAction(item.title, item.detail);
+
   return {
+    actorName,
+    actionLabel,
+    documentTitle,
+    href: createEditorHash(item.document?.id),
     id: item.id,
     date: formatPanelDate(item.date),
-    detail: item.detail,
-    title: item.title,
+    detail: formatActivityDetail({
+      actionLabel,
+      actorName,
+      detail: item.detail,
+      documentTitle,
+    }),
+    title: documentTitle,
   };
+}
+
+function aggregateEditorActivityRows(rows: EditorActivityRow[]): EditorActivityRow[] {
+  const groupedRows: EditorActivityRow[] = [];
+  let index = 0;
+
+  while (index < rows.length) {
+    const current = rows[index];
+    const groupKey = getEditorActivityGroupKey(current);
+
+    if (!groupKey) {
+      groupedRows.push(current);
+      index += 1;
+      continue;
+    }
+
+    const group = [current];
+    let nextIndex = index + 1;
+
+    while (nextIndex < rows.length) {
+      const next = rows[nextIndex];
+      if (getEditorActivityGroupKey(next) !== groupKey) {
+        break;
+      }
+
+      group.push(next);
+      nextIndex += 1;
+    }
+
+    groupedRows.push(group.length > 1 ? createGroupedEditorActivityRow(group) : current);
+    index = nextIndex;
+  }
+
+  return groupedRows;
+}
+
+function createGroupedEditorActivityRow(group: EditorActivityRow[]): EditorActivityRow {
+  const latest = group[0];
+
+  return {
+    ...latest,
+    detail: `${latest.actorName} updated ${latest.documentTitle} ${group.length} times. ${group.length} updates grouped.`,
+    id: `${latest.id}:grouped-${group.length}`,
+  };
+}
+
+function getEditorActivityGroupKey(row: EditorActivityRow) {
+  if (!isGroupableEditorActivityRow(row)) {
+    return null;
+  }
+
+  return [
+    normalizeActivityGroupValue(row.actorName),
+    normalizeActivityGroupValue(row.documentTitle),
+  ].join("|");
+}
+
+function isGroupableEditorActivityRow(row: EditorActivityRow) {
+  return row.actionLabel === "updated" && isFormattedGenericUpdateDetail(row);
+}
+
+function isFormattedGenericUpdateDetail(row: EditorActivityRow) {
+  const normalizedDetail = row.detail.trim().toLowerCase();
+  const genericDetail = `${row.actorName} updated ${row.documentTitle}.`.toLowerCase();
+
+  return normalizedDetail === genericDetail || isGenericActivityDetail(row.detail);
+}
+
+function normalizeActivityGroupValue(value: string) {
+  return value.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function formatActivityAction(title: string, detail: string) {
+  const normalized = `${title} ${detail}`.toLowerCase();
+
+  if (normalized.includes("comment")) {
+    return "commented on";
+  }
+
+  if (normalized.includes("share") || normalized.includes("invite") || normalized.includes("permission")) {
+    return "updated access for";
+  }
+
+  if (normalized.includes("create")) {
+    return "created";
+  }
+
+  if (normalized.includes("publish")) {
+    return "published";
+  }
+
+  if (normalized.includes("archive")) {
+    return "archived";
+  }
+
+  return "updated";
+}
+
+function formatActivityDetail({
+  actionLabel,
+  actorName,
+  detail,
+  documentTitle,
+}: {
+  actionLabel: string;
+  actorName: string;
+  detail: string;
+  documentTitle: string;
+}) {
+  const trimmedDetail = detail.trim();
+
+  if (trimmedDetail && !isGenericActivityDetail(trimmedDetail)) {
+    return trimmedDetail;
+  }
+
+  return `${actorName} ${actionLabel} ${documentTitle}.`;
+}
+
+function isGenericActivityDetail(value: string) {
+  return /^(updated content\.?|document updated\.?|updated document\.?)$/i.test(value.trim());
 }
 
 function formatPanelDate(value: string) {

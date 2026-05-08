@@ -10,18 +10,32 @@ namespace Northstar.Api.Controllers;
 [Route("workspaces")]
 public sealed class WorkspacesController : ControllerBase
 {
+    private readonly IWorkspaceAgendaService _agendaService;
     private readonly IWorkspaceMembersService _membersService;
     private readonly IWorkspaceGroupService _groupService;
     private readonly IIamSyncService _iamSyncService;
 
     public WorkspacesController(
+        IWorkspaceAgendaService agendaService,
         IWorkspaceMembersService membersService,
         IWorkspaceGroupService groupService,
         IIamSyncService iamSyncService)
     {
+        _agendaService = agendaService;
         _membersService = membersService;
         _groupService = groupService;
         _iamSyncService = iamSyncService;
+    }
+
+    [HttpGet("{workspaceId:guid}/agenda")]
+    [ProducesResponseType(typeof(WorkspaceAgendaResponse), StatusCodes.Status200OK)]
+    public async Task<ActionResult<WorkspaceAgendaResponse>> GetAgenda(
+        Guid workspaceId,
+        [FromQuery] DateOnly? date,
+        CancellationToken cancellationToken)
+    {
+        var agendaDate = date ?? DateOnly.FromDateTime(DateTime.UtcNow);
+        return Ok(await _agendaService.GetAgendaAsync(workspaceId, agendaDate, cancellationToken));
     }
 
     [HttpGet("{workspaceId:guid}/members")]

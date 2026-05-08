@@ -6,6 +6,7 @@ import {
   getNotificationKind,
   getNotificationPreferenceStatusLabel,
   getNotificationStatusLabel,
+  getWorkspaceUpdatesTabFromHash,
   getWorkspaceUpdatesTabLabel,
   toNotificationPreferenceResourceRows,
   toWorkspaceNotification,
@@ -16,11 +17,14 @@ const collectionId = "22222222-2222-4222-8222-222222222222";
 
 describe("workspaceUpdatesModel", () => {
   test("classifies notification types users can scan", () => {
-    expect(getNotificationKind("comment.created")).toBe("comment");
-    expect(getNotificationKind("mention.created")).toBe("mention");
-    expect(getNotificationKind("document.updated")).toBe("document");
-    expect(getNotificationKind("access_request.created")).toBe("permission");
-    expect(getNotificationKind("unknown")).toBe("system");
+    expect(getNotificationKind("access_request.created")).toBe("access");
+    expect(getNotificationKind("permission.grant_created")).toBe("grant");
+    expect(getNotificationKind("group.member_added")).toBe("grant");
+    expect(getNotificationKind("share_link.created")).toBe("sharing");
+    expect(getNotificationKind("email_invite.revoked")).toBe("sharing");
+    expect(getNotificationKind("permission.grant_expiring")).toBe("expiry");
+    expect(getNotificationKind("group.member_expired")).toBe("expiry");
+    expect(getNotificationKind("unknown")).toBe("permission");
   });
 
   test("normalizes safe notification targets", () => {
@@ -28,20 +32,27 @@ describe("workspaceUpdatesModel", () => {
       `#editor?documentId=${documentId}`,
     );
     expect(getNotificationActionHref(createNotification({ actionUrl: "javascript:alert(1)", resourceId: documentId }))).toBe(
-      `#editor?documentId=${documentId}`,
+      `#share?documentId=${documentId}`,
     );
     expect(
       getNotificationActionHref(createNotification({ resourceId: collectionId, resourceType: "collection" })),
     ).toBe(`#libraries?collectionId=${collectionId}`);
+    expect(getNotificationActionHref(createNotification({ resourceId: documentId, type: "permission.grant_created" }))).toBe(
+      `#share?documentId=${documentId}`,
+    );
+    expect(getNotificationActionHref(createNotification({ type: "permission.grant_created" }))).toBe(
+      "#settings?scope=workspace&tab=permissions",
+    );
   });
 
   test("maps live DTOs into update rows", () => {
     const row = toWorkspaceNotification(createNotification({ readAt: null, type: "access_request.created" }));
 
     expect(row).toMatchObject({
-      actionHref: "#permissions",
+      actionHref: "#settings?scope=workspace&tab=permissions",
       actionLabel: "Review",
-      kind: "permission",
+      kind: "access",
+      messagePrefix: "requested access",
       subject: "Access requested",
       unread: true,
     });
@@ -49,22 +60,32 @@ describe("workspaceUpdatesModel", () => {
 
   test("filters live notifications by user-facing tabs", () => {
     const notifications = [
-      createNotification({ id: "read-comment", readAt: "2024-02-02T00:00:00.000Z", type: "comment.created" }),
-      createNotification({ id: "unread-mention", readAt: null, type: "mention.created" }),
       createNotification({ id: "access", type: "access_request.created" }),
-      createNotification({ id: "document", type: "document.updated" }),
+      createNotification({ id: "grant", type: "permission.grant_updated" }),
+      createNotification({ id: "sharing", type: "email_invite.created" }),
+      createNotification({ id: "expiry", readAt: null, type: "permission.grant_expiring" }),
     ];
 
     expect(filterWorkspaceNotifications(notifications, "unread").map((notification) => notification.id)).toEqual([
-      "unread-mention",
-    ]);
-    expect(filterWorkspaceNotifications(notifications, "comments").map((notification) => notification.id)).toEqual([
-      "read-comment",
+      "expiry",
     ]);
     expect(filterWorkspaceNotifications(notifications, "access").map((notification) => notification.id)).toEqual([
       "access",
     ]);
-    expect(getWorkspaceUpdatesTabLabel("documents")).toBe("Document changes");
+    expect(filterWorkspaceNotifications(notifications, "grants").map((notification) => notification.id)).toEqual([
+      "grant",
+    ]);
+    expect(filterWorkspaceNotifications(notifications, "sharing").map((notification) => notification.id)).toEqual([
+      "sharing",
+    ]);
+    expect(filterWorkspaceNotifications(notifications, "expiry").map((notification) => notification.id)).toEqual([
+      "expiry",
+    ]);
+    expect(getWorkspaceUpdatesTabLabel("grants")).toBe("Grants & groups");
+    expect(getWorkspaceUpdatesTabFromHash("#updates?tab=access")).toBe("access");
+    expect(getWorkspaceUpdatesTabFromHash("#notifications?tab=sharing")).toBe("sharing");
+    expect(getWorkspaceUpdatesTabFromHash("#notifications?tab=documents")).toBe("all");
+    expect(getWorkspaceUpdatesTabFromHash("#updates?tab=unknown")).toBe("all");
   });
 
   test("maps live watched and muted preference resources", () => {
@@ -95,7 +116,7 @@ describe("workspaceUpdatesModel", () => {
   });
 
   test("labels unavailable notification states honestly", () => {
-    expect(getNotificationStatusLabel("unconfigured")).toContain("Demo");
+    expect(getNotificationStatusLabel("unconfigured")).toContain("access & sharing");
     expect(getNotificationStatusLabel("error")).toBe("Notification API unavailable");
     expect(getNotificationPreferenceStatusLabel("error")).toBe("Notification preferences API unavailable");
   });

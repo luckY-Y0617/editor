@@ -1,5 +1,5 @@
 import { describe, expect, test } from "../test/harness";
-import type { BootstrapResponse } from "./appApi";
+import type { BootstrapResponse, WorkspaceAgendaResponse } from "./appApi";
 import { createHomeQuickActions, createLiveWorkspaceHomeModel } from "./workspaceHomeModel";
 
 const activeDocumentId = "11111111-1111-4111-8111-111111111111";
@@ -13,8 +13,16 @@ describe("workspaceHomeModel", () => {
     const model = createLiveWorkspaceHomeModel(createBootstrap(), {
       activityItems: [
         {
+          actor: {
+            id: "user-1",
+            name: "Alice Kim",
+          },
           date: "2024-02-04T10:00:00.000Z",
           detail: "Mission was updated.",
+          document: {
+            id: activeDocumentId,
+            title: "Mission",
+          },
           id: "activity-1",
           title: "document.updated",
         },
@@ -73,8 +81,10 @@ describe("workspaceHomeModel", () => {
     expect(model.collections.map((collection) => collection.displayTitle)).toEqual(["Foundations", "Guides"]);
     expect(model.collections[0].href).toBe(`#libraries?libraryId=${activeLibraryId}&collectionId=${foundationsFolderId}`);
     expect(model.activityRows[0]).toMatchObject({
+      actorName: "Alice Kim",
+      detail: "Alice Kim updated this document.",
       href: `#editor?documentId=${activeDocumentId}`,
-      title: "document.updated",
+      title: "Mission",
     });
     expect(model.contributorRows[0]).toMatchObject({
       initials: "AK",
@@ -82,7 +92,7 @@ describe("workspaceHomeModel", () => {
       role: "owner",
     });
     expect(model.updateRows[0]).toMatchObject({
-      href: "#share",
+      href: "#settings?scope=workspace&tab=permissions",
       title: "Access approved",
       type: "access_request.approved",
     });
@@ -107,7 +117,7 @@ describe("workspaceHomeModel", () => {
       },
       {
         detail: "from permission workflow",
-        href: "#share",
+        href: "#updates?tab=access",
         id: "signal-access-requests",
         label: "access requests",
         source: "live",
@@ -118,7 +128,7 @@ describe("workspaceHomeModel", () => {
     expect(model.conversationRows[0]).toMatchObject({
       kind: "activity",
       source: "live",
-      title: "document.updated",
+      title: "Mission",
     });
     expect(model.recentDecisionRows.map((row) => row.title)).toEqual(["Access approved", "Grant expiring"]);
     expect(model.insightRows.map((row) => row.id)).toEqual([
@@ -127,6 +137,127 @@ describe("workspaceHomeModel", () => {
       "draft-documents",
       "published-documents",
     ]);
+  });
+
+  test("keeps activity readable when older events do not have an actor", () => {
+    const model = createLiveWorkspaceHomeModel(createBootstrap(), {
+      activityItems: [
+        {
+          date: "2024-02-04T10:00:00.000Z",
+          detail: "Updated content.",
+          document: {
+            id: activeDocumentId,
+            title: "Mission",
+          },
+          id: "activity-no-actor",
+          title: "document.updated",
+        },
+      ],
+    });
+
+    expect(model.activityRows[0]).toMatchObject({
+      actorName: undefined,
+      detail: "Updated document content.",
+      href: `#editor?documentId=${activeDocumentId}`,
+      title: "Mission",
+    });
+  });
+
+  test("groups repeated document update activity rows for display", () => {
+    const model = createLiveWorkspaceHomeModel(createBootstrap(), {
+      activityItems: Array.from({ length: 6 }, (_, index) => ({
+        actor: {
+          id: "user-1",
+          name: "Alice Kim",
+        },
+        date: `2024-02-04T10:0${5 - index}:00.000Z`,
+        detail: "Updated content.",
+        document: {
+          id: activeDocumentId,
+          title: "Mission",
+        },
+        id: `activity-update-${index}`,
+        title: "document.updated",
+      })),
+    });
+
+    expect(model.activityRows.length).toBe(1);
+    expect(model.activityRows[0]).toMatchObject({
+      actorName: "Alice Kim",
+      detail: "Alice Kim updated Mission 6 times. 6 updates grouped.",
+      href: `#editor?documentId=${activeDocumentId}`,
+      id: "activity-update-0:grouped-6",
+      title: "Mission",
+    });
+  });
+
+  test("does not group high-signal or separated activity rows", () => {
+    const model = createLiveWorkspaceHomeModel(createBootstrap(), {
+      activityItems: [
+        {
+          actor: {
+            id: "user-1",
+            name: "Alice Kim",
+          },
+          date: "2024-02-04T10:05:00.000Z",
+          detail: "Updated content.",
+          document: {
+            id: activeDocumentId,
+            title: "Mission",
+          },
+          id: "activity-update-1",
+          title: "document.updated",
+        },
+        {
+          actor: {
+            id: "user-1",
+            name: "Alice Kim",
+          },
+          date: "2024-02-04T10:04:00.000Z",
+          detail: "Created document.",
+          document: {
+            id: activeDocumentId,
+            title: "Mission",
+          },
+          id: "activity-created",
+          title: "document.created",
+        },
+        {
+          actor: {
+            id: "user-1",
+            name: "Alice Kim",
+          },
+          date: "2024-02-04T10:03:00.000Z",
+          detail: "Updated content.",
+          document: {
+            id: activeDocumentId,
+            title: "Mission",
+          },
+          id: "activity-update-2",
+          title: "document.updated",
+        },
+      ],
+    });
+
+    expect(model.activityRows.map((row) => row.id)).toEqual([
+      "activity-update-1",
+      "activity-created",
+      "activity-update-2",
+    ]);
+  });
+
+  test("maps workspace agenda items to document links", () => {
+    const model = createLiveWorkspaceHomeModel(createBootstrap(), {
+      agenda: createAgenda(),
+    });
+
+    expect(model.agendaRows[0]).toMatchObject({
+      detail: "30 minutes",
+      href: `#editor?documentId=${activeDocumentId}`,
+      meta: "Foundations",
+      time: "09:00",
+      title: "Mission",
+    });
   });
 
   test("falls unsafe update action urls back to workspace updates", () => {
@@ -214,5 +345,32 @@ function createBootstrap(): BootstrapResponse {
       name: "Atlas Workspace",
       organizationId: "organization-1",
     },
+  };
+}
+
+function createAgenda(): WorkspaceAgendaResponse {
+  return {
+    calendarStatus: "workspace",
+    date: "2026-05-07",
+    today: [
+      {
+        actionUrl: null,
+        calendarStatus: "workspace",
+        category: "Foundations",
+        connectedToCalendar: false,
+        date: "2026-05-07",
+        detail: "30 minutes",
+        durationMinutes: 30,
+        endTime: "09:30",
+        id: "agenda-1",
+        kind: "document",
+        resourceId: activeDocumentId,
+        resourceType: "document",
+        startTime: "09:00",
+        title: "Mission",
+      },
+    ],
+    upcoming: [],
+    workspaceId: "workspace-1",
   };
 }

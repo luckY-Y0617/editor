@@ -168,7 +168,8 @@ describe("workspaceSettingsModel", () => {
     expect(groups.find((group) => group.id === "workspace")?.items.map((item) => item.id)).toEqual([
       "workspace-general",
       "workspace-notifications",
-      "workspace-access-identity",
+      "workspace-members",
+      "workspace-permissions",
       "workspace-security",
       "workspace-integrations",
     ]);
@@ -195,7 +196,15 @@ describe("workspaceSettingsModel", () => {
       section: "workspace",
     });
     expect(normalizeSettingsPanel({ scope: "workspace", tab: "members" })).toEqual({
-      id: "workspace-access-identity",
+      id: "workspace-members",
+      section: "workspace",
+    });
+    expect(normalizeSettingsPanel({ scope: "workspace", tab: "permissions" })).toEqual({
+      id: "workspace-permissions",
+      section: "workspace",
+    });
+    expect(normalizeSettingsPanel({ panel: "workspace-access-identity", scope: "workspace", tab: "general" })).toEqual({
+      id: "workspace-permissions",
       section: "workspace",
     });
     expect(normalizeSettingsPanel({ scope: "organization", tab: "overview" })).toEqual({
@@ -208,12 +217,23 @@ describe("workspaceSettingsModel", () => {
     });
   });
 
-  test("marks Plan and Developer as deferred settings tabs", () => {
+  test("keeps workspace Settings primary tabs focused on management surfaces", () => {
     const rows = createWorkspaceSettingsTabRows("general");
 
-    expect(rows.find((row) => row.id === "members")?.status).toBe("reused");
-    expect(rows.find((row) => row.id === "plan")?.disabled).toBe(true);
-    expect(rows.find((row) => row.id === "developer")?.status).toBe("deferred");
+    expect(rows.map((row) => row.id)).toEqual([
+      "general",
+      "notifications",
+      "members",
+      "permissions",
+      "security",
+      "integrations",
+    ]);
+    expect(rows.find((row) => row.id === "members")?.status).toBe("live");
+    expect(rows.find((row) => row.id === "members")?.href).toBe("#settings?scope=workspace&tab=members");
+    expect(rows.find((row) => row.id === "permissions")?.href).toBe("#settings?scope=workspace&tab=permissions");
+    expect(rows.find((row) => row.id === "integrations")?.href).toBe("#settings?scope=workspace&tab=integrations");
+    expect(rows.some((row) => row.id === "plan")).toBe(false);
+    expect(rows.some((row) => row.id === "developer")).toBe(false);
   });
 
   test("creates library-scope settings tabs with library hashes", () => {
@@ -364,12 +384,12 @@ describe("workspaceSettingsModel", () => {
     expect(byId.get("organization-profile")?.proposedDto).toContain("OrganizationProfileDto");
     expect(byId.get("organization-profile")?.implementationRisk).toBe("medium");
     expect(byId.get("global-members")?.readiness).toBe("partial");
-    expect(byId.get("global-members")?.href).toBe("#workspace-members");
+    expect(byId.get("global-members")?.href).toBe("#settings?scope=workspace&tab=members");
     expect(byId.get("global-members")?.proposedEndpoint).toBe("GET /api/v1/organizations/{organizationId}/members");
     expect(byId.get("global-members")?.proposedDto).toContain("OrganizationMembersResponse");
     expect(byId.get("global-members")?.implementationDependencies).toContain("organization-level read authorization");
     expect(byId.get("sso-scim-ownership")?.readiness).toBe("partial");
-    expect(byId.get("sso-scim-ownership")?.href).toBe("#scim");
+    expect(byId.get("sso-scim-ownership")?.href).toBe("#settings?scope=workspace&tab=integrations");
     expect(byId.get("audit-log")?.readiness).toBe("partial");
     expect(byId.get("billing-plan")?.readiness).toBe("deferred");
     expect(byId.get("data-retention")?.readiness).toBe("missing-contract");

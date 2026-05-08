@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { EditorCanvas } from "./EditorCanvas";
+import { DocumentShareDrawer } from "./DocumentShareDrawer";
 import { EditorSidebar } from "./EditorSidebar";
 import { EditorTopBar } from "./EditorTopBar";
 import { OutlinePanel } from "./OutlinePanel";
@@ -93,6 +94,7 @@ export function KnowledgeEditorPage({ requestedDocumentId = null }: { requestedD
     getConfiguredApiBaseUrl() ? "loading" : "demo",
   );
   const [workspaceName, setWorkspaceName] = useState("Northstar");
+  const [workspaceId, setWorkspaceId] = useState<string | null>(null);
   const [activeLibraryId, setActiveLibraryId] = useState<string | null>(null);
   const [activeLibraryName, setActiveLibraryName] = useState("Atlas Library");
   const [documentContextResponse, setDocumentContextResponse] = useState<DocumentContextResponse | null>(null);
@@ -123,6 +125,7 @@ export function KnowledgeEditorPage({ requestedDocumentId = null }: { requestedD
   const [commentFocusRequest, setCommentFocusRequest] = useState<CommentFocusRequest | null>(null);
   const [pendingCommentComposer, setPendingCommentComposer] = useState<PendingCommentComposer | null>(null);
   const [transferMessage, setTransferMessage] = useState<TransferMessage | null>(null);
+  const [isShareDrawerOpen, setIsShareDrawerOpen] = useState(false);
   const activeDocumentIdRef = useRef(activeDocumentId);
   const documentsRef = useRef(documents);
   const commentRepositoryRef = useRef(createCommentRepository());
@@ -130,6 +133,7 @@ export function KnowledgeEditorPage({ requestedDocumentId = null }: { requestedD
   const latestCommentLoadRequestByDocumentIdRef = useRef<Record<string, number>>({});
   const pendingCommentComposerRef = useRef<PendingCommentComposer | null>(null);
   const createThreadInFlightByDocumentIdRef = useRef<Record<string, true>>({});
+  const addCommentMessageInFlightByThreadIdRef = useRef<Record<string, true>>({});
   const lifecycleActionInFlightByThreadIdRef = useRef<Record<string, true>>({});
   const apiConflictedDocumentIdsRef = useRef<Record<string, true>>({});
   const apiSaveTimerRef = useRef<number>();
@@ -234,6 +238,7 @@ export function KnowledgeEditorPage({ requestedDocumentId = null }: { requestedD
           bootstrap.spaces[0];
 
         setWorkspaceName(bootstrap.workspace.name);
+        setWorkspaceId(bootstrap.workspace.id);
         setActiveLibraryId(activeSpace?.id ?? bootstrap.activeSpaceId ?? null);
         setActiveLibraryName(activeSpace?.name ?? "Atlas Library");
         setFolders(bootstrap.folders.map(mapFolderDto));
@@ -686,6 +691,34 @@ export function KnowledgeEditorPage({ requestedDocumentId = null }: { requestedD
     }
   }, [activeDocumentId]);
 
+  const handleAddCommentMessage = useCallback(async (threadId: string, body: string) => {
+    const documentId = activeDocumentId;
+
+    if (addCommentMessageInFlightByThreadIdRef.current[threadId]) {
+      return;
+    }
+
+    addCommentMessageInFlightByThreadIdRef.current = {
+      ...addCommentMessageInFlightByThreadIdRef.current,
+      [threadId]: true,
+    };
+
+    try {
+      const thread = await commentRepositoryRef.current.addMessage(documentId, threadId, { body });
+
+      setCommentThreadsByDocumentId((currentThreadsByDocumentId) =>
+        replaceThreadForDocument(currentThreadsByDocumentId, documentId, thread),
+      );
+    } catch (error) {
+      throw error;
+    } finally {
+      const { [threadId]: _completedRequest, ...nextRequestsByThreadId } =
+        addCommentMessageInFlightByThreadIdRef.current;
+
+      addCommentMessageInFlightByThreadIdRef.current = nextRequestsByThreadId;
+    }
+  }, [activeDocumentId]);
+
   const handleCommentRuntimeStateChange = useCallback(
     (runtimeState: CommentRuntimeAnchorState) => {
       setCommentMatchResultsByDocumentId((currentMatchResultsByDocumentId) => {
@@ -1022,6 +1055,7 @@ export function KnowledgeEditorPage({ requestedDocumentId = null }: { requestedD
             onContentChange={handleContentChange}
             onContentStatsChange={handleContentStatsChange}
             onOpenCommentComposer={handleOpenCommentComposer}
+            onOpenShare={() => setIsShareDrawerOpen(true)}
             onSelectCommentThread={handleSelectCommentThread}
             onTitleChange={handleTitleChange}
             outlineFocusRequest={outlineFocusRequest}
@@ -1033,6 +1067,12 @@ export function KnowledgeEditorPage({ requestedDocumentId = null }: { requestedD
             title={activeDocument.title}
             updatedAtLabel={effectiveUpdatedAtLabel}
             version={activeDocument.version}
+          />
+          <DocumentShareDrawer
+            document={activeDocument}
+            isOpen={isShareDrawerOpen}
+            onClose={() => setIsShareDrawerOpen(false)}
+            workspaceId={workspaceId}
           />
           <OutlinePanel
             activeCommentThreadId={activeCommentThreadId}
@@ -1047,9 +1087,15 @@ export function KnowledgeEditorPage({ requestedDocumentId = null }: { requestedD
             commentThreads={activeCommentThreads}
             contextLoadStatus={documentContextStatus}
             documentStatusLabel={documentStatusLabel}
+            folderHref={folderHref}
+            folderTitle={activeFolder?.title ?? "Folder"}
+            libraryHref={libraryHref}
+            libraryName={activeLibraryName}
+            onAddCommentMessage={handleAddCommentMessage}
             onCancelPendingComment={handleCancelPendingCommentComposer}
             onCreateCommentThread={handleCreateCommentThread}
             onCommentThreadClick={handleCommentThreadClick}
+            onOpenShare={() => setIsShareDrawerOpen(true)}
             onPendingCommentBodyChange={handlePendingCommentBodyChange}
             onOutlineItemClick={handleOutlineItemClick}
             onReopenCommentThread={handleReopenCommentThread}
@@ -1061,6 +1107,7 @@ export function KnowledgeEditorPage({ requestedDocumentId = null }: { requestedD
             }
             relatedDocumentRows={documentContextPanelModel?.relatedDocuments}
             saveStatusLabel={atlasSaveStatusLabel}
+            shareHref={shareHref}
             textLength={contentTextLength}
             updatedAtLabel={effectiveUpdatedAtLabel}
             versionTrailRows={documentContextPanelModel?.versionTrail}

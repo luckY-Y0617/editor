@@ -33,7 +33,9 @@ export type SettingsPanelId =
   | "workspace-access-identity"
   | "workspace-general"
   | "workspace-integrations"
+  | "workspace-members"
   | "workspace-notifications"
+  | "workspace-permissions"
   | "workspace-security";
 
 export type SettingsRouteTarget = "organization" | "personal" | "workspace";
@@ -110,7 +112,11 @@ export function getPostLoginRedirectHash(hash: string) {
   }
 
   const route = getHashRoute(normalizedHash);
-  return postLoginRoutes.has(route) ? normalizedHash : "#home";
+  if (!postLoginRoutes.has(route)) {
+    return "#home";
+  }
+
+  return getCanonicalHashRedirect(normalizedHash) ?? normalizedHash;
 }
 
 export function getEditorDocumentIdFromHash(hash: string) {
@@ -141,6 +147,27 @@ export function createEditorHash(documentId?: string | null) {
 
 export function createShareHash(documentId?: string | null) {
   return documentId && isUuid(documentId) ? `#share?documentId=${encodeURIComponent(documentId)}` : "#share";
+}
+
+export function createDocumentAdvancedPermissionsHash(documentId?: string | null) {
+  return createShareHash(documentId);
+}
+
+export function createWorkspaceMembersHash() {
+  return createSettingsHash({ scope: "workspace", tab: "members" });
+}
+
+export function createWorkspacePermissionsHash() {
+  return createSettingsHash({ scope: "workspace", tab: "permissions" });
+}
+
+export function createWorkspaceIntegrationsHash() {
+  return createSettingsHash({ scope: "workspace", tab: "integrations" });
+}
+
+export function createWorkspaceUpdatesHash(options: { tab?: string | null } = {}) {
+  const tab = options.tab?.trim();
+  return tab ? `#updates?tab=${encodeURIComponent(tab)}` : "#updates";
 }
 
 export function createLibrariesHash(options: { collectionId?: string | null; libraryId?: string | null } = {}) {
@@ -205,7 +232,9 @@ const settingsPanelIds = new Set<SettingsPanelId>([
   "workspace-access-identity",
   "workspace-general",
   "workspace-integrations",
+  "workspace-members",
   "workspace-notifications",
+  "workspace-permissions",
   "workspace-security",
 ]);
 
@@ -366,6 +395,32 @@ export function getSearchFiltersFromHash(hash: string) {
   };
 }
 
+export function getCanonicalHashRedirect(hash: string) {
+  const normalizedHash = hash?.trim();
+  if (!normalizedHash?.startsWith("#")) {
+    return null;
+  }
+
+  const route = getHashRoute(normalizedHash);
+  if (route === "#members" || route === "#workspace-members") {
+    return createWorkspaceMembersHash();
+  }
+
+  if (route === "#permission-admin" || route === "#workspace-groups" || route === "#groups") {
+    return createWorkspacePermissionsHash();
+  }
+
+  if (route === "#scim") {
+    return createWorkspaceIntegrationsHash();
+  }
+
+  if ((route === "#permissions" || route === "#share") && !getShareDocumentIdFromHash(normalizedHash)) {
+    return createWorkspacePermissionsHash();
+  }
+
+  return null;
+}
+
 export function normalizeInternalActionHash(value?: string | null) {
   if (!value) {
     return "#updates";
@@ -374,6 +429,11 @@ export function normalizeInternalActionHash(value?: string | null) {
   const trimmed = value.trim();
   if (!trimmed.startsWith("#")) {
     return "#updates";
+  }
+
+  const canonicalHash = getCanonicalHashRedirect(trimmed);
+  if (canonicalHash) {
+    return canonicalHash;
   }
 
   const route = getHashRoute(trimmed);

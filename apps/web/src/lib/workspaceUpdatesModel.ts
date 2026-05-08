@@ -1,10 +1,18 @@
 import type { PermissionNotificationDto, PermissionNotificationPreferenceDto } from "./appApi";
 import { isUuid } from "./apiClient";
-import { createEditorHash, createLibrariesHash, normalizeInternalActionHash } from "./hashRouting";
+import {
+  createDocumentAdvancedPermissionsHash,
+  createEditorHash,
+  createLibrariesHash,
+  createWorkspacePermissionsHash,
+  createWorkspaceUpdatesHash,
+  normalizeInternalActionHash,
+  parseHashRoute,
+} from "./hashRouting";
 import type { NotificationKind, WorkspaceNotification } from "../data/workspaceUpdatesData";
 
 export type NotificationApiStatus = "unconfigured" | "loading" | "ready" | "forbidden" | "error";
-export type WorkspaceUpdatesTab = "all" | "unread" | "comments" | "mentions" | "access" | "documents" | "general";
+export type WorkspaceUpdatesTab = "access" | "all" | "expiry" | "grants" | "sharing" | "unread";
 
 export type NotificationPreferenceResourceRow = {
   href: string;
@@ -16,13 +24,19 @@ export type NotificationPreferenceResourceRow = {
 };
 
 export function toWorkspaceNotification(notification: PermissionNotificationDto): WorkspaceNotification {
+  const kind = getNotificationKind(notification.type);
+  const target = formatNotificationTarget(notification.resourceType, notification.resourceId);
+
   return {
     actionHref: getNotificationActionHref(notification),
     actionLabel: notification.type === "access_request.created" ? "Review" : "Open",
-    detail: notification.body ?? undefined,
+    actor: toNotificationActor(notification.actorUserId),
+    detail: formatNotificationDetail(notification.body, target),
     id: notification.id,
-    kind: getNotificationKind(notification.type),
-    subject: notification.title,
+    kind,
+    messagePrefix: getNotificationActionText(notification.type),
+    messageSuffix: target ? `on ${target}` : undefined,
+    subject: notification.title || target || "Access and sharing notification",
     time: formatRelativeNotificationTime(notification.createdAt),
     unread: notification.readAt === null,
   };
@@ -30,29 +44,24 @@ export function toWorkspaceNotification(notification: PermissionNotificationDto)
 
 export function getNotificationKind(type: string): NotificationKind {
   const normalized = type.toLowerCase();
-  if (normalized.includes("mention")) {
-    return "mention";
+
+  if (normalized.endsWith("_expiring") || normalized.endsWith("_expired")) {
+    return "expiry";
   }
 
-  if (normalized.includes("comment")) {
-    return "comment";
+  if (normalized.startsWith("access_request.")) {
+    return "access";
   }
 
-  if (normalized.includes("document") || normalized.includes("version")) {
-    return normalized.includes("version") ? "version" : "document";
+  if (normalized.startsWith("permission.") || normalized.startsWith("group.")) {
+    return "grant";
   }
 
-  if (
-    normalized.startsWith("access_request.") ||
-    normalized.startsWith("permission.") ||
-    normalized.startsWith("group.") ||
-    normalized.startsWith("share_link.") ||
-    normalized.startsWith("email_invite.")
-  ) {
-    return "permission";
+  if (normalized.startsWith("share_link.") || normalized.startsWith("email_invite.")) {
+    return "sharing";
   }
 
-  return "system";
+  return "permission";
 }
 
 export function filterWorkspaceNotifications(
@@ -69,23 +78,19 @@ export function filterWorkspaceNotifications(
     }
 
     const kind = getNotificationKind(notification.type);
-    if (tab === "comments") {
-      return kind === "comment";
-    }
-
-    if (tab === "mentions") {
-      return kind === "mention";
-    }
-
     if (tab === "access") {
-      return kind === "permission";
+      return kind === "access";
     }
 
-    if (tab === "documents") {
-      return kind === "document" || kind === "version";
+    if (tab === "grants") {
+      return kind === "grant";
     }
 
-    return kind === "system";
+    if (tab === "sharing") {
+      return kind === "sharing";
+    }
+
+    return kind === "expiry";
   });
 }
 
@@ -93,16 +98,14 @@ export function getWorkspaceUpdatesTabLabel(tab: WorkspaceUpdatesTab) {
   switch (tab) {
     case "unread":
       return "Unread";
-    case "comments":
-      return "Comments";
-    case "mentions":
-      return "Mentions";
     case "access":
-      return "Access / approvals";
-    case "documents":
-      return "Document changes";
-    case "general":
-      return "General";
+      return "Access requests";
+    case "grants":
+      return "Grants & groups";
+    case "sharing":
+      return "Sharing links & invites";
+    case "expiry":
+      return "Expiry";
     case "all":
     default:
       return "All";
@@ -110,12 +113,20 @@ export function getWorkspaceUpdatesTabLabel(tab: WorkspaceUpdatesTab) {
 }
 
 export function getNotificationActionHref(notification: PermissionNotificationDto) {
-  const normalizedActionUrl = normalizeInternalActionHash(notification.actionUrl);
-  if (notification.actionUrl && normalizedActionUrl !== "#updates") {
+  const normalizedActionUrl = notification.actionUrl ? normalizeInternalActionHash(notification.actionUrl) : createWorkspaceUpdatesHash();
+  if (
+    notification.actionUrl &&
+    normalizedActionUrl !== createWorkspaceUpdatesHash() &&
+    !isGenericPermissionActionUrl(notification.actionUrl)
+  ) {
     return normalizedActionUrl;
   }
 
   if (notification.resourceType === "document" && notification.resourceId && isUuid(notification.resourceId)) {
+    if (getNotificationKind(notification.type) !== "permission") {
+      return createDocumentAdvancedPermissionsHash(notification.resourceId);
+    }
+
     return createEditorHash(notification.resourceId);
   }
 
@@ -123,11 +134,17 @@ export function getNotificationActionHref(notification: PermissionNotificationDt
     return createLibrariesHash({ collectionId: notification.resourceId });
   }
 
-  if (getNotificationKind(notification.type) === "permission") {
-    return "#permissions";
+  return createWorkspacePermissionsHash();
+}
+
+export function getWorkspaceUpdatesTabFromHash(hash: string): WorkspaceUpdatesTab {
+  const { params, route } = parseHashRoute(hash);
+  if (route !== "#updates" && route !== "#notifications") {
+    return "all";
   }
 
-  return "#updates";
+  const tab = params.get("tab");
+  return isWorkspaceUpdatesTab(tab) ? tab : "all";
 }
 
 export function toNotificationPreferenceResourceRows(
@@ -152,11 +169,11 @@ export function toNotificationPreferenceResourceRows(
 
 export function getNotificationStatusLabel(status: NotificationApiStatus) {
   if (status === "ready") {
-    return "Live workspace notifications";
+    return "Live access and sharing notifications";
   }
 
   if (status === "loading") {
-    return "Loading notifications";
+    return "Loading access and sharing notifications";
   }
 
   if (status === "forbidden") {
@@ -167,7 +184,7 @@ export function getNotificationStatusLabel(status: NotificationApiStatus) {
     return "Notification API unavailable";
   }
 
-  return "Demo notification data shown until API is configured";
+  return "Demo access & sharing notifications shown until API is configured";
 }
 
 export function getNotificationPreferenceStatusLabel(status: NotificationApiStatus) {
@@ -187,7 +204,7 @@ export function getNotificationPreferenceStatusLabel(status: NotificationApiStat
     return "Notification preferences API unavailable";
   }
 
-  return "Demo preference data shown until API is configured";
+  return "Demo watched and muted resources shown until API is configured";
 }
 
 function formatRelativeNotificationTime(value: string) {
@@ -201,6 +218,86 @@ function normalizeResourceType(resourceType?: string | null) {
   return resourceType?.trim().toLowerCase() || "workspace";
 }
 
+function toNotificationActor(actorUserId?: string | null): WorkspaceNotification["actor"] {
+  if (!actorUserId?.trim()) {
+    return undefined;
+  }
+
+  return {
+    avatarTone: "blue",
+    initials: "U",
+    name: `User ${shortId(actorUserId)}`,
+  };
+}
+
+function getNotificationActionText(type: string) {
+  switch (type.toLowerCase()) {
+    case "access_request.created":
+      return "requested access";
+    case "access_request.approved":
+      return "approved access";
+    case "access_request.denied":
+      return "denied access";
+    case "permission.grant_created":
+      return "created a grant";
+    case "permission.grant_updated":
+      return "updated a grant";
+    case "permission.grant_revoked":
+      return "revoked a grant";
+    case "permission.grant_expiring":
+      return "has an expiring grant";
+    case "permission.grant_expired":
+      return "has an expired grant";
+    case "group.member_added":
+      return "added a group member";
+    case "group.member_removed":
+      return "removed a group member";
+    case "group.member_expiring":
+      return "has expiring group access";
+    case "group.member_expired":
+      return "has expired group access";
+    case "share_link.created":
+      return "created a share link";
+    case "share_link.revoked":
+      return "revoked a share link";
+    case "email_invite.created":
+      return "created an email invite";
+    case "email_invite.accepted":
+      return "accepted an email invite";
+    case "email_invite.revoked":
+      return "revoked an email invite";
+    case "email_invite.delivery_failed":
+      return "has a failed email invite";
+    default:
+      return "updated access or sharing";
+  }
+}
+
+function formatNotificationDetail(body?: string | null, target?: string | null) {
+  const parts = [body?.trim(), target ? `Target: ${target}.` : null].filter(Boolean);
+  return parts.length > 0 ? parts.join(" ") : undefined;
+}
+
+function formatNotificationTarget(resourceType?: string | null, resourceId?: string | null) {
+  const normalizedType = normalizeResourceType(resourceType);
+  if (!resourceId?.trim()) {
+    return normalizedType === "workspace" ? "Workspace" : formatResourceType(normalizedType);
+  }
+
+  return `${formatResourceType(normalizedType)} ${shortId(resourceId)}`;
+}
+
+function isGenericPermissionActionUrl(actionUrl: string) {
+  const { route } = parseHashRoute(actionUrl);
+  return route === "#permissions" ||
+    route === "#share" ||
+    route === "#permission-admin" ||
+    route === "#members" ||
+    route === "#workspace-members" ||
+    route === "#workspace-groups" ||
+    route === "#groups";
+}
+
 function createPreferenceResourceHref(resourceType: string, resourceId?: string | null) {
   if (resourceType === "document" && resourceId && isUuid(resourceId)) {
     return createEditorHash(resourceId);
@@ -210,7 +307,16 @@ function createPreferenceResourceHref(resourceType: string, resourceId?: string 
     return createLibrariesHash({ collectionId: resourceId });
   }
 
-  return "#updates";
+  return createWorkspaceUpdatesHash();
+}
+
+function isWorkspaceUpdatesTab(value: string | null): value is WorkspaceUpdatesTab {
+  return value === "all" ||
+    value === "unread" ||
+    value === "access" ||
+    value === "grants" ||
+    value === "sharing" ||
+    value === "expiry";
 }
 
 function formatPreferenceResourceLabel(resourceType: string, resourceId?: string | null) {

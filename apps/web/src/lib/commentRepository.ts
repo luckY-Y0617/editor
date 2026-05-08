@@ -224,9 +224,9 @@ export class HttpCommentRepository implements CommentRepository {
   private readonly fetchFn: FetchLike;
   private readonly getAccessToken?: () => string | null | undefined;
 
-  constructor({ apiBaseUrl, fetchFn = fetch, getAccessToken }: HttpCommentRepositoryOptions) {
+  constructor({ apiBaseUrl, fetchFn, getAccessToken }: HttpCommentRepositoryOptions) {
     this.apiBaseUrl = apiBaseUrl.replace(/\/+$/, "");
-    this.fetchFn = fetchFn;
+    this.fetchFn = fetchFn ?? ((input, init) => globalThis.fetch(input, init));
     this.getAccessToken = getAccessToken;
   }
 

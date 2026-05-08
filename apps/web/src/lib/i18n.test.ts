@@ -70,7 +70,7 @@ describe("i18n", () => {
     expect(t("en", "settings.libraryOperationsSurfaceHelp")).toContain("Settings shows summary and links only");
     expect(t("en", "settings.resourceShareSurfaceHelp")).toContain("public-link behavior is unchanged");
     expect(t("en", "settings.centerHeading")).toBe("Settings");
-    expect(t("en", "settings.accessIdentity")).toBe("Access & identity");
+    expect(t("en", "settings.accessIdentity")).toBe("Permissions");
     expect(t("en", "settings.membersInventory")).toBe("Members inventory");
     expect(t("en", "settings.scopeDeferred")).toBe("Deferred");
     expect(t("en", "settings.personalSettingsHeading")).toBe("Personal Settings");
@@ -89,7 +89,7 @@ describe("i18n", () => {
     expect(t("zh-CN", "settings.recommendedSettingsClosure")).toBe("\u5efa\u8bae\u7684\u8bbe\u7f6e\u6536\u53e3");
     expect(t("zh-CN", "settings.resourceShareSurfaceHelp")).toContain("public-link");
     expect(t("zh-CN", "settings.centerHeading")).toBe("\u8bbe\u7f6e");
-    expect(t("zh-CN", "settings.accessIdentity")).toBe("\u8bbf\u95ee\u4e0e\u8eab\u4efd");
+    expect(t("zh-CN", "settings.accessIdentity")).toBe("\u6743\u9650");
     expect(t("zh-CN", "settings.personalSettingsHeading")).toBe("\u4e2a\u4eba\u8bbe\u7f6e");
     expect(t("zh-CN", "settings.organizationSettingsHeading")).toBe("\u7ec4\u7ec7\u8bbe\u7f6e");
     expect(t("zh-CN", "topbar.workspaceSwitcher")).toBe("\u5de5\u4f5c\u533a\u5207\u6362\u5668");
