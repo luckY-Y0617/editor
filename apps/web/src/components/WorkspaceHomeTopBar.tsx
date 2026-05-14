@@ -1,6 +1,7 @@
-import { Bell, CheckCircle2, Download, Upload } from "lucide-react";
-import { type FormEvent, useEffect, useState } from "react";
+import { Bell, CheckCircle2, Download, LoaderCircle, PencilLine, Upload } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { AtlasIcon } from "./AtlasIcon";
+import type { SaveStatus } from "../hooks/useMockAutoSave";
 import { getCurrentUser, getSecurityState, logout, type AuthSecurityStateResponse, type MeResponse } from "../lib/authClient";
 import { getConfiguredApiBaseUrl, getConfiguredWorkspaceId, getStoredAccessToken } from "../lib/apiClient";
 import { createOrganizationSettingsHash, createPersonalSettingsHash, createSearchHash } from "../lib/hashRouting";
@@ -12,22 +13,44 @@ import searchIcon from "../assets/svg/icons/search.svg";
 
 type WorkspaceHomeTopBarProps = {
   activeItem?: "updates";
+  canExportJson?: boolean;
+  canImportJson?: boolean;
+  contextHref?: string;
+  contextLabel?: string;
+  contextTitle?: string;
+  onExportJson?: () => void;
+  onImportJsonFile?: (file: File) => void;
+  onSearch?: (query: string) => void;
+  saveStatus?: SaveStatus;
+  saveStatusLabel?: string;
   searchValue?: string;
   searchPlaceholder?: string;
   searchHref?: string;
+  transferMessage?: { type: "success" | "error"; text: string } | null;
 };
 
 export function WorkspaceHomeTopBar({
   activeItem,
+  canExportJson,
+  canImportJson,
+  contextHref,
+  contextLabel,
+  contextTitle,
+  onExportJson,
+  onImportJsonFile,
+  onSearch,
+  saveStatus = "saved",
+  saveStatusLabel,
   searchHref = "#search",
   searchPlaceholder,
   searchValue = "",
+  transferMessage,
 }: WorkspaceHomeTopBarProps) {
   const { locale } = useDisplayLanguage();
   const auth = useTopBarAuthState();
-  const [query, setQuery] = useState(searchValue);
   const [isWorkspaceMenuOpen, setIsWorkspaceMenuOpen] = useState(false);
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
+  const importInputRef = useRef<HTMLInputElement | null>(null);
   const workspaceSwitcher = toWorkspaceSwitcherModel(
     auth.me?.workspaces ?? [],
     getConfiguredWorkspaceId(),
@@ -46,15 +69,20 @@ export function WorkspaceHomeTopBar({
       : auth.status === "unauthenticated"
         ? t(locale, "topbar.signInRequired")
         : t(locale, "topbar.account");
+  const canRunExport = Boolean(onExportJson && canExportJson !== false);
+  const canRunImport = Boolean(onImportJsonFile && canImportJson !== false);
+  const ResolvedSaveIcon =
+    saveStatus === "saving" ? LoaderCircle : saveStatus === "editing" || saveStatus === "created" ? PencilLine : CheckCircle2;
+  const resolvedSaveStatusLabel = saveStatusLabel ?? t(locale, "topbar.saved");
+  const shortcutLabel = getShortcutLabel();
 
-  useEffect(() => {
-    setQuery(searchValue);
-  }, [searchValue]);
+  const openSearch = () => {
+    const trimmedQuery = searchValue.trim();
+    if (onSearch) {
+      onSearch(trimmedQuery);
+      return;
+    }
 
-  const submitSearch = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
-    const trimmedQuery = query.trim();
     window.location.hash = trimmedQuery ? createSearchHash({ q: trimmedQuery }) : searchHref;
   };
 
@@ -69,6 +97,16 @@ export function WorkspaceHomeTopBar({
 
       <span className="hidden h-8 w-px bg-white/[0.18] md:block" />
 
+      {contextLabel ? (
+        <a
+          className="workspace-home-context hidden min-w-0 items-center gap-2 px-3 text-sm font-bold text-[#f5efe4] transition hover:bg-white/[0.07] md:inline-flex"
+          href={contextHref ?? "#home"}
+          title={contextTitle ?? contextLabel}
+        >
+          <span className="min-w-0 truncate">{contextLabel}</span>
+          <AtlasIcon className="h-4 w-4 text-[#b9c7d8]" src={chevronDownIcon} />
+        </a>
+      ) : (
       <div className="workspace-home-switcher hidden md:block">
         <button
           aria-expanded={isWorkspaceMenuOpen}
@@ -120,33 +158,42 @@ export function WorkspaceHomeTopBar({
             ) : (
               <p>{t(locale, "topbar.workspaceListUnavailable")}</p>
             )}
-            <p>{t(locale, "topbar.workspaceSwitchingDeferred")}</p>
-          </div>
-        ) : null}
+          <p>{t(locale, "topbar.workspaceSwitchingDeferred")}</p>
+        </div>
+      ) : null}
       </div>
+      )}
 
-      <form
-        className="workspace-home-search hidden min-w-[260px] max-w-[460px] items-center rounded-full border border-white/[0.18] bg-white/[0.07] px-3 text-[#c7d2df] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] lg:flex"
-        onSubmit={submitSearch}
-        title={query ? `${t(locale, "nav.search")} ${query}` : t(locale, "topbar.searchNorthstar")}
+      <button
+        aria-keyshortcuts="Control+K Meta+K"
+        className="workspace-home-search workspace-home-search-trigger hidden min-w-[260px] max-w-[460px] items-center rounded-full border border-white/[0.18] bg-white/[0.07] px-3 text-[#c7d2df] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] lg:flex"
+        onClick={openSearch}
+        title={searchValue ? `${t(locale, "nav.search")} ${searchValue}` : t(locale, "topbar.searchNorthstar")}
+        type="button"
       >
-        <button aria-label={t(locale, "topbar.runSearch")} className="grid h-8 w-5 place-items-center border-0 bg-transparent p-0 text-inherit" type="submit">
+        <span className="grid h-8 w-5 place-items-center text-inherit">
           <AtlasIcon className="h-4 w-4" src={searchIcon} />
-        </button>
-        <input
-          aria-label={t(locale, "topbar.searchNorthstar")}
-          className="h-8 min-w-0 flex-1 border-0 bg-transparent px-2 text-sm text-white outline-none placeholder:text-[#c7d2df]"
-          onChange={(event) => setQuery(event.currentTarget.value)}
-          placeholder={resolvedSearchPlaceholder}
-          type="search"
-          value={query}
-        />
-        <span className="rounded border border-white/[0.14] bg-white/[0.08] px-1.5 py-0.5 text-[10px] font-semibold text-[#cbd7e4]">
-          Cmd K
         </span>
-      </form>
+        <span className="workspace-home-search-label min-w-0 flex-1 truncate px-2 text-left text-sm">
+          {searchValue || resolvedSearchPlaceholder}
+        </span>
+        <kbd>{shortcutLabel}</kbd>
+      </button>
 
       <div className="workspace-home-topbar-actions flex shrink-0 items-center gap-2">
+        {transferMessage ? (
+          <span
+            className={[
+              "workspace-home-transfer hidden max-w-[220px] truncate rounded-full border px-2.5 py-1 text-xs font-semibold md:inline-block",
+              transferMessage.type === "error"
+                ? "border-[#e5b8ad]/45 bg-[#7b2f2a]/20 text-[#ffd8d1]"
+                : "border-[#b9d6c9]/45 bg-[#1c5c48]/20 text-[#d7f1e3]",
+            ].join(" ")}
+            title={transferMessage.text}
+          >
+            {transferMessage.text}
+          </span>
+        ) : null}
         <a
           className={[
             "workspace-home-topbar-link hidden h-9 items-center gap-2 border-l border-white/[0.14] px-3 text-sm font-semibold text-[#f5efe4] transition hover:bg-white/[0.07] md:inline-flex",
@@ -160,16 +207,17 @@ export function WorkspaceHomeTopBar({
         </a>
         <div
           className="hidden h-9 items-center gap-2 border-l border-white/[0.14] px-3 text-sm font-semibold text-[#f5efe4] md:inline-flex"
-          title={t(locale, "topbar.saved")}
+          title={resolvedSaveStatusLabel}
         >
-          <CheckCircle2 className="h-4 w-4 text-[#dfe8f3]" />
-          {t(locale, "topbar.saved")}
+          <ResolvedSaveIcon className={["h-4 w-4 text-[#dfe8f3]", saveStatus === "saving" ? "animate-spin" : ""].join(" ")} />
+          {resolvedSaveStatusLabel}
         </div>
         <button
           aria-label={t(locale, "topbar.exportJson")}
           className="grid h-9 w-9 place-items-center text-[#dfe8f3] transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-transparent"
-          disabled
-          title="Open a document in the editor to export JSON."
+          disabled={!canRunExport}
+          onClick={onExportJson}
+          title={canRunExport ? t(locale, "topbar.exportJson") : "Open a document in the editor to export JSON."}
           type="button"
         >
           <Download className="h-4 w-4" />
@@ -177,12 +225,30 @@ export function WorkspaceHomeTopBar({
         <button
           aria-label={t(locale, "topbar.importJson")}
           className="grid h-9 w-9 place-items-center text-[#dfe8f3] transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-transparent"
-          disabled
-          title="Open a document in the editor to import JSON."
+          disabled={!canRunImport}
+          onClick={() => importInputRef.current?.click()}
+          title={canRunImport ? t(locale, "topbar.importJson") : "Open a document in the editor to import JSON."}
           type="button"
         >
           <Upload className="h-4 w-4" />
         </button>
+        {onImportJsonFile ? (
+          <input
+            ref={importInputRef}
+            accept="application/json"
+            className="hidden"
+            onChange={(event) => {
+              const file = event.currentTarget.files?.[0];
+
+              if (file) {
+                onImportJsonFile(file);
+              }
+
+              event.currentTarget.value = "";
+            }}
+            type="file"
+          />
+        ) : null}
         <div className="workspace-home-account-wrapper">
           <button
             aria-expanded={isAccountMenuOpen}
@@ -220,6 +286,10 @@ export function WorkspaceHomeTopBar({
       </div>
     </header>
   );
+}
+
+function getShortcutLabel() {
+  return /mac|iphone|ipad|ipod/i.test(window.navigator.platform) ? "⌘K" : "Ctrl K";
 }
 
 function useTopBarAuthState() {

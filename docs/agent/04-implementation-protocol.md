@@ -10,6 +10,7 @@ Before editing code, produce a short plan containing:
 - touched domains
 - files or areas likely to inspect
 - conflict-marked areas to check
+- product/UX placement check for user-facing changes
 - expected validation
 
 The plan must be short. Do not include speculative architecture. Do not include roadmap. Do not propose alternative designs unless the user explicitly asks. If the task is documentation-only, state that no code edits are planned.
@@ -41,6 +42,21 @@ The plan must be short. Do not include speculative architecture. Do not include 
 9. Add or update focused tests when behavior changes.
 10. Run validation according to `05-validation-protocol.md`.
 11. Report using `06-final-report-format.md`.
+
+## User-Facing Placement Gate
+
+For any user-facing frontend, navigation, settings, editor, sharing, activity, notification, search, or content-management change, agents must check product placement before patching:
+
+- Identify the user's task and the surface where a normal user would expect to perform it.
+- Keep the action on its owning surface instead of exposing it in every adjacent surface.
+- Do not place workspace administration inside document-local panels unless the entry is explicitly advanced and resource-scoped.
+- Do not place daily document sharing inside Settings or Advanced permissions when the Share Drawer is the normal path.
+- Do not place content organization actions inside Settings when Library / Folder / Document is the normal path.
+- Do not place ordinary document activity inside Updates when Updates is scoped to access / sharing / permission notifications.
+- Do not expose backend implementation concepts such as Space or Collection in normal user paths when the product terms are Library and Folder.
+- Every visible action must have a clear outcome, route, feedback state, or disabled reason.
+- User-facing copy and styling should support scanning and task completion; avoid dashboard/card sprawl when a table, list, form, or status section matches the task better.
+- Treat this as part of each implementation slice. Do not defer obvious placement or interaction mismatches to a separate cleanup round unless fixing them would expand the slice beyond a smallest safe diff.
 
 ## Smallest Safe Diff
 

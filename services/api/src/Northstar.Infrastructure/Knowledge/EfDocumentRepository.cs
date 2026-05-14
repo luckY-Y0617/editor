@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Northstar.Application.Knowledge;
 using Northstar.Domain.Knowledge.Documents;
 using Northstar.Domain.Knowledge.Tags;
+using Northstar.Domain.Knowledge.Versions;
 using Northstar.Domain.Workspaces;
 using Northstar.Infrastructure.Persistence;
 
@@ -111,6 +112,61 @@ public sealed class EfDocumentRepository : IDocumentRepository
             orderby tag.Name
             select tag.Name)
             .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<DocumentVersion>> GetDocumentVersionsAsync(
+        Guid documentId,
+        CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.DocumentVersions
+            .AsNoTracking()
+            .Where(version => version.DocumentId == documentId)
+            .OrderByDescending(version => version.VersionNo)
+            .ToListAsync(cancellationToken);
+    }
+
+    public Task<DocumentVersion?> GetDocumentVersionAsync(
+        Guid documentId,
+        Guid versionId,
+        CancellationToken cancellationToken = default)
+    {
+        return _dbContext.DocumentVersions
+            .AsNoTracking()
+            .FirstOrDefaultAsync(
+                version => version.DocumentId == documentId && version.Id == versionId,
+                cancellationToken);
+    }
+
+    public async Task<int> GetNextDocumentVersionNoAsync(
+        Guid documentId,
+        CancellationToken cancellationToken = default)
+    {
+        var latestVersionNo = await _dbContext.DocumentVersions
+            .AsNoTracking()
+            .Where(version => version.DocumentId == documentId)
+            .Select(version => (int?)version.VersionNo)
+            .MaxAsync(cancellationToken);
+
+        return (latestVersionNo ?? 0) + 1;
+    }
+
+    public Task<bool> DocumentVersionLabelExistsAsync(
+        Guid documentId,
+        string label,
+        CancellationToken cancellationToken = default)
+    {
+        return _dbContext.DocumentVersions
+            .AsNoTracking()
+            .AnyAsync(
+                version => version.DocumentId == documentId && version.Label == label,
+                cancellationToken);
+    }
+
+    public async Task AddDocumentVersionAsync(
+        DocumentVersion version,
+        CancellationToken cancellationToken = default)
+    {
+        await _dbContext.DocumentVersions.AddAsync(version, cancellationToken);
     }
 
     public async Task ReplaceDocumentTagsAsync(

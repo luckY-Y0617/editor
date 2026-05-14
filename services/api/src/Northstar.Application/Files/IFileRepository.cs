@@ -52,7 +52,16 @@ public interface IFileRepository
 
     Task<int> CountActiveAttachmentsAsync(Guid fileId, CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<Guid>> GetActiveAttachmentDocumentIdsAsync(
+        Guid fileId,
+        CancellationToken cancellationToken = default);
+
     Task AddOutboxEventAsync(FileOutboxEvent outboxEvent, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<FileOutboxEvent>> GetDueOutboxEventsForUpdateAsync(
+        DateTimeOffset now,
+        int batchSize,
+        CancellationToken cancellationToken = default);
 
     Task<int> CountOutboxEventsAsync(
         Guid aggregateId,

@@ -64,6 +64,27 @@ public sealed class DocumentPermissionFilterService : IDocumentPermissionFilterS
                 .ToArray());
     }
 
+    public async Task<DocumentContextResponse> FilterContextAsync(
+        DocumentContextResponse response,
+        CancellationToken cancellationToken = default)
+    {
+        var relatedIds = response.RelatedDocuments.Select(related => related.Id);
+        var backlinkIds = response.Backlinks.Select(backlink => backlink.Id);
+        var allowedDocumentIds = await GetAllowedDocumentIdsAsync(
+            relatedIds.Concat(backlinkIds),
+            cancellationToken);
+
+        return response with
+        {
+            RelatedDocuments = response.RelatedDocuments
+                .Where(related => Guid.TryParse(related.Id, out var documentId) && allowedDocumentIds.Contains(documentId))
+                .ToArray(),
+            Backlinks = response.Backlinks
+                .Where(backlink => Guid.TryParse(backlink.Id, out var documentId) && allowedDocumentIds.Contains(documentId))
+                .ToArray()
+        };
+    }
+
     public async Task<ExportSpaceResponse> FilterExportAsync(
         ExportSpaceResponse response,
         CancellationToken cancellationToken = default)

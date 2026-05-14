@@ -126,9 +126,9 @@ describe("workspaceHomeModel", () => {
     ]);
     expect(model.digestRows.map((row) => row.value)).toEqual(["2", "1", "1"]);
     expect(model.conversationRows[0]).toMatchObject({
-      kind: "activity",
+      kind: "notification",
       source: "live",
-      title: "Mission",
+      title: "Access approved",
     });
     expect(model.recentDecisionRows.map((row) => row.title)).toEqual(["Access approved", "Grant expiring"]);
     expect(model.insightRows.map((row) => row.id)).toEqual([
@@ -294,9 +294,47 @@ describe("workspaceHomeModel", () => {
     });
     expect(actions.find((action) => action.id === "request-access")?.isEnabled).toBe(false);
     expect(actions.find((action) => action.id === "more-actions")).toMatchObject({
-      href: "#updates",
-      isEnabled: true,
+      disabledReason: "Choose Library, Search, Updates, or Settings from the workspace navigation.",
+      isEnabled: false,
     });
+  });
+
+  test("keeps Home access panels aligned to supported notification types", () => {
+    const model = createLiveWorkspaceHomeModel(createBootstrap(), {
+      activityItems: [
+        {
+          actor: {
+            id: "user-1",
+            name: "Alice Kim",
+          },
+          date: "2024-02-04T10:00:00.000Z",
+          detail: "Updated content.",
+          document: {
+            id: activeDocumentId,
+            title: "Mission",
+          },
+          id: "activity-1",
+          title: "document.updated",
+        },
+      ],
+      notifications: [
+        {
+          actionUrl: "#updates",
+          body: "Comment added.",
+          createdAt: "2024-02-05T10:00:00.000Z",
+          id: "notification-comment",
+          readAt: null,
+          recipientUserId: "user-1",
+          title: "Comment added",
+          type: "comment.created",
+          workspaceId: "workspace-1",
+        },
+      ],
+    });
+
+    expect(model.activityRows.length).toBe(1);
+    expect(model.conversationRows).toEqual([]);
+    expect(model.recentDecisionRows).toEqual([]);
   });
 });
 

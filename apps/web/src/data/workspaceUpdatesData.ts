@@ -1,8 +1,9 @@
-export type NotificationKind = "access" | "expiry" | "grant" | "permission" | "sharing";
+export type NotificationKind = "access" | "expiry" | "failed" | "grant" | "permission" | "sharing";
 
 export type WorkspaceNotification = {
   id: string;
   kind: NotificationKind;
+  badgeLabel?: string;
   unread: boolean;
   actor?: {
     name: string;
@@ -14,7 +15,7 @@ export type WorkspaceNotification = {
   messageSuffix?: string;
   detail?: string;
   time: string;
-  actionLabel?: "Open" | "Review" | "View";
+  actionLabel?: "Manage" | "Open" | "Review" | "View";
   actionHref?: string;
 };
 

@@ -106,6 +106,11 @@ public sealed class KnowledgeMapServiceTests
             return Task.CompletedTask;
         }
 
+        public Task EnsureCanAccessWorkspaceAsync(Guid workspaceId, string actionKey, CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+
         public Task EnsureCanEditWorkspaceAsync(Guid workspaceId, CancellationToken cancellationToken = default)
         {
             return Task.CompletedTask;
@@ -135,6 +140,13 @@ public sealed class KnowledgeMapServiceTests
 
         public Task<SearchResponse> FilterSearchAsync(
             SearchResponse response,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(response);
+        }
+
+        public Task<DocumentContextResponse> FilterContextAsync(
+            DocumentContextResponse response,
             CancellationToken cancellationToken = default)
         {
             return Task.FromResult(response);

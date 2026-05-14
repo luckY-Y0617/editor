@@ -1,10 +1,14 @@
 import { describe, expect, test } from "../test/harness";
+import { ApiClientError } from "./apiClient";
 import {
   createShareLinkRequest,
   createWorkspaceShareLinkRequest,
+  getShareDrawerInviteDisabledReason,
+  getShareDrawerLinkDisabledReason,
   getShareLinkCapability,
   resolveShareTarget,
   toAbsoluteShareUrl,
+  toDocumentAdvancedRoleRows,
   toSharePermissionMutationError,
 } from "./documentShareLinksModel";
 
@@ -105,6 +109,58 @@ describe("documentShareLinksModel", () => {
     });
   });
 
+  test("explains daily share drawer invite disabled reasons", () => {
+    expect(
+      getShareDrawerInviteDisabledReason({
+        apiConfigured: true,
+        availableRoles: new Set(["viewer", "commenter"]),
+        inviteIsEmail: true,
+        isDirectMemberInvite: false,
+        memberStatus: "ready",
+        operation: null,
+        selectedRole: "editor",
+        status: "ready",
+        value: "person@example.com",
+      }),
+    ).toBe("Email invites support viewer or commenter access only.");
+
+    expect(
+      getShareDrawerInviteDisabledReason({
+        apiConfigured: true,
+        availableRoles: new Set(["viewer", "commenter"]),
+        inviteIsEmail: false,
+        isDirectMemberInvite: false,
+        memberStatus: "error",
+        operation: null,
+        selectedRole: "viewer",
+        status: "ready",
+        value: "@alex",
+      }),
+    ).toBe("Workspace member search is unavailable. Enter an email address to invite externally.");
+  });
+
+  test("explains share link disabled reasons without exposing edit links", () => {
+    expect(
+      getShareDrawerLinkDisabledReason({
+        apiConfigured: true,
+        expiresAt: null,
+        linkScope: "invited",
+        operation: null,
+        status: "ready",
+      }),
+    ).toContain("no share link is needed");
+
+    expect(
+      getShareDrawerLinkDisabledReason({
+        apiConfigured: true,
+        expiresAt: null,
+        linkScope: "public",
+        operation: null,
+        status: "ready",
+      }),
+    ).toBe("Public links require a future expiry time.");
+  });
+
   test("preserves Northstar API message before generic fallbacks", () => {
     expect(
       toSharePermissionMutationError(
@@ -115,11 +171,33 @@ describe("documentShareLinksModel", () => {
     expect(toSharePermissionMutationError({ message: "API returned 403", status: 403 }, "Fallback")).toContain(
       "do not have permission",
     );
+    expect(
+      toSharePermissionMutationError(
+        new ApiClientError(0, "Could not reach API endpoint https://northstar.test/api/v1/share-links. Failed to fetch"),
+        "Fallback",
+      ),
+    ).toBe("Could not reach the share-link API. Check the backend session and retry.");
   });
 
   test("normalizes generated API resolve paths for copy/display", () => {
     expect(toAbsoluteShareUrl("/api/v1/share-links/token/resolve", "https://localhost:7036/api/v1")).toBe(
       "https://localhost:7036/api/v1/share-links/token/resolve",
     );
+  });
+
+  test("models document advanced permission roles from backend available roles", () => {
+    expect(toDocumentAdvancedRoleRows(["commenter", "viewer", "editor", "viewer"]).map((row) => row.roleKey)).toEqual([
+      "editor",
+      "commenter",
+      "viewer",
+    ]);
+    expect(toDocumentAdvancedRoleRows([])).toEqual([
+      {
+        access: "Can view",
+        description: "Can read this document when effective access permits it.",
+        label: "Viewer",
+        roleKey: "viewer",
+      },
+    ]);
   });
 });

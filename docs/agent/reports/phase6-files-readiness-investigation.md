@@ -8,9 +8,9 @@ It does not change code or mark undocumented behavior as implemented.
 ## Summary
 
 - Overall readiness: Phase 6 files/upload is substantially implemented in code, including upload sessions, local upload content, complete/finalize, file metadata/content/delete, document attachments, file outbox persistence, and Tiptap file reference sync.
-- Main implemented areas: API controllers and DTOs, Application services, Domain entities/state transitions, EF configurations/migration, local object storage, and focused API tests exist.
-- Main missing or partial areas: S3/MinIO provider is missing; file outbox dispatch/background processing was not found; permission checks exist but are not consistently file-action or document-scope specific.
-- Main risks: `FileDto` exposes `StorageProvider`, `Bucket`, and `ObjectKey`; file metadata/content/delete use workspace-level checks instead of `file.download`/`file.delete` or attachment/document resource checks.
+- Main implemented areas: API controllers and DTOs, Application services, Domain entities/state transitions, EF configurations/migration, local object storage, S3-compatible object storage provider, and focused API tests exist.
+- Main missing or partial areas: file outbox processing is local/in-process rather than an external MQ/cloud dispatcher.
+- Main risks: S3-compatible provider has presigned-target test coverage but no live object-storage integration pass; PostgreSQL smoke still depends on `NORTHSTAR_POSTGRES_SMOKE_CONNECTION`.
 - Code modified: No application code changed. Only this investigation report was created.
 
 ## Scope
@@ -72,21 +72,21 @@ It does not change code or mark undocumented behavior as implemented.
 | upload sessions | implemented | `UploadSession`, `UploadSessionService`, `IUploadSessionService`, `UploadSessionConfiguration`, `20260428075433_AddFilesUploadSessionsPhase6.cs` | Lifecycle states, idempotency key, owner/workspace scope, object key, complete/finalize fields exist. |
 | files table/entity | implemented | `StoredFile`, `StoredFileConfiguration`, `NorthstarDbContext.Files`, `files` migration table | Includes workspace, storage fields, byte size, checksum, metadata, status, created/deleted timestamps. |
 | document attachments | implemented | `DocumentAttachment`, `DocumentAttachmentService`, `DocumentAttachmentConfiguration`, document attachment routes in `DocumentsController` | Create/list/remove and relation types exist. |
-| file outbox | partially implemented | `FileOutboxEvent`, `FileOutboxFactory`, `FileOutboxEventConfiguration`, `EfFileRepository.AddOutboxEventAsync` | Persistence and event writes exist; no dispatcher/background processor found during inspection. |
+| file outbox | implemented for local Phase 6 path | `FileOutboxEvent`, `FileOutboxFactory`, `FileOutboxEventConfiguration`, `EfFileRepository.AddOutboxEventAsync`, `FileOutboxProcessor`, `FileOutboxHostedService` | Persistence, due-event processing, retry/failure state, and local object deletion are implemented. External MQ/cloud-storage dispatch is not implemented. |
 | object storage abstraction | implemented | `IObjectStorage`, `StoredObjectInfo` | Application depends on abstraction, not a concrete SDK. |
-| local object storage provider | implemented | `LocalFileStorage`, `DependencyInjection` registers `IObjectStorage, LocalFileStorage` | Local API upload target and stream-based read/write exist. |
-| S3/MinIO provider, if any | missing | not found during inspection; no `AWSSDK`, `MinIO`, `Minio`, `S3`, or `Amazon` package/reference found | Production object storage provider not present. |
+| local object storage provider | implemented | `LocalFileStorage`, `DependencyInjection` selects local `IObjectStorage` by config | Local API upload target and stream-based read/write exist. |
+| S3/MinIO provider, if any | implemented, not runtime-verified | `S3ObjectStorage`, `AWSSDK.S3`, `Files:S3` options, focused presigned-target test, `S3CompatibleStorageAcceptance_UploadReadDeleteThroughApi` | Supports S3-compatible presigned PUT targets, API-proxy upload, object info, stream read, and delete through `IObjectStorage`; live S3/MinIO acceptance is blocked until an endpoint is reachable. |
 | upload session create | implemented | `FilesController.CreateUploadSession`, `UploadSessionService.CreateAsync`, `CreateUploadSessionRequest` | Supports idempotency key and local upload target. |
 | upload content | implemented | `FilesController.UploadContent`, `UploadSessionService.UploadContentAsync`, `LocalFileStorage.WriteUploadContentAsync` | Direct local/API-proxy `PUT` path exists. |
 | upload complete | implemented | `FilesController.CompleteUploadSession`, `UploadSessionService.CompleteAsync` | Validates object exists, byte size, and SHA-256 when supplied. |
 | upload finalize | implemented | `FilesController.FinalizeUploadSession`, `UploadSessionService.FinalizeAsync` | Creates `StoredFile` only after completed session and writes outbox event. |
 | idempotent finalize | implemented | `UploadSessionService.FinalizeAsync`, `UploadSession.Finalize`, `KnowledgeApiTests.UploadSession_IsIdempotent_AndFinalizeCreatesFileOnce` | Repeated finalize returns existing file and does not duplicate file or tested attachment. Tests were inspected, not run. |
-| file metadata API | implemented | `FilesController.GetFile`, `FileService.GetAsync`, `FileDto` | Metadata endpoint exists; DTO exposes storage internals. |
+| file metadata API | implemented | `FilesController.GetFile`, `FileService.GetAsync`, `FileDto` | Metadata endpoint exists; public DTO no longer exposes storage internals. |
 | file content access API | implemented | `FilesController.GetFileContent`, `FileService.OpenContentAsync`, `LocalFileStorage.OpenReadAsync` | Streams content through API with range processing. |
-| file delete API | implemented | `FilesController.DeleteFile`, `FileService.DeleteAsync`, `StoredFile.Delete` | Soft-deletes file, rejects active attachments, writes `file.deleted`; object deletion/retention worker not found. |
+| file delete API | implemented | `FilesController.DeleteFile`, `FileService.DeleteAsync`, `StoredFile.Delete`, `FileOutboxProcessor` | Soft-deletes file, rejects active attachments, writes `file.deleted`, and the local outbox processor deletes the storage object. |
 | document attachment create/list/remove | implemented | `DocumentsController.GetAttachments`, `AttachFile`, `DeleteAttachment`; `DocumentAttachmentService` | Uses document-scoped permission service for attachment operations. |
 | Tiptap file reference validation | partially implemented | `FileReferenceExtractor`, `FileReferenceService`, `DocumentService.UpdateAsync`, tests at `KnowledgeApiTests` lines around `UpdateDocumentContent_...FileReferences` | Validates referenced files exist and share workspace, then creates inline image attachments. It does not distinguish node/link relation type beyond `inline_image`. |
-| permission checks | partially implemented | `WorkspaceAccessService`, `ScopedResourceAccessService`, `DocumentAttachmentService`, `FileService`, `UploadSessionService` | Server-side checks exist. File metadata/content/delete use workspace-level checks; attachment APIs use scoped document attachment actions. |
+| permission checks | implemented for Phase 6 local API path | `WorkspaceAccessService`, `ScopedResourceAccessService`, `DocumentAttachmentService`, `FileService`, `UploadSessionService`, file API tests | File metadata/content/delete use file actions and attached-document scoped checks; attachment APIs use document-scoped attachment actions. |
 | tests | partially implemented | `KnowledgeApiTests` file/upload methods; `PostgreSqlSmokeTests` file smoke flow | Focused tests exist but were not run; storage-provider integration and full scoped permission matrix are not verified. |
 
 ## Data Model Findings
@@ -103,9 +103,9 @@ It does not change code or mark undocumented behavior as implemented.
 - Checksum/size evidence: `byte_size` and `checksum_sha256` exist on upload sessions and files; complete validates size and optional SHA-256.
 - Attachment relation types: `attachment`, `inline_image`, and `cover` in `DocumentAttachmentRelationType` and DB check constraint.
 - Gaps:
-  - No separate file outbox dispatcher/worker was found.
+  - File outbox processing is an in-process local Phase 6 worker, not an external MQ or cloud-storage dispatcher.
   - `upload_sessions.owner_id` is non-null in migration while FK delete behavior is `SetNull`; deletion behavior was not validated.
-  - Object retention/garbage collection behavior was not found.
+  - Object retention beyond soft-delete plus outbox-driven local object deletion is not implemented.
 
 ## API Findings
 
@@ -130,7 +130,7 @@ It does not change code or mark undocumented behavior as implemented.
   - `DELETE /api/v1/documents/{documentId}/attachments/{attachmentId}`
   - Tiptap file reference validation is wired into `PATCH /api/v1/documents/{documentId}` through `DocumentService.UpdateAsync`.
 - Multipart/presign route exists but returns a Phase 6 validation stub.
-- Outbox/internal processing route: not found during inspection, and no public route is expected by the contract.
+- Outbox/internal processing route: not exposed, and no public route is expected by the contract. Processing is handled by an internal application processor and hosted service.
 
 ## Application / Domain / Infrastructure Findings
 
@@ -139,7 +139,7 @@ It does not change code or mark undocumented behavior as implemented.
   - Controllers use Contracts DTOs, not EF entities.
 - Contracts:
   - `FileDtos.cs` defines upload session, upload target, finalize, file, and attachment DTOs.
-  - `FileDto` includes storage provider, bucket, and object key.
+  - `FileDto` does not expose storage provider, bucket, object key, or permanent URLs.
 - Application:
   - `UploadSessionService`, `FileService`, `DocumentAttachmentService`, `FileReferenceService`, and `FileReferenceExtractor` exist.
   - `UploadSessionService` orchestrates create/content/complete/finalize/progress/abort.
@@ -152,8 +152,9 @@ It does not change code or mark undocumented behavior as implemented.
 - Infrastructure:
   - `EfFileRepository` implements file persistence/query operations.
   - `LocalFileStorage` implements `IObjectStorage`.
+  - `S3ObjectStorage` implements `IObjectStorage` for S3-compatible storage when configured.
   - EF configurations and migration exist for file tables.
-  - DI registers file repositories, services, and local storage.
+  - DI registers file repositories, services, and config-selected object storage.
 - Layering appears broadly valid in inspected files: API -> Application, Application -> Domain/Contracts, Infrastructure -> Application/Domain/Contracts.
 
 ## Permission Findings
@@ -169,11 +170,11 @@ It does not change code or mark undocumented behavior as implemented.
   - File metadata/content require workspace view.
   - File delete requires workspace edit and rejects active attachments.
   - Attachment list/create/delete use document scoped access with attachment/document actions.
-- Gaps:
-  - File metadata/content/delete do not appear to check `PermissionActions.FileDownload` or `PermissionActions.FileDelete` directly.
-  - File content access is workspace-level, not clearly tied to document attachment access or scoped document permission.
-  - Upload creation with `DocumentId` resolves workspace but does not appear to check document-scoped attachment/file upload permission for that document.
-  - Tiptap file references validate existence and workspace, not whether the actor has file-specific access beyond the document edit path.
+- Current behavior:
+  - File metadata/content use `file.download` for unattached files and attached-document scoped access for attached files.
+  - File delete uses `file.delete` for unattached files and attached-document scoped delete/edit checks before returning active-attachment conflict.
+  - Upload session creation with `documentId` uses document-scoped `file.upload` / `attachment.create` / `document.edit`.
+  - Tiptap file references validate existence and workspace after document edit authorization, then sync attachment rows outside document JSON.
 - Public-link conflicts were not resolved.
 
 ## Tiptap File Reference Findings
@@ -202,9 +203,14 @@ It does not change code or mark undocumented behavior as implemented.
   - attachment creation writes `document_attachment.created`
   - file delete writes `file.deleted`
   - Tiptap reference sync writes `document_attachment.created`
-- Gaps:
-  - No file outbox dispatcher, publisher, hosted service, or retry processor was found during inspection.
-  - No object deletion worker/retention processor was found.
+- Processing behavior:
+  - `FileOutboxProcessor` reads due `pending` rows and marks `file.finalized` / `document_attachment.created` published.
+  - `file.deleted` loads the soft-deleted file and calls `IObjectStorage.DeleteObjectAsync` before marking the event published.
+  - Failures remain `pending` with `RetryCount`, `LastError`, and `NextRetryAt` until `MaxAttempts`, then become `failed`.
+  - `FileOutboxHostedService` runs the processor in-process and is disabled in the `Testing` environment.
+- Remaining gaps:
+  - No external MQ/cloud outbox publisher exists.
+  - No separate retention policy table or delayed-delete policy exists beyond outbox retry/failure state.
 
 ## Test Findings
 
@@ -221,18 +227,19 @@ It does not change code or mark undocumented behavior as implemented.
 - PostgreSQL smoke file flow found in `services/api/tests/Northstar.Api.Tests/PostgreSqlSmokeTests.cs`; it only runs if `NORTHSTAR_POSTGRES_SMOKE_CONNECTION` is set.
 - Missing or not verified tests:
   - Tests were inspected only and not run.
-  - No S3/MinIO/provider integration tests found.
+  - S3-compatible provider has presigned-target focused test coverage and a live acceptance test, but no successful live S3/MinIO/provider run yet.
   - No direct test found for no permanent URL storage or non-exposure of raw object paths.
   - No focused test found for file-specific `file.download`/`file.delete` scoped permission behavior.
-  - No file outbox dispatcher tests found.
+  - `FileOutboxProcessor_PublishesFinalizeAttachmentAndDeleteEvents`
+  - `FileOutboxProcessor_RetriesThenFailsDeleteObjectErrors`
 
 ## Architecture Risks
 
-- Potential API/security boundary risk: `FileDto` exposes `StorageProvider`, `Bucket`, and `ObjectKey` through file metadata and attachment responses, which may expose raw storage internals.
-- Permission depth risk: file metadata/content/delete use workspace-level authorization rather than clearly enforcing file-specific or document/attachment scoped actions.
-- Outbox completeness risk: outbox rows are written but no dispatcher/worker was found, so downstream processing is partial.
-- Object lifecycle risk: file delete soft-deletes DB state and writes outbox, but no object deletion or retention processor was found.
-- No direct dependency on S3/MinIO SDKs in Application/Domain observed.
+- Public file DTOs no longer expose `StorageProvider`, `Bucket`, or `ObjectKey`.
+- File metadata/content/delete now enforce file-specific or attached-document scoped permission checks.
+- Outbox processor risk: processing is in-process and local-provider oriented; production external MQ/cloud-storage dispatch remains future work.
+- Object lifecycle risk: file delete soft-deletes DB state and outbox processor removes the local object, but no delayed retention policy is implemented.
+- No direct dependency on S3/MinIO SDKs in Application/Domain observed; AWS SDK dependency is isolated to Infrastructure.
 - No old Go file service, `services/api-old`, `SqlSugar`, ABP, or `ClayMo` runtime dependency observed in inspected `services/api/src` files.
 
 ## Conflict-Marked Areas
@@ -257,10 +264,18 @@ It does not change code or mark undocumented behavior as implemented.
 
 implement or complete permission checks
 
+## Implementation Closure 2026-05-12
+
+- File access permission depth was closed for the Phase 6 local API path.
+- `FileService.GetAsync` and `OpenContentAsync` now authorize unattached files with `file.download`; attached files are authorized through the attached document using `file.download`, `attachment.view`, or `document.view`.
+- `FileService.DeleteAsync` now authorizes unattached files with `file.delete`; attached files are authorized through the attached document using `file.delete`, `attachment.delete`, or `document.edit`, then still return `409 CONFLICT` while active attachments exist.
+- `UploadSessionService.CreateAsync` with `documentId` now checks document-scoped `file.upload`, `attachment.create`, or `document.edit` instead of only workspace edit.
+- Focused file tests passed on 2026-05-12, including restricted-document file access behavior.
+- Remaining non-acceptance items: live external object storage integration when Docker/S3/MinIO is reachable, PostgreSQL smoke when the environment variable is available, and browser UI QA while the user requests no browser QA.
+
 ## Open Questions
 
-- Exact production object storage provider choice: local only is implemented; S3/MinIO provider was not found.
-- Whether file metadata responses are intended to expose storage provider, bucket, and object key.
+- Exact production object storage endpoint/credential configuration is environment-specific and was not runtime-tested.
 - Whether file content access should be authorized by workspace view, `file.download`, document attachment visibility, or another scoped rule.
 - Whether upload session creation with a document context should require document-scoped attachment/file upload permission.
 - Outbox dispatch, retry, retention, and object garbage collection behavior.

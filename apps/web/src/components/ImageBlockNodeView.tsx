@@ -9,6 +9,13 @@ import {
   normalizeImageBlockAttributes,
   type ImageBlockAttributes,
 } from "../extensions/ImageBlock";
+import {
+  canUseDocumentFileUpload,
+  createFileContentObjectUrl,
+  getDocumentFileUploadUnavailableReason,
+  revokeFileContentObjectUrl,
+  uploadDocumentImage,
+} from "../lib/documentFilesModel";
 
 const MAX_IMAGE_FILES = 3;
 const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
@@ -39,12 +46,16 @@ export function ImageBlockNodeView({
   const [draftWidth, setDraftWidth] = useState<number | null>(null);
   const [uploadError, setUploadError] = useState("");
   const [imageLoadFailed, setImageLoadFailed] = useState(false);
+  const [runtimeImageSrc, setRuntimeImageSrc] = useState<string | null>(null);
 
   const attrs = normalizeImageBlockAttributes(node.attrs);
   const hasImage = Boolean(attrs.src);
   const width = clampImageBlockWidth(attrs.width);
   const renderedWidth = draftWidth ?? width;
   const align = normalizeImageBlockAlign(attrs.align);
+  const displaySrc = runtimeImageSrc ?? attrs.src;
+  const currentDocumentId = getCurrentDocumentId(editor);
+  const uploadUnavailableReason = getDocumentFileUploadUnavailableReason(currentDocumentId);
 
   const getCurrentPosition = useCallback(() => {
     const position = getPos();
@@ -91,6 +102,12 @@ export function ImageBlockNodeView({
 
       selectCurrentNode();
       setUploadError("");
+
+      if (uploadUnavailableReason) {
+        setUploadError(uploadUnavailableReason);
+        return;
+      }
+
       setIsUploading(true);
 
       try {
@@ -109,14 +126,15 @@ export function ImageBlockNodeView({
         const preparedImages: PreparedImage[] = [];
 
         for (const file of validFiles) {
-          const src = await uploadImage(file);
+          const image = await uploadImage(file, currentDocumentId);
 
           if (!isMountedRef.current || editor.isDestroyed) {
             return;
           }
 
           preparedImages.push({
-            src,
+            src: image.src,
+            fileId: image.fileId,
             alt: file.name,
             title: file.name,
             width: DEFAULT_IMAGE_BLOCK_WIDTH,
@@ -140,9 +158,9 @@ export function ImageBlockNodeView({
         if (insertAt !== null) {
           insertExtraImageBlocks(insertAt, extraImages);
         }
-      } catch {
+      } catch (error) {
         if (isMountedRef.current) {
-          setUploadError("图片读取失败，请重试。");
+          setUploadError(error instanceof Error && error.message ? error.message : "Image upload failed. Please try again.");
         }
       } finally {
         if (isMountedRef.current) {
@@ -151,7 +169,7 @@ export function ImageBlockNodeView({
         }
       }
     },
-    [align, getCurrentPosition, insertExtraImageBlocks, node.nodeSize, selectCurrentNode, updateAttributes],
+    [align, currentDocumentId, getCurrentPosition, insertExtraImageBlocks, node.nodeSize, selectCurrentNode, updateAttributes, uploadUnavailableReason],
   );
 
   const handleInputChange = useCallback(
@@ -167,25 +185,37 @@ export function ImageBlockNodeView({
       event.preventDefault();
       event.stopPropagation();
       selectCurrentNode();
+      if (uploadUnavailableReason) {
+        setUploadError(uploadUnavailableReason);
+        return;
+      }
       inputRef.current?.click();
     },
-    [selectCurrentNode],
+    [selectCurrentNode, uploadUnavailableReason],
   );
 
   const handleDrop = useCallback(
     (event: DragEvent<HTMLButtonElement>) => {
       event.preventDefault();
       event.stopPropagation();
+      if (uploadUnavailableReason) {
+        setUploadError(uploadUnavailableReason);
+        setIsDragOver(false);
+        return;
+      }
       void handleFiles(event.dataTransfer.files);
     },
-    [handleFiles],
+    [handleFiles, uploadUnavailableReason],
   );
 
   const handleDragOver = useCallback((event: DragEvent<HTMLButtonElement>) => {
     event.preventDefault();
     event.stopPropagation();
+    if (uploadUnavailableReason) {
+      return;
+    }
     setIsDragOver(true);
-  }, []);
+  }, [uploadUnavailableReason]);
 
   const handleDragLeave = useCallback((event: DragEvent<HTMLButtonElement>) => {
     event.preventDefault();
@@ -294,6 +324,42 @@ export function ImageBlockNodeView({
     [],
   );
 
+  useEffect(() => {
+    if (!attrs.fileId || !canUseDocumentFileUpload(getCurrentDocumentId(editor))) {
+      setRuntimeImageSrc(null);
+      return undefined;
+    }
+
+    const controller = new AbortController();
+    let objectUrl: string | null = null;
+    setImageLoadFailed(false);
+
+    void createFileContentObjectUrl(attrs.fileId, { signal: controller.signal })
+      .then((url) => {
+        if (controller.signal.aborted || !isMountedRef.current) {
+          revokeFileContentObjectUrl(url);
+          return;
+        }
+
+        objectUrl = url;
+        setRuntimeImageSrc(url);
+      })
+      .catch((error) => {
+        if (controller.signal.aborted || !isMountedRef.current) {
+          return;
+        }
+
+        setRuntimeImageSrc(null);
+        setImageLoadFailed(true);
+        setUploadError(error instanceof Error && error.message ? error.message : "Image could not be loaded.");
+      });
+
+    return () => {
+      controller.abort();
+      revokeFileContentObjectUrl(objectUrl);
+    };
+  }, [attrs.fileId, editor]);
+
   return (
     <NodeViewWrapper
       ref={blockRef}
@@ -323,7 +389,7 @@ export function ImageBlockNodeView({
           imageLoadFailed ? (
             <div className="knowledge-image-load-error" role="status">
               <AlertCircle aria-hidden="true" className="h-4 w-4" />
-              <span>图片加载失败</span>
+              <span>Image failed to load</span>
             </div>
           ) : (
             <img
@@ -332,14 +398,14 @@ export function ImageBlockNodeView({
               draggable={false}
               onError={() => setImageLoadFailed(true)}
               onLoad={() => setImageLoadFailed(false)}
-              src={attrs.src ?? undefined}
+              src={displaySrc ?? undefined}
             />
           )
         ) : (
           <button
-            aria-label="点击上传或拖拽图片到这里"
+            aria-label="Click to upload or drop images here"
             className="knowledge-image-upload"
-            disabled={isUploading}
+            disabled={isUploading || Boolean(uploadUnavailableReason)}
             onClick={openFilePicker}
             onDragEnter={handleDragOver}
             onDragLeave={handleDragLeave}
@@ -354,13 +420,15 @@ export function ImageBlockNodeView({
               </span>
             </span>
             <span className="knowledge-image-upload-title">
-              {isUploading ? "正在读取图片..." : "点击上传或拖拽图片到这里"}
+              {isUploading ? "Uploading image..." : "Click to upload or drop images here"}
             </span>
-            <span className="knowledge-image-upload-hint">最多 3 张，每张 5MB</span>
-            {uploadError ? (
+            <span className="knowledge-image-upload-hint">
+              {uploadUnavailableReason ?? "Up to 3 images, 5MB each"}
+            </span>
+            {uploadError || uploadUnavailableReason ? (
               <span className="knowledge-image-upload-error">
                 <AlertCircle aria-hidden="true" className="h-3.5 w-3.5" />
-                {uploadError}
+                {uploadError || uploadUnavailableReason}
               </span>
             ) : null}
           </button>
@@ -368,13 +436,13 @@ export function ImageBlockNodeView({
         {hasImage && selected ? (
           <>
             <button
-              aria-label="向左调整图片宽度"
+              aria-label="Resize image from the left"
               className="knowledge-image-resize-handle knowledge-image-resize-handle-left"
               onMouseDown={(event) => startResize("left", event)}
               type="button"
             />
             <button
-              aria-label="向右调整图片宽度"
+              aria-label="Resize image from the right"
               className="knowledge-image-resize-handle knowledge-image-resize-handle-right"
               onMouseDown={(event) => startResize("right", event)}
               type="button"
@@ -392,6 +460,7 @@ export function ImageBlockNodeView({
         accept="image/png,image/jpeg,image/webp,image/gif"
         className="knowledge-image-file-input"
         multiple
+        disabled={Boolean(uploadUnavailableReason)}
         onChange={handleInputChange}
         ref={inputRef}
         type="file"
@@ -406,17 +475,17 @@ function validateImageFiles(files: File[]) {
   const limitedFiles = files.slice(0, MAX_IMAGE_FILES);
 
   if (files.length > MAX_IMAGE_FILES) {
-    messages.push("一次最多插入 3 张，已处理前 3 张。");
+    messages.push("Only the first 3 images were processed.");
   }
 
   for (const file of limitedFiles) {
     if (!isSupportedImage(file)) {
-      messages.push(`${file.name} 不是支持的图片格式。`);
+      messages.push(`${file.name} is not a supported image format.`);
       continue;
     }
 
     if (file.size > MAX_IMAGE_SIZE_BYTES) {
-      messages.push(`${file.name} 超过 5MB。`);
+      messages.push(`${file.name} exceeds 5MB.`);
       continue;
     }
 
@@ -439,24 +508,18 @@ function isSupportedImage(file: File) {
   return extension ? SUPPORTED_IMAGE_EXTENSIONS.has(extension) : false;
 }
 
-function uploadImage(file: File) {
-  // Current adapter stores a base64 data URL in node attrs so demo JSON can retain src.
-  // This is not a production storage strategy: base64 significantly increases document size.
-  // A real upload adapter should send the file to backend/object storage and return a stable URL.
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
+async function uploadImage(file: File, documentId: string | null) {
+  if (canUseDocumentFileUpload(documentId)) {
+    return uploadDocumentImage(documentId!, file);
+  }
 
-    reader.onload = () => {
-      if (typeof reader.result === "string") {
-        resolve(reader.result);
-      } else {
-        reject(new Error("Unable to read image file."));
-      }
-    };
+  throw new Error(getDocumentFileUploadUnavailableReason(documentId) ?? "Document image upload is unavailable.");
+}
 
-    reader.onerror = () => reject(reader.error ?? new Error("Unable to read image file."));
-    reader.readAsDataURL(file);
-  });
+function getCurrentDocumentId(editor: NodeViewProps["editor"]) {
+  const storage = (editor.storage as unknown as { imageBlock?: { documentId?: string | null } }).imageBlock;
+  const value = storage?.documentId;
+  return typeof value === "string" && value.trim().length > 0 ? value : null;
 }
 
 function notifyImageResizeState(isResizing: boolean) {

@@ -116,6 +116,13 @@ public sealed class NorthstarDataSeeder : INorthstarDataSeeder
 
         if (existingCredential is not null)
         {
+            if (_passwordHashService.VerifyPassword(user, existingCredential.PasswordHash, _authOptions.SeedOwnerPassword))
+            {
+                return;
+            }
+
+            var updatedPasswordHash = _passwordHashService.HashPassword(user, _authOptions.SeedOwnerPassword);
+            existingCredential.UpdatePassword(updatedPasswordHash);
             return;
         }
 

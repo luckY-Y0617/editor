@@ -201,9 +201,9 @@ export function createHomeQuickActions(model: Pick<WorkspaceHomeModel, "activeLi
       label: "Log a note",
     },
     {
-      href: "#updates",
+      disabledReason: "Choose Library, Search, Updates, or Settings from the workspace navigation.",
       id: "more-actions",
-      isEnabled: true,
+      isEnabled: false,
       label: "More actions",
     },
   ];
@@ -341,28 +341,28 @@ export function createDemoWorkspaceHomeModel(): WorkspaceHomeModel {
       })),
     conversationRows: [
       {
-        detail: "Design review in 2h",
-        href: "#updates",
-        id: "conversation-office-plan",
-        kind: "conversation",
+        detail: "Access request awaiting review",
+        href: createWorkspaceUpdatesHash({ tab: "access" }),
+        id: "conversation-access-request",
+        kind: "notification",
         source: "demo",
-        title: "Office opening plan",
+        title: "Access request",
       },
       {
-        detail: "3 new comments",
-        href: "#updates",
-        id: "conversation-hiring-plan",
-        kind: "conversation",
+        detail: "Share link created",
+        href: createWorkspaceUpdatesHash({ tab: "sharing" }),
+        id: "conversation-share-link",
+        kind: "notification",
         source: "demo",
-        title: "Hiring plan v2",
+        title: "Sharing link",
       },
       {
-        detail: "Decision requested",
-        href: "#updates",
-        id: "conversation-roadmap",
-        kind: "decision",
+        detail: "Grant expires soon",
+        href: createWorkspaceUpdatesHash({ tab: "expiry" }),
+        id: "conversation-expiry",
+        kind: "notification",
         source: "demo",
-        title: "Q2 Roadmap",
+        title: "Permission expiry",
       },
     ],
     contributorRows: dashboardPeople.slice(0, 3).map((person) => ({
@@ -378,12 +378,12 @@ export function createDemoWorkspaceHomeModel(): WorkspaceHomeModel {
     collectionsLabel: String(knowledgeFolders.length),
     digestRows: [
       {
-        detail: "Across 4 documents",
-        href: "#updates",
-        id: "digest-comments",
-        label: "new comments",
+        detail: "Not yet read",
+        href: createWorkspaceUpdatesHash(),
+        id: "digest-unread",
+        label: "unread notifications",
         source: "demo",
-        value: "7",
+        value: "4",
       },
       {
         detail: "Awaiting responses",
@@ -394,12 +394,12 @@ export function createDemoWorkspaceHomeModel(): WorkspaceHomeModel {
         value: "3",
       },
       {
-        detail: "Across 3 conversations",
-        href: "#updates",
-        id: "digest-mentions",
-        label: "mentions",
+        detail: "Sharing links and invites",
+        href: createWorkspaceUpdatesHash({ tab: "sharing" }),
+        id: "digest-sharing",
+        label: "sharing updates",
         source: "demo",
-        value: "5",
+        value: "2",
       },
     ],
     documentsLabel: String(initialKnowledgeDocuments.length),
@@ -409,33 +409,33 @@ export function createDemoWorkspaceHomeModel(): WorkspaceHomeModel {
     mode: "demo",
     recentDecisionRows: [
       {
-        badge: "Decision made",
-        detail: "Decided May 4 by Jordan Lee",
-        href: "#updates",
-        id: "decision-sso",
-        kind: "decision",
+        badge: "Access",
+        detail: "Access request approved",
+        href: createWorkspaceUpdatesHash({ tab: "access" }),
+        id: "decision-access-approved",
+        kind: "notification",
         source: "demo",
-        title: "Adopt new SSO provider",
+        title: "Access approved",
         tone: "green",
       },
       {
-        badge: "In progress",
-        detail: "6 participants - Last message 10m ago",
-        href: "#updates",
-        id: "conversation-office-opening",
-        kind: "conversation",
+        badge: "Sharing",
+        detail: "Email invite sent",
+        href: createWorkspaceUpdatesHash({ tab: "sharing" }),
+        id: "decision-email-invite",
+        kind: "notification",
         source: "demo",
-        title: "Office opening plan",
+        title: "Invite sent",
         tone: "orange",
       },
       {
-        badge: "Decision made",
-        detail: "Decided May 3 by Taylor Kim",
-        href: "#updates",
-        id: "decision-vendor",
-        kind: "decision",
+        badge: "Expiry",
+        detail: "Grant expires soon",
+        href: createWorkspaceUpdatesHash({ tab: "expiry" }),
+        id: "decision-expiry",
+        kind: "notification",
         source: "demo",
-        title: "Vendor evaluation criteria",
+        title: "Permission expiring",
         tone: "green",
       },
     ],
@@ -458,7 +458,7 @@ export function createDemoWorkspaceHomeModel(): WorkspaceHomeModel {
       },
       {
         detail: "requires review",
-        href: "#updates",
+        href: createWorkspaceUpdatesHash({ tab: "sharing" }),
         id: "signal-share",
         label: "external share",
         source: "demo",
@@ -469,7 +469,7 @@ export function createDemoWorkspaceHomeModel(): WorkspaceHomeModel {
     updateRows: workspaceUpdates.map((update) => ({
       body: "",
       date: update.date,
-      href: "#updates",
+      href: createWorkspaceUpdatesHash(),
       id: update.id,
       source: "demo",
       title: update.title,
@@ -494,12 +494,12 @@ export function createDemoWorkspaceHomeModel(): WorkspaceHomeModel {
         title: "1 access request",
       },
       {
-        detail: "Awaiting your input",
-        href: "#updates",
-        id: "waiting-decision",
-        kind: "decision",
+        detail: "Grant expires soon",
+        href: createWorkspaceUpdatesHash({ tab: "expiry" }),
+        id: "waiting-expiry",
+        kind: "notification",
         source: "demo",
-        title: "1 decision",
+        title: "1 expiring grant",
       },
     ],
     workspaceName: "Northstar",
@@ -776,11 +776,11 @@ function createWaitingRows(notifications: PermissionNotificationDto[]): HomeAtte
 }
 
 function createLiveConversationRows(
-  activityRows: HomeActivityRow[],
+  _activityRows: HomeActivityRow[],
   notifications: PermissionNotificationDto[],
 ): HomeConversationRow[] {
   const notificationRows = notifications
-    .filter((notification) => notification.type.includes("comment") || notification.resourceType === "document")
+    .filter((notification) => isAccessSharingOrPermissionNotification(notification.type))
     .slice(0, 3)
     .map((notification) => ({
       detail: notification.body || humanizeNotificationType(notification.type),
@@ -795,43 +795,32 @@ function createLiveConversationRows(
     return notificationRows;
   }
 
-  return activityRows.slice(0, 3).map((activity) => ({
-    detail: activity.detail,
-    href: activity.href,
-    id: activity.id,
-    kind: "activity",
-    source: "live",
-    title: activity.title,
-  }));
+  return [];
 }
 
 function createRecentDecisionRows(
-  activityRows: HomeActivityRow[],
+  _activityRows: HomeActivityRow[],
   notifications: PermissionNotificationDto[],
 ): HomeConversationRow[] {
-  const notificationRows = notifications.slice(0, 3).map((notification) => ({
-    badge: humanizeNotificationType(notification.type),
-    detail: notification.body || formatDate(notification.createdAt),
-    href: normalizeInternalActionHash(notification.actionUrl),
-    id: notification.id,
-    kind: "notification" as const,
-    source: "live" as const,
-    title: notification.title,
-    tone: notification.type.includes("approved") || notification.type.includes("created") ? "green" as const : undefined,
-  }));
+  const notificationRows = notifications
+    .filter((notification) => isAccessSharingOrPermissionNotification(notification.type))
+    .slice(0, 3)
+    .map((notification) => ({
+      badge: humanizeNotificationType(notification.type),
+      detail: notification.body || formatDate(notification.createdAt),
+      href: normalizeInternalActionHash(notification.actionUrl),
+      id: notification.id,
+      kind: "notification" as const,
+      source: "live" as const,
+      title: notification.title,
+      tone: notification.type.includes("approved") || notification.type.includes("created") ? "green" as const : undefined,
+    }));
 
   if (notificationRows.length > 0) {
     return notificationRows;
   }
 
-  return activityRows.slice(0, 3).map((activity) => ({
-    detail: activity.detail,
-    href: activity.href,
-    id: activity.id,
-    kind: "activity",
-    source: "live",
-    title: activity.title,
-  }));
+  return [];
 }
 
 function createSignalRows(bootstrap: BootstrapResponse, notifications: PermissionNotificationDto[]): HomeSignalRow[] {
@@ -850,7 +839,7 @@ function createSignalRows(bootstrap: BootstrapResponse, notifications: Permissio
     },
     {
       detail: "unread workspace notifications",
-      href: "#updates",
+      href: createWorkspaceUpdatesHash(),
       id: "signal-unread",
       label: "notifications",
       source: "live",
@@ -875,7 +864,7 @@ function createNotificationDigestRows(notifications: PermissionNotificationDto[]
   return [
     {
       detail: "Not yet read",
-      href: "#updates",
+      href: createWorkspaceUpdatesHash(),
       id: "digest-unread",
       label: "unread notifications",
       source: "live",
@@ -891,7 +880,7 @@ function createNotificationDigestRows(notifications: PermissionNotificationDto[]
     },
     {
       detail: "Grant changes and expiry notices",
-      href: "#updates",
+      href: createWorkspaceUpdatesHash({ tab: "grants" }),
       id: "digest-permissions",
       label: "permission updates",
       source: "live",
@@ -989,6 +978,16 @@ function getDemoPersonName(personId: string) {
 
 function isAttentionType(type: string) {
   return type.startsWith("access_request") || type.includes("expiring") || type.includes("expired");
+}
+
+function isAccessSharingOrPermissionNotification(type: string) {
+  return (
+    type.startsWith("access_request.") ||
+    type.startsWith("permission.") ||
+    type.startsWith("group.") ||
+    type.startsWith("share_link.") ||
+    type.startsWith("email_invite.")
+  );
 }
 
 function humanizeNotificationType(type: string) {

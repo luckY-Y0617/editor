@@ -77,7 +77,20 @@ internal sealed class TestPermissionUserRepository : IPermissionUserRepository
     {
         return Task.FromResult<PermissionUserIdentity?>(
             userId == _userId
-                ? new PermissionUserIdentity(userId, "user@example.test", null, null)
+                ? new PermissionUserIdentity(userId, "user@example.test", null, null, "Test User")
                 : null);
+    }
+
+    public Task<IReadOnlyDictionary<Guid, PermissionUserIdentity>> GetIdentitiesAsync(
+        IReadOnlyCollection<Guid> userIds,
+        CancellationToken cancellationToken = default)
+    {
+        IReadOnlyDictionary<Guid, PermissionUserIdentity> users = userIds.Contains(_userId)
+            ? new Dictionary<Guid, PermissionUserIdentity>
+            {
+                [_userId] = new PermissionUserIdentity(_userId, "user@example.test", null, null, "Test User")
+            }
+            : new Dictionary<Guid, PermissionUserIdentity>();
+        return Task.FromResult(users);
     }
 }

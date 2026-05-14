@@ -36,6 +36,26 @@ type EditorToolbarProps = {
   onImagePopoverOpenChange?: (isOpen: boolean) => void;
 };
 
+type ToolbarBlockFormat =
+  | "blockquote"
+  | "bulletList"
+  | "codeBlock"
+  | "heading2"
+  | "heading3"
+  | "orderedList"
+  | "paragraph"
+  | "taskList";
+
+type ToolbarActiveState = {
+  blockquote: boolean;
+  bulletList: boolean;
+  codeBlock: boolean;
+  h2: boolean;
+  h3: boolean;
+  orderedList: boolean;
+  taskList: boolean;
+};
+
 export function EditorToolbar({
   editor,
   isBlockDragging = false,
@@ -100,10 +120,25 @@ export function EditorToolbar({
 
   return (
     <div className="atlas-editor-toolbar relative z-[60] flex h-full w-full flex-nowrap items-center gap-x-2 overflow-x-auto px-9 py-0">
-      <div className="atlas-toolbar-format-select shrink-0">
-        <span>Paragraph</span>
+      <label className="atlas-toolbar-format-select shrink-0" title="Block style">
+        <span className="sr-only">Block style</span>
+        <select
+          aria-label="Block style"
+          disabled={isBlockDragging || isBlockMenuOpen}
+          onChange={(event) => applyBlockFormat(editor, event.currentTarget.value as ToolbarBlockFormat)}
+          value={getActiveBlockFormat(activeState)}
+        >
+          <option value="paragraph">Paragraph</option>
+          <option value="heading2">Heading 2</option>
+          <option value="heading3">Heading 3</option>
+          <option value="bulletList">Bullet list</option>
+          <option value="orderedList">Numbered list</option>
+          <option value="taskList">Task list</option>
+          <option value="blockquote">Quote</option>
+          <option value="codeBlock">Code block</option>
+        </select>
         <ChevronDown className="h-3.5 w-3.5 text-[var(--ns-slate-500)]" />
-      </div>
+      </label>
       <ToolbarSeparator />
       <ToolbarGroup>
         <ToolbarButton
@@ -255,4 +290,67 @@ export function EditorToolbar({
       </ToolbarGroup>
     </div>
   );
+}
+
+function getActiveBlockFormat(activeState: ToolbarActiveState): ToolbarBlockFormat {
+  if (activeState.codeBlock) {
+    return "codeBlock";
+  }
+
+  if (activeState.blockquote) {
+    return "blockquote";
+  }
+
+  if (activeState.taskList) {
+    return "taskList";
+  }
+
+  if (activeState.orderedList) {
+    return "orderedList";
+  }
+
+  if (activeState.bulletList) {
+    return "bulletList";
+  }
+
+  if (activeState.h3) {
+    return "heading3";
+  }
+
+  if (activeState.h2) {
+    return "heading2";
+  }
+
+  return "paragraph";
+}
+
+function applyBlockFormat(editor: Editor, format: ToolbarBlockFormat) {
+  const chain = editor.chain().focus();
+
+  switch (format) {
+    case "blockquote":
+      chain.toggleBlockquote().run();
+      return;
+    case "bulletList":
+      chain.toggleBulletList().run();
+      return;
+    case "codeBlock":
+      chain.toggleCodeBlock().run();
+      return;
+    case "heading2":
+      chain.setHeading({ level: 2 }).run();
+      return;
+    case "heading3":
+      chain.setHeading({ level: 3 }).run();
+      return;
+    case "orderedList":
+      chain.toggleOrderedList().run();
+      return;
+    case "taskList":
+      chain.toggleTaskList().run();
+      return;
+    case "paragraph":
+    default:
+      chain.setParagraph().run();
+  }
 }

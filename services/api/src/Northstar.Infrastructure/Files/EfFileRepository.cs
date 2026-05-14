@@ -179,11 +179,38 @@ public sealed class EfFileRepository : IFileRepository
             .CountAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<Guid>> GetActiveAttachmentDocumentIdsAsync(
+        Guid fileId,
+        CancellationToken cancellationToken = default)
+    {
+        return await (
+            from attachment in _dbContext.DocumentAttachments.AsNoTracking()
+            join document in _dbContext.Documents.AsNoTracking() on attachment.DocumentId equals document.Id
+            where attachment.FileId == fileId && document.DeletedAt == null
+            select attachment.DocumentId)
+            .Distinct()
+            .ToArrayAsync(cancellationToken);
+    }
+
     public async Task AddOutboxEventAsync(
         FileOutboxEvent outboxEvent,
         CancellationToken cancellationToken = default)
     {
         await _dbContext.FileOutboxEvents.AddAsync(outboxEvent, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<FileOutboxEvent>> GetDueOutboxEventsForUpdateAsync(
+        DateTimeOffset now,
+        int batchSize,
+        CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.FileOutboxEvents
+            .Where(outboxEvent =>
+                outboxEvent.Status == FileOutboxEventStatus.Pending &&
+                outboxEvent.NextRetryAt <= now)
+            .OrderBy(outboxEvent => outboxEvent.CreatedAt)
+            .Take(batchSize)
+            .ToListAsync(cancellationToken);
     }
 
     public Task<int> CountOutboxEventsAsync(

@@ -4,13 +4,15 @@ import {
   ChevronDown,
   ChevronRight,
   CircleOff,
+  Download,
   MessageSquare,
-  Pin,
+  Paperclip,
   RotateCcw,
   Send,
+  Upload,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from "react";
 import { AtlasIcon } from "./AtlasIcon";
 import { activityTimeline, backlinks, relatedDocuments, versionTrail } from "../data/editorMockData";
 import chevronRightSvg from "../assets/svg/icons/chevron-right.svg";
@@ -20,6 +22,7 @@ import type { AnchorMatchResult } from "../lib/commentAnchorMatching";
 import type { AnchorRelocationResult } from "../lib/commentAnchorRelocation";
 import { isCommentBodySubmittable } from "../lib/commentComposerModel";
 import type { CommentLoadState } from "../lib/commentProductionState";
+import { downloadFileContent, formatFileSize, openFileContent } from "../lib/documentFilesModel";
 import type {
   EditorActivityRow,
   EditorBacklinkRow,
@@ -27,6 +30,7 @@ import type {
   EditorRelatedDocumentRow,
   EditorVersionTrailRow,
 } from "../lib/editorDocumentContextModel";
+import type { CompareDocumentVersionsResponse, DocumentAttachmentDto } from "../lib/appApi";
 import type {
   CommentThread,
   CreateCommentThreadRequest,
@@ -47,7 +51,17 @@ type OutlinePanelProps = {
   commentRelocationResults?: Record<string, AnchorRelocationResult>;
   commentThreads?: CommentThread[];
   contextLoadStatus?: EditorContextLoadStatus;
+  documentAttachmentRemovePendingId?: string | null;
+  documentAttachmentUploadError?: string | null;
+  documentAttachmentUploadStatus?: "error" | "idle" | "uploading";
+  documentAttachments?: DocumentAttachmentDto[];
+  documentAttachmentsError?: string | null;
+  documentAttachmentsStatus?: "demo" | "error" | "forbidden" | "idle" | "loading" | "ready";
   documentStatusLabel: string;
+  documentVersionCompare?: CompareDocumentVersionsResponse | null;
+  documentVersionOperation?: "compare" | "publish" | "restore" | "unpublish" | null;
+  documentVersionsError?: string | null;
+  documentVersionsStatus?: "demo" | "error" | "forbidden" | "idle" | "loading" | "ready";
   folderHref: string;
   folderTitle: string;
   libraryHref: string;
@@ -59,16 +73,25 @@ type OutlinePanelProps = {
   shareHref: string;
   textLength: number;
   updatedAtLabel: string;
+  versionHistoryHref?: string;
   versionTrailRows?: EditorVersionTrailRow[];
   onAddCommentMessage?: (threadId: string, body: string) => Promise<void> | void;
   onCancelPendingComment?: () => void;
+  onCompareDocumentVersion?: (versionId: string) => void;
   onCommentThreadClick?: (thread: CommentThread) => void;
   onCreateCommentThread?: (request: CreateCommentThreadRequest) => void;
   onOpenShare?: () => void;
   onPendingCommentBodyChange?: (body: string) => void;
   onOutlineItemClick: (item: OutlineItem) => void;
+  onPublishDocumentVersion?: () => void;
   onReopenCommentThread?: (threadId: string) => void;
+  onRestoreDocumentVersion?: (versionId: string) => void;
   onRetryLoadComments?: () => void;
+  onRetryLoadDocumentAttachments?: () => void;
+  onRetryLoadDocumentVersions?: () => void;
+  onRemoveDocumentAttachment?: (attachmentId: string) => void;
+  onUnpublishDocumentVersion?: () => void;
+  onUploadDocumentAttachment?: (files: File[]) => void;
   onResolveCommentThread?: (threadId: string) => void;
 };
 
@@ -87,11 +110,22 @@ export function OutlinePanel({
   commentRelocationResults = {},
   commentThreads = [],
   contextLoadStatus = "demo",
+  documentAttachmentRemovePendingId = null,
+  documentAttachmentUploadError = null,
+  documentAttachmentUploadStatus = "idle",
+  documentAttachments = [],
+  documentAttachmentsError = null,
+  documentAttachmentsStatus = "demo",
   documentStatusLabel,
+  documentVersionCompare = null,
+  documentVersionOperation = null,
+  documentVersionsError = null,
+  documentVersionsStatus = "demo",
   folderHref,
   folderTitle,
   libraryHref,
   libraryName,
+  onCompareDocumentVersion,
   onAddCommentMessage,
   onCancelPendingComment,
   onCommentThreadClick,
@@ -99,8 +133,15 @@ export function OutlinePanel({
   onOpenShare,
   onPendingCommentBodyChange,
   onOutlineItemClick,
+  onPublishDocumentVersion,
   onReopenCommentThread,
+  onRestoreDocumentVersion,
   onRetryLoadComments,
+  onRetryLoadDocumentAttachments,
+  onRetryLoadDocumentVersions,
+  onRemoveDocumentAttachment,
+  onUnpublishDocumentVersion,
+  onUploadDocumentAttachment,
   onResolveCommentThread,
   outlineItems,
   pendingCommentComposer,
@@ -109,6 +150,7 @@ export function OutlinePanel({
   shareHref,
   textLength,
   updatedAtLabel,
+  versionHistoryHref = "#versions",
   versionTrailRows,
 }: OutlinePanelProps) {
   const [activeTab, setActiveTab] = useState<OverviewTab>("overview");
@@ -141,7 +183,7 @@ export function OutlinePanel({
 
   return (
     <aside className="atlas-overview-panel hidden h-full w-[324px] shrink-0 overflow-y-auto border-l border-[var(--ns-border)] bg-[rgba(248,244,236,0.95)] xl:block">
-      <div className="atlas-tabs sticky top-0 z-10 grid h-14 grid-cols-[1fr_1fr_1fr_1fr_auto] border-b border-[var(--ns-border)] bg-[rgba(248,244,236,0.96)] text-[11px] font-semibold uppercase tracking-normal text-[var(--ns-slate-700)]">
+      <div className="atlas-tabs sticky top-0 z-10 grid h-14 grid-cols-4 border-b border-[var(--ns-border)] bg-[rgba(248,244,236,0.96)] text-[11px] font-semibold uppercase tracking-normal text-[var(--ns-slate-700)]">
         <button
           className={["atlas-tab", activeTab === "overview" ? "is-active" : ""].join(" ")}
           onClick={() => setActiveTab("overview")}
@@ -169,9 +211,6 @@ export function OutlinePanel({
           type="button"
         >
           Activity
-        </button>
-        <button className="grid w-11 place-items-center text-[var(--ns-slate-500)]" title="Pin panel" type="button">
-          <Pin className="h-3.5 w-3.5" />
         </button>
       </div>
 
@@ -227,16 +266,27 @@ export function OutlinePanel({
             </PanelSection>
 
             <PanelSection
+              action="Open full history"
+              actionHref={versionHistoryHref}
               collapsed={collapsedSections.versionTrail}
               onToggle={() => toggleSection("versionTrail")}
               title="Version Trail"
             >
-              {contextIsLoading ? (
+              {documentVersionsStatus === "loading" || contextIsLoading ? (
                 <ContextStateMessage>Loading version trail...</ContextStateMessage>
-              ) : contextIsError ? (
-                <ContextStateMessage tone="error">Version trail could not be loaded.</ContextStateMessage>
+              ) : documentVersionsStatus === "forbidden" ? (
+                <ContextStateMessage tone="error">You do not have permission to view document versions.</ContextStateMessage>
+              ) : documentVersionsStatus === "error" || contextIsError ? (
+                <ContextStateMessage tone="error">
+                  {documentVersionsError ?? "Version trail could not be loaded."}
+                  {onRetryLoadDocumentVersions ? (
+                    <button className="mt-2 block text-[11px] font-semibold underline" onClick={onRetryLoadDocumentVersions} type="button">
+                      Retry
+                    </button>
+                  ) : null}
+                </ContextStateMessage>
               ) : displayedVersionTrailRows.length > 0 ? (
-                <VersionTrail items={displayedVersionTrailRows} />
+                <VersionTrail items={displayedVersionTrailRows} versionHistoryHref={versionHistoryHref} />
               ) : (
                 <ContextStateMessage>No versions yet.</ContextStateMessage>
               )}
@@ -337,6 +387,18 @@ export function OutlinePanel({
               </div>
             </PanelSection>
 
+            <DocumentAttachmentsSection
+              attachments={documentAttachments}
+              error={documentAttachmentsError}
+              onRemove={onRemoveDocumentAttachment}
+              onRetry={onRetryLoadDocumentAttachments}
+              onUpload={onUploadDocumentAttachment}
+              pendingRemoveId={documentAttachmentRemovePendingId}
+              status={documentAttachmentsStatus}
+              uploadError={documentAttachmentUploadError}
+              uploadStatus={documentAttachmentUploadStatus}
+            />
+
             <PanelSection title="Tags">
               {tags.length > 0 ? (
                 <div className="flex flex-wrap gap-1.5">
@@ -354,11 +416,11 @@ export function OutlinePanel({
         ) : null}
 
         {activeTab === "activity" ? (
-          <PanelSection title="Activity Trail">
+          <PanelSection title="Document Activity">
             {contextIsLoading ? (
-              <ContextStateMessage>Loading activity...</ContextStateMessage>
+              <ContextStateMessage>Loading document activity...</ContextStateMessage>
             ) : contextIsError ? (
-              <ContextStateMessage tone="error">Activity could not be loaded.</ContextStateMessage>
+              <ContextStateMessage tone="error">Document activity could not be loaded.</ContextStateMessage>
             ) : displayedActivityRows.length > 0 ? (
               <div className="atlas-activity-list">
                 {displayedActivityRows.map((item, index) => (
@@ -379,7 +441,7 @@ export function OutlinePanel({
                 ))}
               </div>
             ) : (
-              <ContextStateMessage>No activity yet.</ContextStateMessage>
+              <ContextStateMessage>No document activity yet.</ContextStateMessage>
             )}
           </PanelSection>
         ) : null}
@@ -515,6 +577,263 @@ function CommentsPanel({
       ) : null}
     </PanelSection>
   );
+}
+
+function DocumentAttachmentsSection({
+  attachments,
+  error,
+  onRemove,
+  onRetry,
+  onUpload,
+  pendingRemoveId,
+  status,
+  uploadError,
+  uploadStatus,
+}: {
+  attachments: DocumentAttachmentDto[];
+  error: string | null;
+  pendingRemoveId: string | null;
+  status: "demo" | "error" | "forbidden" | "idle" | "loading" | "ready";
+  onRemove?: (attachmentId: string) => void;
+  onRetry?: () => void;
+  onUpload?: (files: File[]) => void;
+  uploadError: string | null;
+  uploadStatus: "error" | "idle" | "uploading";
+}) {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const uploadDisabledReason = getAttachmentUploadDisabledReason(status, uploadStatus, Boolean(onUpload));
+
+  const handleUploadChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.currentTarget.files ?? []);
+    event.currentTarget.value = "";
+    if (files.length === 0 || uploadDisabledReason) {
+      return;
+    }
+
+    onUpload?.(files);
+  };
+
+  return (
+    <PanelSection count={attachments.length || undefined} title="Attachments">
+      <div className="atlas-attachment-upload-row">
+        <input
+          className="sr-only"
+          disabled={Boolean(uploadDisabledReason)}
+          multiple
+          onChange={handleUploadChange}
+          ref={inputRef}
+          type="file"
+        />
+        <button
+          className="atlas-attachment-upload"
+          disabled={Boolean(uploadDisabledReason)}
+          onClick={() => inputRef.current?.click()}
+          title={uploadDisabledReason ?? "Upload file attachment"}
+          type="button"
+        >
+          {uploadStatus === "uploading" ? <RotateCcw className="h-3.5 w-3.5" /> : <Upload className="h-3.5 w-3.5" />}
+          <span>{uploadStatus === "uploading" ? "Uploading..." : "Upload files"}</span>
+        </button>
+        {uploadDisabledReason ? <span>{uploadDisabledReason}</span> : <span>Attach one or more files to this document.</span>}
+      </div>
+      {uploadStatus === "error" && uploadError ? (
+        <div className="atlas-attachment-upload-error" role="alert">
+          {uploadError}
+        </div>
+      ) : null}
+      {status === "demo" ? (
+        <ContextStateMessage>Attachments load from the API for saved documents.</ContextStateMessage>
+      ) : status === "loading" || status === "idle" ? (
+        <ContextStateMessage>Loading attachments...</ContextStateMessage>
+      ) : status === "forbidden" ? (
+        <AttachmentErrorState
+          message={error ?? "You do not have access to this document's attachments."}
+          onRetry={onRetry}
+          title="Attachments unavailable."
+        />
+      ) : status === "error" ? (
+        <AttachmentErrorState
+          message={error ?? "Document attachments could not be loaded."}
+          onRetry={onRetry}
+          title="Attachments failed to load."
+        />
+      ) : attachments.length > 0 ? (
+        <div className="space-y-2">
+          {attachments.map((attachment) => (
+            <DocumentAttachmentItem
+              attachment={attachment}
+              key={attachment.id}
+              onRemove={onRemove}
+              pending={pendingRemoveId === attachment.id}
+            />
+          ))}
+        </div>
+      ) : (
+        <ContextStateMessage>No attachments yet.</ContextStateMessage>
+      )}
+      <p className="mt-3 text-[11px] leading-5 text-[var(--ns-slate-500)]">
+        Removing an attachment only removes it from this document. It does not delete the file.
+      </p>
+    </PanelSection>
+  );
+}
+
+function getAttachmentUploadDisabledReason(
+  status: "demo" | "error" | "forbidden" | "idle" | "loading" | "ready",
+  uploadStatus: "error" | "idle" | "uploading",
+  hasUploadHandler: boolean,
+) {
+  if (!hasUploadHandler) {
+    return "Attachment upload is unavailable for this document.";
+  }
+
+  if (uploadStatus === "uploading") {
+    return "Upload in progress.";
+  }
+
+  if (status === "demo") {
+    return "Configure the API and open a saved document before uploading.";
+  }
+
+  if (status === "forbidden") {
+    return "You do not have access to upload attachments.";
+  }
+
+  if (status === "loading" || status === "idle") {
+    return "Wait for attachments to load before uploading.";
+  }
+
+  return null;
+}
+
+function DocumentAttachmentItem({
+  attachment,
+  onRemove,
+  pending,
+}: {
+  attachment: DocumentAttachmentDto;
+  pending: boolean;
+  onRemove?: (attachmentId: string) => void;
+}) {
+  const file = attachment.file;
+  const relationLabel = formatAttachmentRelation(attachment.relationType);
+  const [openError, setOpenError] = useState<string | null>(null);
+  const [isOpening, setIsOpening] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  const handleOpen = async () => {
+    if (isOpening || isDownloading) {
+      return;
+    }
+
+    setOpenError(null);
+    setIsOpening(true);
+    try {
+      await openFileContent(attachment.fileId);
+    } catch (error) {
+      setOpenError(error instanceof Error && error.message ? error.message : "File could not be opened.");
+    } finally {
+      setIsOpening(false);
+    }
+  };
+
+  const handleDownload = async () => {
+    if (isOpening || isDownloading) {
+      return;
+    }
+
+    setOpenError(null);
+    setIsDownloading(true);
+    try {
+      await downloadFileContent(attachment.fileId, file.originalFilename);
+    } catch (error) {
+      setOpenError(error instanceof Error && error.message ? error.message : "File could not be downloaded.");
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  return (
+    <div className="atlas-attachment-item">
+      <div className="atlas-attachment-icon">
+        <Paperclip className="h-3.5 w-3.5" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <button
+          aria-busy={isOpening}
+          className="atlas-attachment-title"
+          disabled={isOpening}
+          onClick={() => void handleOpen()}
+          title={file.originalFilename}
+          type="button"
+        >
+          {file.originalFilename}
+        </button>
+        <p className="atlas-attachment-meta">
+          {[relationLabel, formatFileSize(file.byteSize), file.processingStatus || "unknown"].join(" - ")}
+        </p>
+        {openError ? <p className="atlas-attachment-error" role="alert">{openError}</p> : null}
+      </div>
+      <button
+        aria-busy={isDownloading}
+        className="atlas-attachment-action"
+        disabled={isDownloading || isOpening}
+        onClick={() => void handleDownload()}
+        title="Download file"
+        type="button"
+      >
+        {isDownloading ? "..." : <Download className="h-3.5 w-3.5" />}
+      </button>
+      <button
+        className="atlas-attachment-action atlas-attachment-remove"
+        disabled={pending || !onRemove || isOpening || isDownloading}
+        onClick={() => onRemove?.(attachment.id)}
+        title="Remove attachment from this document"
+        type="button"
+      >
+        {pending ? "..." : <X className="h-3.5 w-3.5" />}
+      </button>
+    </div>
+  );
+}
+
+function AttachmentErrorState({
+  message,
+  onRetry,
+  title,
+}: {
+  message: string;
+  title: string;
+  onRetry?: () => void;
+}) {
+  return (
+    <div className="border border-[rgba(185,77,95,0.24)] bg-[rgba(185,77,95,0.08)] px-3 py-3 text-sm leading-6 text-[#8e3b4a]" role="alert">
+      <p className="font-semibold">{title}</p>
+      <p className="mt-1 text-xs leading-5">{message}</p>
+      {onRetry ? (
+        <button
+          className="mt-3 inline-flex h-7 items-center gap-1.5 border border-[rgba(185,77,95,0.28)] bg-white/70 px-2 text-[11px] font-semibold text-[#8e3b4a] hover:bg-white"
+          onClick={onRetry}
+          type="button"
+        >
+          <RotateCcw className="h-3.5 w-3.5" />
+          Retry
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+function formatAttachmentRelation(value: string) {
+  if (value === "inline_image") {
+    return "Inline image";
+  }
+
+  if (value === "cover") {
+    return "Cover";
+  }
+
+  return "Attachment";
 }
 
 function NewCommentComposer({
@@ -884,22 +1203,32 @@ function createFallbackMatchResult(anchorStatus: CommentThread["anchorStatus"]):
   };
 }
 
-function VersionTrail({ items }: { items: EditorVersionTrailRow[] }) {
+function VersionTrail({ items, versionHistoryHref }: { items: EditorVersionTrailRow[]; versionHistoryHref: string }) {
+  const previewItems = items.slice(0, 4);
+  const hiddenCount = Math.max(0, items.length - previewItems.length);
+
   return (
-    <div className="atlas-version-list">
-      {items.map((item, index) => (
-        <div className="atlas-version-item" key={item.id}>
-          <span className={["atlas-version-dot", index === 0 ? "is-active" : ""].join(" ")} />
-          <div className="min-w-0">
-            <div className="flex items-center gap-3 text-xs">
-              <span className="font-semibold text-[var(--ns-blue-600)]">{item.version}</span>
-              <span className="text-[var(--ns-navy-800)]">{item.date}</span>
-              <span className="ml-auto text-[var(--ns-blue-600)]">{item.status}</span>
+    <div className="atlas-version-summary">
+      <div className="atlas-version-list">
+        {previewItems.map((item, index) => (
+          <a className="atlas-version-item" href={versionHistoryHref} key={item.id} title="Open full version history">
+            <span className={["atlas-version-dot", index === 0 ? "is-active" : ""].join(" ")} />
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 text-xs">
+                <span className="font-semibold text-[var(--ns-blue-600)]">{item.version}</span>
+                <span className="min-w-0 flex-1 truncate text-[var(--ns-navy-800)]">{item.date}</span>
+                <span className="shrink-0 text-[var(--ns-blue-600)]">{item.status}</span>
+              </div>
+              {item.author ? <div className="mt-1 truncate text-xs text-[var(--ns-slate-500)]">{item.author}</div> : null}
             </div>
-            <div className="mt-1 text-xs text-[var(--ns-slate-500)]">{item.author}</div>
-          </div>
-        </div>
-      ))}
+          </a>
+        ))}
+      </div>
+      {hiddenCount > 0 ? (
+        <a className="atlas-version-summary-link" href={versionHistoryHref}>
+          View {hiddenCount} more in full history
+        </a>
+      ) : null}
     </div>
   );
 }

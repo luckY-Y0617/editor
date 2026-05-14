@@ -69,6 +69,17 @@ const LOCAL_COMMENT_AUTHOR: CommentAuthorDTO = {
   name: "Local User",
 };
 
+export class CommentRepositoryError extends Error {
+  readonly code?: string;
+  readonly status: number;
+
+  constructor(status: number, message: string, code?: string) {
+    super(message);
+    this.status = status;
+    this.code = code;
+  }
+}
+
 export class InMemoryCommentRepository implements CommentRepository {
   private readonly author: CommentAuthorDTO;
   private readonly createId: (prefix: string) => string;
@@ -225,8 +236,13 @@ export class HttpCommentRepository implements CommentRepository {
   private readonly getAccessToken?: () => string | null | undefined;
 
   constructor({ apiBaseUrl, fetchFn, getAccessToken }: HttpCommentRepositoryOptions) {
-    this.apiBaseUrl = apiBaseUrl.replace(/\/+$/, "");
-    this.fetchFn = fetchFn ?? ((input, init) => globalThis.fetch(input, init));
+    const normalizedApiBaseUrl = apiBaseUrl.trim().replace(/\/+$/, "");
+    if (!normalizedApiBaseUrl) {
+      throw new CommentRepositoryError(0, "Comment API base URL is not configured.");
+    }
+
+    this.apiBaseUrl = normalizedApiBaseUrl;
+    this.fetchFn = fetchFn ?? getBoundGlobalFetch();
     this.getAccessToken = getAccessToken;
   }
 
@@ -302,14 +318,21 @@ export class HttpCommentRepository implements CommentRepository {
       headers.set("Authorization", `Bearer ${accessToken}`);
     }
 
-    const response = await this.fetchFn(`${this.apiBaseUrl}${path}`, {
-      ...init,
-      credentials: init.credentials ?? "include",
-      headers,
-    });
+    const url = `${this.apiBaseUrl}${path}`;
+    let response: Response;
+
+    try {
+      response = await this.fetchFn.call(globalThis, url, {
+        ...init,
+        credentials: init.credentials ?? "include",
+        headers,
+      });
+    } catch (error) {
+      throw toCommentRequestError(error, url);
+    }
 
     if (!response.ok) {
-      throw new Error(`Comment API request failed with ${response.status}`);
+      throw await toCommentApiError(response);
     }
 
     return (await response.json()) as TResponse;
@@ -363,6 +386,49 @@ function createLocalId(prefix: string) {
 
 function cloneJson<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
+}
+
+function getBoundGlobalFetch(): FetchLike {
+  if (typeof globalThis.fetch !== "function") {
+    throw new CommentRepositoryError(0, "Fetch is not available in this runtime.");
+  }
+
+  return globalThis.fetch.bind(globalThis);
+}
+
+async function toCommentApiError(response: Response) {
+  const fallback = `Comment API request failed with ${response.status}`;
+
+  try {
+    const body = (await response.json()) as {
+      code?: string;
+      error?: { code?: string; message?: string };
+      message?: string;
+      title?: string;
+    };
+    const code = body.error?.code ?? body.code;
+    const message = body.error?.message ?? body.message ?? body.title ?? fallback;
+    return new CommentRepositoryError(response.status, message, code);
+  } catch {
+    return new CommentRepositoryError(response.status, fallback);
+  }
+}
+
+function toCommentRequestError(error: unknown, url: string) {
+  if (isAbortError(error) || error instanceof CommentRepositoryError) {
+    return error;
+  }
+
+  const reason = error instanceof Error && error.message ? ` ${error.message}` : "";
+  return new CommentRepositoryError(0, `Could not reach Comment API endpoint ${url}.${reason}`);
+}
+
+function isAbortError(error: unknown) {
+  return (
+    typeof DOMException !== "undefined" &&
+    error instanceof DOMException &&
+    error.name === "AbortError"
+  );
 }
 
 type CommentThreadsResponseDTO = {

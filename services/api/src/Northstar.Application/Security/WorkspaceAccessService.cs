@@ -32,6 +32,11 @@ public sealed class WorkspaceAccessService : IWorkspaceAccessService
         return EnsureWorkspacePermissionAsync(workspaceId, PermissionActions.WorkspaceView, cancellationToken);
     }
 
+    public Task EnsureCanAccessWorkspaceAsync(Guid workspaceId, string actionKey, CancellationToken cancellationToken = default)
+    {
+        return EnsureWorkspacePermissionAsync(workspaceId, actionKey, cancellationToken);
+    }
+
     public Task EnsureCanEditWorkspaceAsync(Guid workspaceId, CancellationToken cancellationToken = default)
     {
         return EnsureWorkspacePermissionAsync(workspaceId, PermissionActions.DocumentEdit, cancellationToken);

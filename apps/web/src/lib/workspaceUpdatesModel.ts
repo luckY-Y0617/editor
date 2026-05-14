@@ -1,4 +1,8 @@
-import type { PermissionNotificationDto, PermissionNotificationPreferenceDto } from "./appApi";
+import type {
+  AccessSharingSummaryResponse,
+  PermissionNotificationDto,
+  PermissionNotificationPreferenceDto,
+} from "./appApi";
 import { isUuid } from "./apiClient";
 import {
   createDocumentAdvancedPermissionsHash,
@@ -12,9 +16,11 @@ import {
 import type { NotificationKind, WorkspaceNotification } from "../data/workspaceUpdatesData";
 
 export type NotificationApiStatus = "unconfigured" | "loading" | "ready" | "forbidden" | "error";
-export type WorkspaceUpdatesTab = "access" | "all" | "expiry" | "grants" | "sharing" | "unread";
+export type WorkspaceUpdatesTab = "access" | "all" | "expiry" | "failed" | "grants" | "invites" | "links" | "sharing" | "unread";
+type WorkspaceNotificationLocale = "en" | "en-US" | "zh-CN";
 
 export type NotificationPreferenceResourceRow = {
+  description?: string;
   href: string;
   id: string;
   label: string;
@@ -23,26 +29,53 @@ export type NotificationPreferenceResourceRow = {
   updatedAt: string;
 };
 
-export function toWorkspaceNotification(notification: PermissionNotificationDto): WorkspaceNotification {
-  const kind = getNotificationKind(notification.type);
-  const target = formatNotificationTarget(notification.resourceType, notification.resourceId);
+export function toWorkspaceNotification(
+  notification: PermissionNotificationDto,
+  locale: WorkspaceNotificationLocale = "en-US",
+): WorkspaceNotification {
+  const kind = getNotificationKind(notification.type, notification.category, notification.state);
+  const resourceTitle = notification.resource?.title?.trim();
+  const target = resourceTitle || formatNotificationTarget(notification.resourceType, notification.resourceId);
+  const resourcePath = notification.resource?.path?.trim();
 
   return {
     actionHref: getNotificationActionHref(notification),
-    actionLabel: notification.type === "access_request.created" ? "Review" : "Open",
-    actor: toNotificationActor(notification.actorUserId),
-    detail: formatNotificationDetail(notification.body, target),
+    actionLabel: getNotificationActionLabel(notification),
+    actor: toNotificationActor(notification),
+    badgeLabel: getNotificationBadgeLabel(notification.type, kind, locale),
+    detail: formatNotificationDetail(notification.body, resourcePath && resourcePath !== target ? resourcePath : null, locale),
     id: notification.id,
     kind,
-    messagePrefix: getNotificationActionText(notification.type),
-    messageSuffix: target ? `on ${target}` : undefined,
-    subject: notification.title || target || "Access and sharing notification",
-    time: formatRelativeNotificationTime(notification.createdAt),
+    messagePrefix: getNotificationActionText(notification.type, locale),
+    messageSuffix: formatNotificationMessageSuffix(target, resourcePath, locale),
+    subject: resourceTitle || notification.title || target || localText(locale, "Access and sharing notification", "访问与分享通知"),
+    time: formatRelativeNotificationTime(notification.createdAt, locale),
     unread: notification.readAt === null,
   };
 }
 
-export function getNotificationKind(type: string): NotificationKind {
+export function getNotificationKind(type: string, category?: string | null, state?: string | null): NotificationKind {
+  const normalizedState = state?.trim().toLowerCase();
+  const normalizedType = type.toLowerCase();
+  if (normalizedState === "failed" || normalizedType === "email_invite.delivery_failed") {
+    return "failed";
+  }
+
+  return getNotificationCategory(type, category);
+}
+
+function getNotificationCategory(type: string, category?: string | null): Exclude<NotificationKind, "failed"> {
+  const normalizedCategory = category?.trim().toLowerCase();
+  if (
+    normalizedCategory === "access" ||
+    normalizedCategory === "expiry" ||
+    normalizedCategory === "grant" ||
+    normalizedCategory === "permission" ||
+    normalizedCategory === "sharing"
+  ) {
+    return normalizedCategory;
+  }
+
   const normalized = type.toLowerCase();
 
   if (normalized.endsWith("_expiring") || normalized.endsWith("_expired")) {
@@ -64,6 +97,32 @@ export function getNotificationKind(type: string): NotificationKind {
   return "permission";
 }
 
+export function createAccessSharingSummaryFromNotifications(
+  notifications: PermissionNotificationDto[],
+  unreadCount = notifications.filter((notification) => notification.readAt === null).length,
+): AccessSharingSummaryResponse {
+  return {
+    accessRequestCount: notifications.filter((notification) =>
+      getNotificationCategory(notification.type, notification.category) === "access"
+    ).length,
+    expiryCount: notifications.filter((notification) =>
+      getNotificationCategory(notification.type, notification.category) === "expiry"
+    ).length,
+    failedInviteCount: notifications.filter(isFailedNotification).length,
+    grantCount: notifications.filter((notification) =>
+      getNotificationCategory(notification.type, notification.category) === "grant"
+    ).length,
+    pendingReviewCount: notifications.filter((notification) =>
+      notification.type.toLowerCase() === "access_request.created" && notification.readAt === null
+    ).length,
+    sharingCount: notifications.filter((notification) =>
+      getNotificationCategory(notification.type, notification.category) === "sharing"
+    ).length,
+    totalCount: notifications.length,
+    unreadCount,
+  };
+}
+
 export function filterWorkspaceNotifications(
   notifications: PermissionNotificationDto[],
   tab: WorkspaceUpdatesTab,
@@ -77,20 +136,32 @@ export function filterWorkspaceNotifications(
       return notification.readAt === null;
     }
 
-    const kind = getNotificationKind(notification.type);
+    if (tab === "failed") {
+      return isFailedNotification(notification);
+    }
+
+    if (tab === "links") {
+      return notification.type.toLowerCase().startsWith("share_link.");
+    }
+
+    if (tab === "invites") {
+      return notification.type.toLowerCase().startsWith("email_invite.");
+    }
+
+    const category = getNotificationCategory(notification.type, notification.category);
     if (tab === "access") {
-      return kind === "access";
+      return category === "access";
     }
 
     if (tab === "grants") {
-      return kind === "grant";
+      return category === "grant";
     }
 
     if (tab === "sharing") {
-      return kind === "sharing";
+      return category === "sharing";
     }
 
-    return kind === "expiry";
+    return category === "expiry";
   });
 }
 
@@ -104,8 +175,14 @@ export function getWorkspaceUpdatesTabLabel(tab: WorkspaceUpdatesTab) {
       return "Grants & groups";
     case "sharing":
       return "Sharing links & invites";
+    case "links":
+      return "Links";
+    case "invites":
+      return "Invites";
     case "expiry":
       return "Expiry";
+    case "failed":
+      return "Failed invites";
     case "all":
     default:
       return "All";
@@ -122,16 +199,19 @@ export function getNotificationActionHref(notification: PermissionNotificationDt
     return normalizedActionUrl;
   }
 
-  if (notification.resourceType === "document" && notification.resourceId && isUuid(notification.resourceId)) {
-    if (getNotificationKind(notification.type) !== "permission") {
-      return createDocumentAdvancedPermissionsHash(notification.resourceId);
+  const resourceType = notification.action?.resourceType ?? notification.resource?.resourceType ?? notification.resourceType;
+  const resourceId = notification.action?.resourceId ?? notification.resource?.resourceId ?? notification.resourceId;
+
+  if (resourceType === "document" && resourceId && isUuid(resourceId)) {
+    if (getNotificationCategory(notification.type, notification.category) !== "permission") {
+      return createDocumentAdvancedPermissionsHash(resourceId);
     }
 
-    return createEditorHash(notification.resourceId);
+    return createEditorHash(resourceId);
   }
 
-  if (notification.resourceType === "collection" && notification.resourceId && isUuid(notification.resourceId)) {
-    return createLibrariesHash({ collectionId: notification.resourceId });
+  if (resourceType === "collection" && resourceId && isUuid(resourceId)) {
+    return createLibrariesHash({ collectionId: resourceId });
   }
 
   return createWorkspacePermissionsHash();
@@ -153,13 +233,17 @@ export function toNotificationPreferenceResourceRows(
   return preferences
     .filter((preference) => preference.watched || preference.muted)
     .map((preference) => {
-      const resourceType = normalizeResourceType(preference.resourceType);
-      const href = createPreferenceResourceHref(resourceType, preference.resourceId);
+      const resourceType = normalizeResourceType(preference.resource?.resourceType ?? preference.resourceType);
+      const resourceId = preference.resource?.resourceId ?? preference.resourceId;
+      const label = preference.resource?.title?.trim() || formatPreferenceResourceLabel(resourceType, resourceId);
+      const description = preference.resource?.path?.trim();
+      const href = createPreferenceResourceHref(resourceType, resourceId);
       const state = preference.muted ? "muted" : "watched";
       return {
+        description: description && description !== label ? description : undefined,
         href,
         id: preference.id,
-        label: formatPreferenceResourceLabel(resourceType, preference.resourceId),
+        label,
         resourceType,
         state,
         updatedAt: preference.updatedAt,
@@ -207,8 +291,8 @@ export function getNotificationPreferenceStatusLabel(status: NotificationApiStat
   return "Demo watched and muted resources shown until API is configured";
 }
 
-function formatRelativeNotificationTime(value: string) {
-  return new Intl.DateTimeFormat(undefined, {
+function formatRelativeNotificationTime(value: string, locale: WorkspaceNotificationLocale) {
+  return new Intl.DateTimeFormat(locale, {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));
@@ -218,64 +302,122 @@ function normalizeResourceType(resourceType?: string | null) {
   return resourceType?.trim().toLowerCase() || "workspace";
 }
 
-function toNotificationActor(actorUserId?: string | null): WorkspaceNotification["actor"] {
-  if (!actorUserId?.trim()) {
+function toNotificationActor(notification: PermissionNotificationDto): WorkspaceNotification["actor"] {
+  const actorName = notification.actor?.displayName?.trim();
+  if (actorName) {
+    return {
+      avatarTone: "blue",
+      initials: actorName.slice(0, 1).toUpperCase(),
+      name: actorName,
+    };
+  }
+
+  if (!notification.actorUserId?.trim()) {
     return undefined;
   }
 
   return {
     avatarTone: "blue",
     initials: "U",
-    name: `User ${shortId(actorUserId)}`,
+    name: `User ${shortId(notification.actorUserId)}`,
   };
 }
 
-function getNotificationActionText(type: string) {
+function getNotificationActionText(type: string, locale: WorkspaceNotificationLocale) {
   switch (type.toLowerCase()) {
     case "access_request.created":
-      return "requested access";
+      return localText(locale, "requested access", "请求访问");
     case "access_request.approved":
-      return "approved access";
+      return localText(locale, "approved access", "批准了访问请求");
     case "access_request.denied":
-      return "denied access";
+      return localText(locale, "denied access", "拒绝了访问请求");
     case "permission.grant_created":
-      return "created a grant";
+      return localText(locale, "created a grant", "创建了授权");
     case "permission.grant_updated":
-      return "updated a grant";
+      return localText(locale, "updated a grant", "更新了授权");
     case "permission.grant_revoked":
-      return "revoked a grant";
+      return localText(locale, "revoked a grant", "撤销了授权");
     case "permission.grant_expiring":
-      return "has an expiring grant";
+      return localText(locale, "has an expiring grant", "有即将过期的授权");
     case "permission.grant_expired":
-      return "has an expired grant";
+      return localText(locale, "has an expired grant", "有已过期的授权");
     case "group.member_added":
-      return "added a group member";
+      return localText(locale, "added a group member", "添加了组成员");
     case "group.member_removed":
-      return "removed a group member";
+      return localText(locale, "removed a group member", "移除了组成员");
     case "group.member_expiring":
-      return "has expiring group access";
+      return localText(locale, "has expiring group access", "有即将过期的组访问");
     case "group.member_expired":
-      return "has expired group access";
+      return localText(locale, "has expired group access", "有已过期的组访问");
     case "share_link.created":
-      return "created a share link";
+      return localText(locale, "created a share link", "创建了分享链接");
     case "share_link.revoked":
-      return "revoked a share link";
+      return localText(locale, "revoked a share link", "撤销了分享链接");
     case "email_invite.created":
-      return "created an email invite";
+      return localText(locale, "created an email invite", "创建了邮件邀请");
     case "email_invite.accepted":
-      return "accepted an email invite";
+      return localText(locale, "accepted an email invite", "接受了邮件邀请");
     case "email_invite.revoked":
-      return "revoked an email invite";
+      return localText(locale, "revoked an email invite", "撤销了邮件邀请");
     case "email_invite.delivery_failed":
-      return "has a failed email invite";
+      return localText(locale, "has a failed email invite", "发送的邮件邀请失败");
     default:
-      return "updated access or sharing";
+      return localText(locale, "updated access or sharing", "更新了访问与分享");
   }
 }
 
-function formatNotificationDetail(body?: string | null, target?: string | null) {
-  const parts = [body?.trim(), target ? `Target: ${target}.` : null].filter(Boolean);
-  return parts.length > 0 ? parts.join(" ") : undefined;
+function getNotificationActionLabel(notification: PermissionNotificationDto): WorkspaceNotification["actionLabel"] {
+  const label = notification.action?.label?.trim();
+  if (label === "Manage" || label === "Open" || label === "Review" || label === "View") {
+    return label;
+  }
+
+  if (
+    notification.type.toLowerCase() === "access_request.created" ||
+    getNotificationKind(notification.type, notification.category, notification.state) === "expiry" ||
+    isFailedNotification(notification)
+  ) {
+    return "Review";
+  }
+
+  if (notification.type.toLowerCase().startsWith("share_link.") || notification.type.toLowerCase().startsWith("email_invite.")) {
+    return "Manage";
+  }
+
+  return "Open";
+}
+
+function formatNotificationDetail(
+  body?: string | null,
+  resourcePath?: string | null,
+  locale: WorkspaceNotificationLocale = "en-US",
+) {
+  if (resourcePath) {
+    return localText(locale, `Location: ${resourcePath}.`, `位置：${resourcePath}。`);
+  }
+
+  return body?.trim() || undefined;
+}
+
+function formatNotificationMessageSuffix(
+  target?: string | null,
+  resourcePath?: string | null,
+  locale: WorkspaceNotificationLocale = "en-US",
+) {
+  if (!target) {
+    return undefined;
+  }
+
+  if (resourcePath && resourcePath !== target) {
+    return localText(locale, `in ${resourcePath}`, `位于 ${resourcePath}`);
+  }
+
+  return localText(locale, `on ${target}`, `在 ${target}`);
+}
+
+function isFailedNotification(notification: PermissionNotificationDto) {
+  return notification.state?.trim().toLowerCase() === "failed" ||
+    notification.type.toLowerCase() === "email_invite.delivery_failed";
 }
 
 function formatNotificationTarget(resourceType?: string | null, resourceId?: string | null) {
@@ -315,7 +457,10 @@ function isWorkspaceUpdatesTab(value: string | null): value is WorkspaceUpdatesT
     value === "unread" ||
     value === "access" ||
     value === "grants" ||
+    value === "links" ||
+    value === "invites" ||
     value === "sharing" ||
+    value === "failed" ||
     value === "expiry";
 }
 
@@ -333,6 +478,39 @@ function formatResourceType(resourceType: string) {
     .split(/[_-]/)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
+}
+
+function getNotificationBadgeLabel(type: string, kind: NotificationKind, locale: WorkspaceNotificationLocale) {
+  const normalized = type.toLowerCase();
+  if (normalized.startsWith("share_link.")) {
+    return localText(locale, "Link", "链接");
+  }
+
+  if (normalized.startsWith("email_invite.")) {
+    return localText(locale, "Invite", "邀请");
+  }
+
+  if (kind === "access") {
+    return localText(locale, "Access", "访问");
+  }
+
+  if (kind === "grant") {
+    return localText(locale, "Grant", "授权");
+  }
+
+  if (kind === "failed") {
+    return localText(locale, "Failed", "失败");
+  }
+
+  if (kind === "expiry") {
+    return localText(locale, "Expiry", "过期");
+  }
+
+  return localText(locale, "Sharing", "分享");
+}
+
+function localText(locale: WorkspaceNotificationLocale, en: string, zh: string) {
+  return locale === "zh-CN" ? zh : en;
 }
 
 function shortId(value: string) {

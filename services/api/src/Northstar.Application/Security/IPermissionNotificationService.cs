@@ -8,6 +8,7 @@ public interface IPermissionNotificationService
     Task AddAsync(PermissionNotification notification, CancellationToken cancellationToken = default);
     Task AddRangeAsync(IEnumerable<PermissionNotification> notifications, CancellationToken cancellationToken = default);
     Task<PermissionNotificationsResponse> GetNotificationsAsync(Guid? workspaceId, bool unreadOnly, CancellationToken cancellationToken = default);
+    Task<AccessSharingSummaryResponse> GetSummaryAsync(Guid? workspaceId, CancellationToken cancellationToken = default);
     Task<PermissionNotificationDto> MarkReadAsync(Guid notificationId, CancellationToken cancellationToken = default);
     Task MarkAllReadAsync(Guid? workspaceId, CancellationToken cancellationToken = default);
 }

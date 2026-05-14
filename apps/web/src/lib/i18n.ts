@@ -103,6 +103,7 @@ type TranslationKey =
   | "settings.displayLanguageHelp"
   | "settings.documents"
   | "settings.documentPermissions"
+  | "settings.documentPermissionsManagedFromDocument"
   | "settings.documentSummary"
   | "settings.email"
   | "settings.emailDigest"
@@ -128,6 +129,7 @@ type TranslationKey =
   | "settings.libraryHeading"
   | "settings.libraryLevelPermissions"
   | "settings.libraryNotificationsHelp"
+  | "settings.libraryPermissionsBoundaryHelp"
   | "settings.manageInLibrary"
   | "settings.members"
   | "settings.membersInventory"
@@ -140,6 +142,7 @@ type TranslationKey =
   | "settings.notifications"
   | "settings.numberFormat"
   | "settings.openLibrary"
+  | "settings.openWorkspaceMembers"
   | "settings.openWorkspaceNotifications"
   | "settings.organizationAssessment"
   | "settings.organizationAssessmentHelp"
@@ -267,6 +270,7 @@ type TranslationKey =
   | "settings.inventoryWorkspaceProfile"
   | "settings.inventoryWorkspaceProvisioning"
   | "settings.accessRequests"
+  | "settings.accessRequestsManagedInUpdates"
   | "settings.backendPermissionChecked"
   | "settings.boundary"
   | "settings.groups"
@@ -274,6 +278,7 @@ type TranslationKey =
   | "settings.libraryOperations"
   | "settings.libraryOperationsSurfaceHelp"
   | "settings.membersSurfaceHelp"
+  | "settings.membersManagedInWorkspaceSettings"
   | "settings.notificationBoundaryHelp"
   | "settings.openMembersSurface"
   | "settings.personalPreferenceLocalHelp"
@@ -338,15 +343,21 @@ type TranslationKey =
   | "topbar.workspaceHome"
   | "updates.accessRequests"
   | "updates.all"
-  | "updates.comments"
-  | "updates.documentChanges"
   | "updates.expiry"
-  | "updates.general"
+  | "updates.expiring"
+  | "updates.failed"
+  | "updates.failedInvites"
   | "updates.grantsGroups"
+  | "updates.invites"
   | "updates.access"
-  | "updates.mentions"
+  | "updates.links"
+  | "updates.mutedFolders"
+  | "updates.pendingReview"
   | "updates.sharing"
+  | "updates.totalNotifications"
   | "updates.unread"
+  | "updates.unreadLabel"
+  | "updates.watchedDocuments"
   | "updates.heading"
   | "updates.latest"
   | "updates.markAllRead"
@@ -370,7 +381,7 @@ const messages: Record<DisplayLocale, Messages> = {
     "common.displayLanguage": "Display language",
     "common.forbidden": "Forbidden",
     "common.languageEnglish": "English",
-    "common.languageChinese": "简体中文",
+    "common.languageChinese": "\u7b80\u4f53\u4e2d\u6587",
     "common.loading": "Loading",
     "common.notConnected": "Not connected",
     "common.no": "No",
@@ -380,20 +391,20 @@ const messages: Record<DisplayLocale, Messages> = {
     "common.waiting": "Waiting",
     "common.workspace": "Workspace",
     "common.yes": "Yes",
-    "home.activeConversations": "Active conversations",
+    "home.activeConversations": "Access and sharing updates",
     "home.allActivity": "All activity",
     "home.goodMorning": "Good morning, {workspaceName}",
     "home.logNote": "Log a note",
     "home.moreActions": "More actions",
     "home.newDecision": "New decision",
     "home.newDocument": "New document",
-    "home.notificationDigest": "Notification digest",
+    "home.notificationDigest": "Access notification digest",
     "home.quickActions": "Quick actions",
-    "home.recentConversationsAndDecisions": "Recent conversations and decisions",
+    "home.recentConversationsAndDecisions": "Access and sharing context",
     "home.recentlyTouched": "Recently touched",
     "home.requestAccess": "Request access",
     "home.shareUpdate": "Share update",
-    "home.teamActivity": "Team activity",
+    "home.teamActivity": "Recent document activity",
     "home.today": "Today",
     "home.topContributors": "Top contributors",
     "home.waitingOnYou": "Waiting on you",
@@ -430,7 +441,7 @@ const messages: Record<DisplayLocale, Messages> = {
     "nav.noCurrentLibraryCollections": "No current library folders",
     "nav.search": "Search",
     "nav.settings": "Settings",
-    "nav.updates": "Updates",
+    "nav.updates": "Access & Sharing",
     "nav.workspace": "Workspace",
     "settings.availableLibraries": "Available Libraries",
     "settings.archiveWorkspace": "Archive workspace",
@@ -461,6 +472,7 @@ const messages: Record<DisplayLocale, Messages> = {
     "settings.displayLanguageHelp": "Changes apply immediately to this browser session.",
     "settings.documents": "Documents",
     "settings.documentPermissions": "Document permissions",
+    "settings.documentPermissionsManagedFromDocument": "Open Advanced permissions from the current document. Library Settings does not manage document grants.",
     "settings.documentSummary": "Document summary",
     "settings.email": "Email",
     "settings.drafts": "Drafts",
@@ -483,6 +495,7 @@ const messages: Record<DisplayLocale, Messages> = {
     "settings.libraryHeading": "Library Settings",
     "settings.libraryLevelPermissions": "Library-level permissions are deferred until a dedicated backend contract exists.",
     "settings.libraryNotificationsHelp": "Only watched or muted resources that match this library can be shown from the current preferences API.",
+    "settings.libraryPermissionsBoundaryHelp": "This page explains ownership boundaries only. Workspace membership stays in Settings; document grants stay with each document.",
     "settings.manageInLibrary": "Manage in Library",
     "settings.members": "Members",
     "settings.membersInventory": "Members inventory",
@@ -495,6 +508,7 @@ const messages: Record<DisplayLocale, Messages> = {
     "settings.notifications": "Notifications",
     "settings.numberFormat": "Number format",
     "settings.openLibrary": "Open Library",
+    "settings.openWorkspaceMembers": "Open Workspace Members",
     "settings.openWorkspaceNotifications": "Open Workspace Notifications",
     "settings.organizationAssessment": "Organization Assessment",
     "settings.organizationAssessmentHelp": "Assessment keeps broader organization mutations deferred while profile rename is owner-gated.",
@@ -621,14 +635,16 @@ const messages: Record<DisplayLocale, Messages> = {
     "settings.inventoryWorkspaceProfile": "Workspace profile",
     "settings.inventoryWorkspaceProvisioning": "Workspace provisioning",
     "settings.accessRequests": "Access requests",
+    "settings.accessRequestsManagedInUpdates": "Access request notifications are reviewed in Updates when the backend sends them.",
     "settings.backendPermissionChecked": "Mutations remain checked by the backend permission service.",
     "settings.boundary": "Boundary",
     "settings.groups": "Groups",
     "settings.lastOwnerProtected": "Protected by existing backend constraints.",
     "settings.libraryOperations": "Library operations",
     "settings.libraryOperationsSurfaceHelp": "Routine folder and document work stays in Libraries; Settings shows summary and links only.",
+    "settings.membersManagedInWorkspaceSettings": "Workspace members are managed in Workspace Settings > Members.",
     "settings.membersSurfaceHelp": "Member list, add member, role update, remove member, busy states, and backend errors stay on the Members surface.",
-    "settings.notificationBoundaryHelp": "No new notification category or email digest backend semantics in this round.",
+    "settings.notificationBoundaryHelp": "Current backend support covers resource watch or mute preferences plus access, sharing, and permission notifications. Ordinary document edit activity stays in Activity, not Updates.",
     "settings.openMembersSurface": "Open Members surface",
     "settings.personalPreferenceLocalHelp": "This is a personal browser preference shown here until a Personal Settings route exists.",
     "settings.recommendedSettingsClosure": "Recommended settings closure",
@@ -645,7 +661,7 @@ const messages: Record<DisplayLocale, Messages> = {
     "settings.loadingNotificationPreferences": "Loading notification preferences.",
     "settings.notificationPreferenceApiFailed": "Notification preference API failed.",
     "settings.notificationPreferenceForbidden": "Notification preference access is unavailable for this user.",
-    "settings.notificationPreferenceHelp": "Choose the current workspace default for permission and activity notifications. Resource-specific watch and mute state remains listed below.",
+    "settings.notificationPreferenceHelp": "Choose the current workspace default for access, sharing, and permission notifications. Resource-specific watch and mute state remains listed below.",
     "settings.preferenceUpdated": "Preference updated.",
     "settings.preferenceUpdateUnavailable": "API and workspace id are required to update notification preferences.",
     "settings.recommendation": "Recommendation",
@@ -693,23 +709,29 @@ const messages: Record<DisplayLocale, Messages> = {
     "updates.access": "Access / approvals",
     "updates.accessRequests": "Access requests",
     "updates.all": "All",
-    "updates.comments": "Comments",
-    "updates.documentChanges": "Document changes",
     "updates.expiry": "Expiry",
-    "updates.general": "General",
+    "updates.expiring": "Expiring",
+    "updates.failed": "Failed",
+    "updates.failedInvites": "Failed invites",
     "updates.grantsGroups": "Grants & groups",
-    "updates.heading": "Review workspace access requests, grants, groups, share links, and invite notifications.",
+    "updates.invites": "Invites",
+    "updates.links": "Links",
+    "updates.heading": "Review access requests, grants, group access, share links, email invites, and expiry alerts.",
     "updates.latest": "Latest",
     "updates.markAllRead": "Mark all read",
-    "updates.mentions": "Mentions",
+    "updates.mutedFolders": "Muted folders",
     "updates.newestFirst": "Newest first",
     "updates.noNotifications": "No notifications",
     "updates.noNotificationsForFilter": "No notifications match this filter",
+    "updates.pendingReview": "Pending review",
     "updates.shown": "{count} shown",
     "updates.sharing": "Sharing links & invites",
     "updates.summary": "Summary",
-    "updates.title": "Access & sharing notifications",
+    "updates.title": "Access & Sharing",
+    "updates.totalNotifications": "{count} total notifications",
     "updates.unread": "Unread",
+    "updates.unreadLabel": "unread",
+    "updates.watchedDocuments": "Watched documents",
   },
   "zh-CN": {
     "common.api": "API",
@@ -721,7 +743,7 @@ const messages: Record<DisplayLocale, Messages> = {
     "common.displayLanguage": "显示语言",
     "common.forbidden": "无权限",
     "common.languageEnglish": "English",
-    "common.languageChinese": "简体中文",
+    "common.languageChinese": "\u7b80\u4f53\u4e2d\u6587",
     "common.loading": "加载中",
     "common.notConnected": "未连接",
     "common.no": "否",
@@ -731,20 +753,20 @@ const messages: Record<DisplayLocale, Messages> = {
     "common.waiting": "等待中",
     "common.workspace": "工作区",
     "common.yes": "是",
-    "home.activeConversations": "活跃讨论",
+    "home.activeConversations": "\u8bbf\u95ee\u4e0e\u5206\u4eab\u66f4\u65b0",
     "home.allActivity": "全部动态",
     "home.goodMorning": "早上好，{workspaceName}",
     "home.logNote": "记录笔记",
     "home.moreActions": "更多操作",
     "home.newDecision": "新建决策",
     "home.newDocument": "新建文档",
-    "home.notificationDigest": "通知摘要",
+    "home.notificationDigest": "\u8bbf\u95ee\u901a\u77e5\u6458\u8981",
     "home.quickActions": "快捷操作",
-    "home.recentConversationsAndDecisions": "最近讨论与决策",
+    "home.recentConversationsAndDecisions": "\u8bbf\u95ee\u4e0e\u5206\u4eab\u4e0a\u4e0b\u6587",
     "home.recentlyTouched": "最近触达",
     "home.requestAccess": "请求访问",
     "home.shareUpdate": "分享更新",
-    "home.teamActivity": "团队动态",
+    "home.teamActivity": "最近文档动态",
     "home.today": "今天",
     "home.topContributors": "主要贡献者",
     "home.waitingOnYou": "待你处理",
@@ -781,7 +803,7 @@ const messages: Record<DisplayLocale, Messages> = {
     "nav.noCurrentLibraryCollections": "\u6682\u65e0\u5f53\u524d\u8d44\u6599\u5e93\u6587\u4ef6\u5939",
     "nav.search": "搜索",
     "nav.settings": "设置",
-    "nav.updates": "更新",
+    "nav.updates": "访问与分享",
     "nav.workspace": "工作区",
     "settings.availableLibraries": "可用资料库",
     "settings.archiveWorkspace": "归档工作区",
@@ -842,6 +864,7 @@ const messages: Record<DisplayLocale, Messages> = {
     "settings.notifications": "通知",
     "settings.numberFormat": "数字格式",
     "settings.openLibrary": "打开资料库",
+    "settings.openWorkspaceMembers": "打开工作区成员",
     "settings.openWorkspaceNotifications": "打开工作区通知设置",
     "settings.organizationAssessment": "组织设置评估",
     "settings.organizationAssessmentHelp": "评估仍保留更大的组织变更为暂缓状态，profile 重命名仅限拥有者。",
@@ -968,18 +991,22 @@ const messages: Record<DisplayLocale, Messages> = {
     "settings.inventoryWorkspaceProfile": "\u5de5\u4f5c\u533a\u8d44\u6599",
     "settings.inventoryWorkspaceProvisioning": "\u5de5\u4f5c\u533a\u5f00\u901a",
     "settings.accessRequests": "\u8bbf\u95ee\u8bf7\u6c42",
+    "settings.accessRequestsManagedInUpdates": "\u540e\u7aef\u53d1\u51fa\u8bbf\u95ee\u8bf7\u6c42\u901a\u77e5\u65f6\uff0c\u5728 Updates \u4e2d\u5904\u7406\u3002",
     "settings.backendPermissionChecked": "\u53d8\u66f4\u4ecd\u7531\u540e\u7aef\u6743\u9650\u670d\u52a1\u68c0\u67e5\u3002",
     "settings.boundary": "\u8fb9\u754c",
     "settings.collectionSummary": "\u6587\u4ef6\u5939\u6458\u8981",
     "settings.currentLibrarySummary": "\u5f53\u524d\u8d44\u6599\u5e93\u6458\u8981",
     "settings.documentPermissions": "\u6587\u6863\u6743\u9650",
+    "settings.documentPermissionsManagedFromDocument": "\u8bf7\u4ece\u5f53\u524d\u6587\u6863\u6253\u5f00\u9ad8\u7ea7\u6743\u9650\uff1b\u8d44\u6599\u5e93\u8bbe\u7f6e\u4e0d\u7ba1\u7406\u6587\u6863\u6388\u6743\u3002",
     "settings.documentSummary": "\u6587\u6863\u6458\u8981",
     "settings.groups": "\u7ec4",
     "settings.lastOwnerProtected": "\u73b0\u6709\u540e\u7aef\u7ea6\u675f\u4fdd\u62a4\u6700\u540e\u4e00\u4f4d\u62e5\u6709\u8005\u3002",
     "settings.libraryOperations": "\u8d44\u6599\u5e93\u64cd\u4f5c",
     "settings.libraryOperationsSurfaceHelp": "\u65e5\u5e38\u6587\u4ef6\u5939\u548c\u6587\u6863\u5de5\u4f5c\u4fdd\u7559\u5728\u8d44\u6599\u5e93\u754c\u9762\uff1b\u8bbe\u7f6e\u4ec5\u663e\u793a\u6458\u8981\u548c\u94fe\u63a5\u3002",
+    "settings.libraryPermissionsBoundaryHelp": "\u6b64\u9875\u53ea\u8bf4\u660e\u6743\u9650\u5f52\u5c5e\u8fb9\u754c\u3002\u5de5\u4f5c\u533a\u6210\u5458\u5728 Settings \u7ba1\u7406\uff1b\u6587\u6863\u6388\u6743\u5728\u6587\u6863\u4e0a\u4e0b\u6587\u7ba1\u7406\u3002",
+    "settings.membersManagedInWorkspaceSettings": "\u5de5\u4f5c\u533a\u6210\u5458\u5728 Workspace Settings > Members \u4e2d\u7ba1\u7406\u3002",
     "settings.membersSurfaceHelp": "\u6210\u5458\u5217\u8868\u3001\u6dfb\u52a0\u6210\u5458\u3001\u89d2\u8272\u66f4\u65b0\u3001\u79fb\u9664\u6210\u5458\u3001\u5fd9\u788c\u72b6\u6001\u548c\u540e\u7aef\u9519\u8bef\u90fd\u4fdd\u7559\u5728\u6210\u5458\u754c\u9762\u3002",
-    "settings.notificationBoundaryHelp": "\u672c\u8f6e\u4e0d\u65b0\u589e\u901a\u77e5\u5206\u7c7b\u6216\u90ae\u4ef6\u6458\u8981\u540e\u7aef\u8bed\u4e49\u3002",
+    "settings.notificationBoundaryHelp": "\u5f53\u524d\u540e\u7aef\u652f\u6301\u8d44\u6e90\u5173\u6ce8\u6216\u9759\u97f3\u504f\u597d\uff0c\u4ee5\u53ca\u8bbf\u95ee\u3001\u5206\u4eab\u548c\u6743\u9650\u901a\u77e5\u3002\u666e\u901a\u6587\u6863\u7f16\u8f91\u52a8\u6001\u4fdd\u7559\u5728 Activity\uff0c\u4e0d\u8fdb\u5165 Updates\u3002",
     "settings.openMembersSurface": "\u6253\u5f00\u6210\u5458\u754c\u9762",
     "settings.personalPreferenceLocalHelp": "\u8fd9\u662f\u4e2a\u4eba\u6d4f\u89c8\u5668\u504f\u597d\uff1b\u5728\u72ec\u7acb\u4e2a\u4eba\u8bbe\u7f6e\u8def\u7531\u5b58\u5728\u524d\u6682\u65f6\u653e\u5728\u8fd9\u91cc\u3002",
     "settings.recommendedSettingsClosure": "\u5efa\u8bae\u7684\u8bbe\u7f6e\u6536\u53e3",
@@ -996,7 +1023,7 @@ const messages: Record<DisplayLocale, Messages> = {
     "settings.loadingNotificationPreferences": "\u6b63\u5728\u52a0\u8f7d\u901a\u77e5\u504f\u597d\u3002",
     "settings.notificationPreferenceApiFailed": "\u901a\u77e5\u504f\u597d API \u8bf7\u6c42\u5931\u8d25\u3002",
     "settings.notificationPreferenceForbidden": "\u5f53\u524d\u7528\u6237\u65e0\u6cd5\u8bbf\u95ee\u901a\u77e5\u504f\u597d\u3002",
-    "settings.notificationPreferenceHelp": "\u9009\u62e9\u5f53\u524d\u5de5\u4f5c\u533a\u7684\u6743\u9650\u548c\u6d3b\u52a8\u901a\u77e5\u9ed8\u8ba4\u72b6\u6001\u3002\u8d44\u6e90\u7ea7\u5173\u6ce8\u548c\u9759\u97f3\u72b6\u6001\u4fdd\u7559\u5728\u4e0b\u65b9\u5217\u8868\u3002",
+    "settings.notificationPreferenceHelp": "\u9009\u62e9\u5f53\u524d\u5de5\u4f5c\u533a\u7684\u8bbf\u95ee\u3001\u5206\u4eab\u548c\u6743\u9650\u901a\u77e5\u9ed8\u8ba4\u72b6\u6001\u3002\u8d44\u6e90\u7ea7\u5173\u6ce8\u548c\u9759\u97f3\u72b6\u6001\u4fdd\u7559\u5728\u4e0b\u65b9\u5217\u8868\u3002",
     "settings.preferenceUpdated": "\u504f\u597d\u5df2\u66f4\u65b0\u3002",
     "settings.preferenceUpdateUnavailable": "\u9700\u8981 API \u548c\u5de5\u4f5c\u533a ID \u624d\u80fd\u66f4\u65b0\u901a\u77e5\u504f\u597d\u3002",
     "settings.recommendation": "\u5efa\u8bae",
@@ -1044,23 +1071,29 @@ const messages: Record<DisplayLocale, Messages> = {
     "updates.access": "访问 / 审批",
     "updates.accessRequests": "访问请求",
     "updates.all": "全部",
-    "updates.comments": "评论",
-    "updates.documentChanges": "文档变更",
     "updates.expiry": "过期",
-    "updates.general": "常规",
+    "updates.expiring": "即将过期",
+    "updates.failed": "失败",
+    "updates.failedInvites": "邀请失败",
     "updates.grantsGroups": "授权与组",
-    "updates.heading": "查看工作区访问请求、授权、组、分享链接和邀请通知。",
+    "updates.invites": "邀请",
+    "updates.links": "链接",
+    "updates.heading": "查看访问请求、权限授权、组访问、分享链接、邮件邀请和过期提醒。",
     "updates.latest": "最新",
     "updates.markAllRead": "全部标为已读",
-    "updates.mentions": "提及",
+    "updates.mutedFolders": "已静音文件夹",
     "updates.newestFirst": "最新优先",
     "updates.noNotifications": "暂无通知",
     "updates.noNotificationsForFilter": "没有符合当前筛选的通知",
+    "updates.pendingReview": "待处理",
     "updates.shown": "显示 {count} 条",
     "updates.sharing": "分享链接与邀请",
     "updates.summary": "摘要",
-    "updates.title": "访问与分享通知",
+    "updates.title": "访问与分享",
+    "updates.totalNotifications": "共 {count} 条通知",
     "updates.unread": "未读",
+    "updates.unreadLabel": "未读",
+    "updates.watchedDocuments": "已关注文档",
   },
 };
 
@@ -1147,7 +1180,7 @@ export function getQuickActionLabel(locale: DisplayLocale, id: HomeQuickActionRo
 
 export function getWorkspaceUpdatesTabDisplayLabel(
   locale: DisplayLocale,
-  tab: "access" | "all" | "expiry" | "grants" | "sharing" | "unread",
+  tab: "access" | "all" | "expiry" | "failed" | "grants" | "invites" | "links" | "sharing" | "unread",
 ) {
   switch (tab) {
     case "unread":
@@ -1158,8 +1191,14 @@ export function getWorkspaceUpdatesTabDisplayLabel(
       return t(locale, "updates.grantsGroups");
     case "sharing":
       return t(locale, "updates.sharing");
+    case "links":
+      return t(locale, "updates.links");
+    case "invites":
+      return t(locale, "updates.invites");
     case "expiry":
       return t(locale, "updates.expiry");
+    case "failed":
+      return t(locale, "updates.failed");
     case "all":
     default:
       return t(locale, "updates.all");

@@ -33,11 +33,18 @@ import {
   type WorkspaceMemberDto,
 } from "../lib/appApi";
 import { ApiClientError, getConfiguredApiBaseUrl, isUuid } from "../lib/apiClient";
-import { createShareLinkRequest, toAbsoluteShareUrl } from "../lib/documentShareLinksModel";
+import {
+  createShareLinkRequest,
+  getShareDrawerInviteDisabledReason,
+  getShareDrawerLinkDisabledReason,
+  toAbsoluteShareUrl,
+  toSharePermissionMutationError,
+  type ShareDrawerApiStatus,
+} from "../lib/documentShareLinksModel";
 import { createShareHash } from "../lib/hashRouting";
 import type { KnowledgeDocument } from "../types/editor";
 
-type ShareDrawerStatus = "error" | "forbidden" | "idle" | "loading" | "ready" | "unconfigured";
+type ShareDrawerStatus = ShareDrawerApiStatus;
 type InviteRole = "commenter" | "editor" | "viewer";
 type LinkScope = "invited" | "public" | "workspace";
 
@@ -101,12 +108,27 @@ export function DocumentShareDrawer({ document, isOpen, onClose, workspaceId }: 
       }),
     [availableGrantRoles, isDirectMemberInvite],
   );
-  const canSendInvite = Boolean(normalizedInvite) && canMutate && inviteRoleOptions.length > 0;
   const publicExpiryIso = toApiDateTime(linkExpiresAt);
-  const canCreateLink =
-    canMutate &&
-    linkScope !== "invited" &&
-    (linkScope !== "public" || Boolean(publicExpiryIso && new Date(publicExpiryIso).getTime() > Date.now()));
+  const inviteDisabledReason = getShareDrawerInviteDisabledReason({
+    apiConfigured: Boolean(apiBaseUrl),
+    availableRoles: availableGrantRoles,
+    inviteIsEmail,
+    isDirectMemberInvite,
+    memberStatus,
+    operation,
+    selectedRole: inviteRole,
+    status,
+    value: normalizedInvite,
+  });
+  const linkDisabledReason = getShareDrawerLinkDisabledReason({
+    apiConfigured: Boolean(apiBaseUrl),
+    expiresAt: publicExpiryIso,
+    linkScope,
+    operation,
+    status,
+  });
+  const canSendInvite = !inviteDisabledReason && inviteRoleOptions.length > 0;
+  const canCreateLink = !linkDisabledReason;
   const generatedUrl = createdLink ? toAbsoluteShareUrl(createdLink.url, apiBaseUrl) : "";
 
   useEffect(() => {
@@ -208,6 +230,11 @@ export function DocumentShareDrawer({ document, isOpen, onClose, workspaceId }: 
 
   const sendInvite = () => {
     void runOperation("invite", async () => {
+      if (inviteDisabledReason) {
+        setError(inviteDisabledReason);
+        return;
+      }
+
       if (!normalizedInvite) {
         return;
       }
@@ -256,6 +283,11 @@ export function DocumentShareDrawer({ document, isOpen, onClose, workspaceId }: 
 
   const createLink = () => {
     void runOperation("link", async () => {
+      if (linkDisabledReason) {
+        setError(linkDisabledReason);
+        return;
+      }
+
       if (linkScope === "invited") {
         setMessage("当前为仅受邀访问，不需要创建分享链接。");
         return;
@@ -316,40 +348,49 @@ export function DocumentShareDrawer({ document, isOpen, onClose, workspaceId }: 
                   }
                 }}
                 placeholder="@用户或邮箱"
+                title={!canMutate ? inviteDisabledReason ?? undefined : "Search workspace members or enter an email invite."}
                 type="text"
                 value={inviteValue}
               />
-              <select disabled={!canMutate || inviteRoleOptions.length === 0} onChange={(event) => setInviteRole(event.target.value as InviteRole)} value={inviteRole}>
+              <select
+                disabled={!canMutate || inviteRoleOptions.length === 0}
+                onChange={(event) => setInviteRole(event.target.value as InviteRole)}
+                title={inviteRoleOptions.length === 0 ? inviteDisabledReason ?? "No roles are available." : "Choose document access role."}
+                value={inviteRole}
+              >
                 {inviteRoleOptions.map((role) => (
                   <option key={role.value} value={role.value}>
                     {role.label}
                   </option>
                 ))}
               </select>
-              <button className="document-share-primary" disabled={!canSendInvite} onClick={sendInvite} type="button">
+              <button className="document-share-primary" disabled={!canSendInvite} onClick={sendInvite} title={inviteDisabledReason ?? "Send invite or grant access"} type="button">
                 {operation === "invite" ? "发送中" : "发送邀请"}
               </button>
             </div>
-            <div className="document-share-token-row">
-              {members?.slice(0, 2).map((member) => (
-                <button
-                  disabled={!canMutate}
-                  key={member.userId}
-                  onClick={() => setInviteValue(member.email ?? member.displayName)}
-                  type="button"
-                >
-                  @{member.displayName}
-                </button>
-              ))}
-              <button disabled={!canMutate} onClick={() => setInviteValue("alex@company.com")} type="button">
-                alex@company.com
-              </button>
-            </div>
+            {members?.length ? (
+              <div className="document-share-token-row">
+                {members.slice(0, 2).map((member) => (
+                  <button
+                    disabled={!canMutate}
+                    key={member.userId}
+                    onClick={() => setInviteValue(member.email ?? member.displayName)}
+                    title={`Invite ${member.displayName}`}
+                    type="button"
+                  >
+                    @{member.displayName}
+                  </button>
+                ))}
+              </div>
+            ) : null}
             <p className="document-share-help">
-              通过输入 @ 搜索成员或输入邮箱邀请。评论中的 @ 仅会通知他人，真正 mention notification 不在本轮实现。
+              通过输入 @ 搜索成员或输入邮箱邀请。这里的 @ 只用于邀请输入，文档评论 mention notification 不在当前能力范围内。
             </p>
-            {memberStatus === "forbidden" ? (
-              <p className="document-share-help is-warning">成员搜索接口当前不可用或权限不足，仍可使用 email invite。</p>
+            {memberStatus === "loading" ? (
+              <p className="document-share-help">正在加载 workspace 成员。你仍可以直接输入邮箱准备邀请。</p>
+            ) : null}
+            {memberStatus === "forbidden" || memberStatus === "error" || memberStatus === "unconfigured" ? (
+              <p className="document-share-help is-warning">成员搜索不可用或权限不足，仍可使用 email invite；不会伪造用户搜索结果。</p>
             ) : null}
             {createdInvite ? (
               <GeneratedSecret
@@ -385,7 +426,12 @@ export function DocumentShareDrawer({ document, isOpen, onClose, workspaceId }: 
                 <Eye className="h-4 w-4" />
                 链接权限
               </span>
-              <select disabled={!canMutate || linkScope === "invited"} onChange={(event) => setLinkRole(event.target.value as ShareLinkRole)} value={linkRole}>
+              <select
+                disabled={!canMutate || linkScope === "invited"}
+                onChange={(event) => setLinkRole(event.target.value as ShareLinkRole)}
+                title={linkScope === "invited" ? linkDisabledReason ?? "No link role is needed." : "Share links support viewer or commenter only."}
+                value={linkRole}
+              >
                 {linkRoles.map((role) => (
                   <option key={role.value} value={role.value}>
                     {role.label}
@@ -404,6 +450,7 @@ export function DocumentShareDrawer({ document, isOpen, onClose, workspaceId }: 
                 onChange={(event) => setLinkExpiresAt(event.target.value)}
                 type="datetime-local"
                 value={linkExpiresAt}
+                title={linkScope === "public" ? "Public links require a future expiry time." : "Optional expiry for this share link."}
               />
             </label>
             <label className="document-share-select-row">
@@ -429,7 +476,7 @@ export function DocumentShareDrawer({ document, isOpen, onClose, workspaceId }: 
                 />
               </span>
             </label>
-            <button className="document-share-link-action" disabled={!canCreateLink} onClick={createLink} type="button">
+            <button className="document-share-link-action" disabled={!canCreateLink} onClick={createLink} title={linkDisabledReason ?? "Create or update the share link"} type="button">
               <Link2 className="h-4 w-4" />
               {operation === "link" ? "创建中" : linkScope === "public" ? "创建公开链接" : "应用链接设置"}
             </button>
@@ -533,7 +580,9 @@ export function DocumentShareDrawer({ document, isOpen, onClose, workspaceId }: 
         </div>
 
         <footer className="document-share-drawer-footer">
-          <a href={advancedHref}>前往 Advanced permissions</a>
+          <a href={advancedHref} title="Open document-scoped advanced permissions">
+            Advanced permissions
+          </a>
           <span className={error ? "is-error" : ""}>{error ?? message}</span>
           <button onClick={onClose} type="button">
             取消
@@ -678,11 +727,7 @@ function isForbiddenError(value: unknown) {
 }
 
 function toDrawerError(value: unknown, fallback: string) {
-  if (value instanceof ApiClientError && value.message && !value.message.startsWith("API returned ")) {
-    return value.message;
-  }
-
-  return fallback;
+  return toSharePermissionMutationError(value, fallback);
 }
 
 function toApiDateTime(value: string) {

@@ -1,5 +1,6 @@
 import type { BootstrapResponse, KnowledgeDocumentSummaryDto, SearchResponse } from "./appApi";
-import { createEditorHash, createLibrariesHash, createWorkspaceMembersHash } from "./hashRouting";
+import { isUuid } from "./apiClient";
+import { createEditorHash, createLibrariesHash, createSearchHash } from "./hashRouting";
 
 export type SearchApiStatus = "idle" | "unconfigured" | "loading" | "ready" | "forbidden" | "error";
 
@@ -15,13 +16,39 @@ export type SearchDisplayResult = {
   selected?: boolean;
   status?: "Published" | "Draft";
   title: string;
-  type: "document" | "collection" | "person";
+  type: "document" | "collection";
   updatedAt?: string;
+};
+
+export type SearchResultCountLabelOptions = {
+  isDemo: boolean;
+  resultCount: number;
+  status: SearchApiStatus;
+};
+
+export type SearchEmptyStateOptions = {
+  folderId?: string | null;
+  folderTitle?: string | null;
+  libraryId?: string | null;
+  query?: string | null;
+};
+
+export type SearchEmptyState = {
+  actionHref?: string;
+  actionLabel?: string;
+  detail: string;
+  title: string;
+};
+
+export type SearchScopeState = {
+  allResultsHref: string;
+  folderHref: string | null;
+  label: string;
 };
 
 export function getSearchStatusLabel(status: SearchApiStatus) {
   if (status === "ready") {
-    return "Live search API is connected.";
+    return "Live document search API is connected.";
   }
 
   if (status === "loading") {
@@ -29,7 +56,7 @@ export function getSearchStatusLabel(status: SearchApiStatus) {
   }
 
   if (status === "idle") {
-    return "Enter a search term to search Northstar.";
+    return "Enter a search term to search Library content.";
   }
 
   if (status === "forbidden") {
@@ -43,8 +70,33 @@ export function getSearchStatusLabel(status: SearchApiStatus) {
   return "Configure VITE_NORTHSTAR_API_BASE_URL to load live search results.";
 }
 
-export function getSearchEmptyState(status: SearchApiStatus) {
+export function getSearchResultCountLabel(options: SearchResultCountLabelOptions) {
+  if (options.status === "loading") {
+    return "Loading results";
+  }
+
+  if (options.status === "idle") {
+    return "Ready to search";
+  }
+
+  const suffix = options.resultCount === 1 ? "result" : "results";
+  return options.isDemo
+    ? `${options.resultCount} demo ${suffix}`
+    : `${options.resultCount} ${suffix}`;
+}
+
+export function getSearchEmptyState(status: SearchApiStatus, options: SearchEmptyStateOptions = {}): SearchEmptyState {
+  const query = options.query?.trim();
+  const folderTitle = options.folderTitle?.trim();
+
   if (status === "idle") {
+    if (folderTitle) {
+      return {
+        detail: `Type a query to search documents inside ${folderTitle}.`,
+        title: "Search this folder",
+      };
+    }
+
     return {
       detail: "Type a query in the search field above and press Enter.",
       title: "Start a search",
@@ -72,9 +124,36 @@ export function getSearchEmptyState(status: SearchApiStatus) {
     };
   }
 
+  if (options.folderId || folderTitle) {
+    return {
+      actionHref: createSearchHash({ libraryId: options.libraryId, q: query }),
+      actionLabel: "Search all Library content",
+      detail: query
+        ? `No documents in ${folderTitle ?? "this folder"} matched "${query}".`
+        : `No documents are available in ${folderTitle ?? "this folder"}.`,
+      title: "No folder results found.",
+    };
+  }
+
   return {
-    detail: "No matching documents were returned.",
+    detail: query
+      ? `No documents or folders matched "${query}" in the current Library.`
+      : "No matching documents or folders were returned.",
     title: "No results found.",
+  };
+}
+
+export function getSearchScopeState(options: SearchEmptyStateOptions): SearchScopeState | null {
+  if (!options.folderId && !options.folderTitle) {
+    return null;
+  }
+
+  const folderTitle = options.folderTitle?.trim() || "this folder";
+
+  return {
+    allResultsHref: createSearchHash({ libraryId: options.libraryId, q: options.query?.trim() }),
+    folderHref: options.folderId ? createLibrariesHash({ collectionId: options.folderId, libraryId: options.libraryId }) : null,
+    label: `Searching in folder: ${folderTitle}`,
   };
 }
 
@@ -84,14 +163,16 @@ export function toFolderSearchResultItems(
   query: string,
 ): SearchDisplayResult[] {
   const folder = bootstrap.folders.find((item) => item.id === folderId);
+  const libraryName = getLibraryName(bootstrap, bootstrap.activeSpaceId);
+  const folderTitle = folder?.title ?? "Folder";
   return bootstrap.documents
     .filter((document) => document.folderId === folderId)
-    .filter((document) => matchesFolderQuery(document, folder?.title ?? "", query))
+    .filter((document) => matchesFolderQuery(document, folderTitle, query))
     .map((document, index) => ({
       excerpt: document.tags.length > 0 ? `Tags: ${document.tags.join(", ")}` : "",
       href: createEditorHash(document.id),
       id: document.id,
-      path: folder ? folder.title : "Folder",
+      path: `${libraryName} / ${folderTitle}`,
       selected: index === 0,
       status: normalizeStatus(document.status),
       title: document.title,
@@ -100,30 +181,50 @@ export function toFolderSearchResultItems(
     }));
 }
 
-export function toSearchResultItems(response: SearchResponse, bootstrap: BootstrapResponse): SearchDisplayResult[] {
+export function toSearchResultItems(
+  response: SearchResponse,
+  bootstrap: BootstrapResponse,
+  libraryId?: string | null,
+): SearchDisplayResult[] {
   const folderTitlesById = new Map(bootstrap.folders.map((folder) => [folder.id, folder.title]));
+  const foldersById = new Map(bootstrap.folders.map((folder) => [folder.id, folder]));
+  const documentsById = new Map(bootstrap.documents.map((document) => [document.id, document]));
+  const resolvedLibraryId = libraryId && isUuid(libraryId) ? libraryId : bootstrap.activeSpaceId;
+  const libraryName = getLibraryName(bootstrap, resolvedLibraryId);
 
-  return response.results.map((result, index) => {
-    const type = result.type === "collection" || result.type === "person" ? result.type : "document";
+  return response.results.flatMap((result) => {
+    if (!isUuid(result.id)) {
+      return [];
+    }
+
+    if (result.type !== "document" && result.type !== "collection") {
+      return [];
+    }
+
+    const type: SearchDisplayResult["type"] = result.type === "collection" ? "collection" : "document";
     const folderTitle = result.folderId ? folderTitlesById.get(result.folderId) : null;
+    const collection = type === "collection" ? foldersById.get(result.id) : null;
+    const document = type === "document" ? documentsById.get(result.id) : null;
 
-    return {
+    return [{
+      collectionCount: undefined,
+      documentCount: collection?.documentCount,
       excerpt: result.excerpt,
       href:
         type === "document"
           ? createEditorHash(result.id)
-          : type === "collection"
-            ? createLibrariesHash({ collectionId: result.id, libraryId: bootstrap.activeSpaceId })
-            : createWorkspaceMembersHash(),
+          : createLibrariesHash({ collectionId: result.id, libraryId: resolvedLibraryId }),
       id: result.id,
-      path: folderTitle ?? (type === "collection" ? "Folder" : "Workspace"),
-      selected: index === 0,
-      status: type === "document" ? "Published" : undefined,
+      path: folderTitle ? `${libraryName} / ${folderTitle}` : libraryName,
+      status: document ? normalizeStatus(document.status) : undefined,
       title: result.title,
       type,
       updatedAt: formatDate(result.updatedAt),
-    };
-  });
+    }];
+  }).map((result, index) => ({
+    ...result,
+    selected: index === 0,
+  }));
 }
 
 function matchesFolderQuery(document: KnowledgeDocumentSummaryDto, folderTitle: string, query: string) {
@@ -152,4 +253,12 @@ function formatDate(value: string) {
   } catch {
     return value;
   }
+}
+
+function getLibraryName(bootstrap: BootstrapResponse, libraryId?: string | null) {
+  const library = bootstrap.spaces.find((space) => space.id === libraryId)
+    ?? bootstrap.spaces.find((space) => space.id === bootstrap.activeSpaceId)
+    ?? bootstrap.spaces.find((space) => space.id === bootstrap.workspace.currentSpaceId);
+
+  return library?.name ?? "Library";
 }

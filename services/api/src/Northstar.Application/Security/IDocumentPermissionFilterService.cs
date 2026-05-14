@@ -16,6 +16,10 @@ public interface IDocumentPermissionFilterService
         SearchResponse response,
         CancellationToken cancellationToken = default);
 
+    Task<DocumentContextResponse> FilterContextAsync(
+        DocumentContextResponse response,
+        CancellationToken cancellationToken = default);
+
     Task<ExportSpaceResponse> FilterExportAsync(
         ExportSpaceResponse response,
         CancellationToken cancellationToken = default);

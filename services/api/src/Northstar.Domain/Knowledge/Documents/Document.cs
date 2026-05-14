@@ -108,6 +108,55 @@ public sealed class Document
         return true;
     }
 
+    public void MarkPublished(Guid versionId, Guid? editedBy = null)
+    {
+        EnsureNotDeleted("Deleted documents cannot be published.");
+
+        if (Status == DocumentStatus.Archived)
+        {
+            throw new DomainException(DomainErrorCodes.ValidationError, "Archived documents cannot be published.");
+        }
+
+        Status = DocumentStatus.Published;
+        CurrentPublishedVersionId = versionId;
+        PublishedAt = DateTimeOffset.UtcNow;
+        MarkEdited(editedBy);
+    }
+
+    public bool MarkUnpublished(Guid? editedBy = null)
+    {
+        EnsureNotDeleted("Deleted documents cannot be unpublished.");
+
+        if (Status == DocumentStatus.Archived)
+        {
+            throw new DomainException(DomainErrorCodes.ValidationError, "Archived documents cannot be unpublished.");
+        }
+
+        if (Status != DocumentStatus.Published &&
+            CurrentPublishedVersionId is null &&
+            PublishedAt is null)
+        {
+            return false;
+        }
+
+        Status = DocumentStatus.Draft;
+        CurrentPublishedVersionId = null;
+        PublishedAt = null;
+        MarkEdited(editedBy);
+        return true;
+    }
+
+    public void MarkDraftAfterVersionedChange(Guid? editedBy = null)
+    {
+        EnsureNotDeleted("Deleted documents cannot be edited.");
+
+        if (Status == DocumentStatus.Published)
+        {
+            Status = DocumentStatus.Draft;
+            MarkEdited(editedBy);
+        }
+    }
+
     public bool Delete(Guid? editedBy = null)
     {
         if (DeletedAt.HasValue)

@@ -43,13 +43,11 @@ export type SettingsRouteTarget = "organization" | "personal" | "workspace";
 export type OrganizationSettingsPanel = "members" | "profile" | "workspaces";
 
 const workspaceSettingsTabs = new Set<WorkspaceSettingsTab>([
-  "developer",
   "general",
   "integrations",
   "members",
   "notifications",
   "permissions",
-  "plan",
   "security",
 ]);
 
@@ -157,7 +155,7 @@ export function createWorkspaceMembersHash() {
   return createSettingsHash({ scope: "workspace", tab: "members" });
 }
 
-export function createWorkspacePermissionsHash() {
+export function createWorkspacePermissionsHash(): string {
   return createSettingsHash({ scope: "workspace", tab: "permissions" });
 }
 
@@ -203,8 +201,17 @@ export function getLibrariesFiltersFromHash(hash: string) {
   };
 }
 
-export function createSearchHash(options: { folderId?: string | null; folderTitle?: string | null; q?: string | null } = {}) {
+export function createSearchHash(options: {
+  folderId?: string | null;
+  folderTitle?: string | null;
+  libraryId?: string | null;
+  q?: string | null;
+} = {}) {
   const params = new URLSearchParams();
+
+  if (options.libraryId && isUuid(options.libraryId)) {
+    params.set("libraryId", options.libraryId);
+  }
 
   if (options.folderId && isUuid(options.folderId)) {
     params.set("folderId", options.folderId);
@@ -243,7 +250,15 @@ export function createSettingsHash(options: {
   scope?: WorkspaceSettingsScope | null;
   spaceId?: string | null;
   tab?: WorkspaceSettingsTab | null;
-} = {}) {
+} = {}): string {
+  if (options.panel === "workspace-access-identity") {
+    return createWorkspacePermissionsHash();
+  }
+
+  if (options.panel === "deferred-developer" || options.panel === "deferred-plan") {
+    return createSettingsHash({ scope: "workspace" });
+  }
+
   const params = new URLSearchParams();
   const scope = options.scope === "library" ? "library" : options.scope === "organization" ? "organization" : options.scope === "workspace" ? "workspace" : null;
   const tabs = scope === "library" ? librarySettingsTabs : scope === "organization" ? organizationSettingsTabs : workspaceSettingsTabs;
@@ -380,17 +395,20 @@ export function getSearchFiltersFromHash(hash: string) {
     return {
       folderId: null,
       folderTitle: null,
+      libraryId: null,
       q: null,
     };
   }
 
   const folderId = params.get("folderId");
   const folderTitle = params.get("folderTitle");
+  const libraryId = params.get("libraryId");
   const q = params.get("q");
 
   return {
     folderId: folderId && isUuid(folderId) ? folderId : null,
     folderTitle: folderTitle || null,
+    libraryId: libraryId && isUuid(libraryId) ? libraryId : null,
     q: q || null,
   };
 }
@@ -401,7 +419,16 @@ export function getCanonicalHashRedirect(hash: string) {
     return null;
   }
 
-  const route = getHashRoute(normalizedHash);
+  const { params, route } = parseHashRoute(normalizedHash);
+  if (route === "#discovery") {
+    return createSearchHash({
+      folderId: params.get("folderId"),
+      folderTitle: params.get("folderTitle"),
+      libraryId: params.get("libraryId"),
+      q: params.get("q"),
+    });
+  }
+
   if (route === "#members" || route === "#workspace-members") {
     return createWorkspaceMembersHash();
   }
@@ -416,6 +443,22 @@ export function getCanonicalHashRedirect(hash: string) {
 
   if ((route === "#permissions" || route === "#share") && !getShareDocumentIdFromHash(normalizedHash)) {
     return createWorkspacePermissionsHash();
+  }
+
+  if (route === "#settings") {
+    const panel = params.get("panel");
+    if (panel === "workspace-access-identity") {
+      return createWorkspacePermissionsHash();
+    }
+
+    if (panel === "deferred-plan" || panel === "deferred-developer") {
+      return createSettingsHash({ scope: "workspace" });
+    }
+
+    const tab = params.get("tab");
+    if (params.get("scope") === "workspace" && (tab === "plan" || tab === "developer")) {
+      return createSettingsHash({ scope: "workspace" });
+    }
   }
 
   return null;

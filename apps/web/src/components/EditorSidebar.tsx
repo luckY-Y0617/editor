@@ -14,7 +14,9 @@ type EditorSidebarProps = {
   libraryHref: string;
   libraryName: string;
   onCreateDocument: () => void;
+  onSelectFolder: (folderId: string) => void;
   onSelectDocument: (documentId: string) => void;
+  selectedFolderId?: string | null;
 };
 
 export function EditorSidebar({
@@ -24,12 +26,15 @@ export function EditorSidebar({
   libraryHref,
   libraryName,
   onCreateDocument,
+  onSelectFolder,
   onSelectDocument,
+  selectedFolderId,
 }: EditorSidebarProps) {
   const activeFolderId = useMemo(
     () => documents.find((document) => document.id === activeDocumentId)?.folderId,
     [activeDocumentId, documents],
   );
+  const focusedFolderId = selectedFolderId ?? activeFolderId;
   const [expandedFolderIds, setExpandedFolderIds] = useState<Set<string>>(() =>
     new Set(activeFolderId ? [activeFolderId] : []),
   );
@@ -50,15 +55,13 @@ export function EditorSidebar({
     });
   }, [activeFolderId]);
 
-  const handleToggleFolder = (folderId: string, hasDocuments: boolean) => {
-    if (!hasDocuments) {
-      return;
-    }
+  const handleSelectFolder = (folderId: string, hasDocuments: boolean) => {
+    onSelectFolder(folderId);
 
     setExpandedFolderIds((currentFolderIds) => {
       const nextFolderIds = new Set(currentFolderIds);
 
-      if (nextFolderIds.has(folderId)) {
+      if (hasDocuments && nextFolderIds.has(folderId)) {
         nextFolderIds.delete(folderId);
       } else {
         nextFolderIds.add(folderId);
@@ -114,40 +117,42 @@ export function EditorSidebar({
           {folders.map((folder) => {
             const folderDocuments = documents.filter((document) => document.folderId === folder.id);
             const isActiveFolder = folder.id === activeFolderId;
+            const isFocusedFolder = folder.id === focusedFolderId;
             const folderCount = folderDocuments.length;
             const folderNumber = getFolderNumber(folder.title);
             const hasDocuments = folderDocuments.length > 0;
-            const expanded = hasDocuments && expandedFolderIds.has(folder.id);
+            const expanded = expandedFolderIds.has(folder.id);
 
             return (
               <div className="atlas-route-group" key={folder.id}>
                 <button
-                  aria-disabled={!hasDocuments || undefined}
-                  aria-expanded={hasDocuments ? expanded : undefined}
-                  className={["atlas-route-folder", isActiveFolder ? "is-active" : ""].join(" ")}
-                  onClick={() => handleToggleFolder(folder.id, hasDocuments)}
-                  title={hasDocuments ? `${expanded ? "Collapse" : "Expand"} ${folder.title}` : folder.title}
+                  aria-current={isFocusedFolder ? "page" : undefined}
+                  aria-expanded={expanded}
+                  className={[
+                    "atlas-route-folder",
+                    isActiveFolder ? "is-active" : "",
+                    isFocusedFolder ? "is-focused" : "",
+                    !hasDocuments ? "is-empty" : "",
+                  ].join(" ")}
+                  onClick={() => handleSelectFolder(folder.id, hasDocuments)}
+                  title={`${hasDocuments && expanded ? "Collapse" : "Select"} ${folder.title}. New documents will be created here.`}
                   type="button"
                 >
                   <span className="atlas-route-joint">
                     <span className="atlas-route-node" />
                   </span>
-                  {hasDocuments ? (
-                    <AtlasIcon
-                      className="atlas-route-chevron h-3.5 w-3.5"
-                      src={expanded ? chevronDownIcon : chevronRightIcon}
-                    />
-                  ) : (
-                    <span className="h-3.5 w-3.5 shrink-0" />
-                  )}
+                  <AtlasIcon
+                    className={["atlas-route-chevron h-3.5 w-3.5", !hasDocuments ? "opacity-35" : ""].join(" ")}
+                    src={expanded ? chevronDownIcon : chevronRightIcon}
+                  />
                   <AtlasIcon className="h-4 w-4" src={mapIcon} />
                   <span className="min-w-0 flex-1 truncate">{folder.title}</span>
-                  <span className={["atlas-count-badge", isActiveFolder ? "is-emphasized" : ""].join(" ")}>
+                  <span className={["atlas-count-badge", isFocusedFolder ? "is-emphasized" : ""].join(" ")}>
                     {folderCount}
                   </span>
                 </button>
 
-                {expanded ? (
+                {expanded && hasDocuments ? (
                   <div className="atlas-route-documents">
                     {folderDocuments.map((document, documentIndex) => {
                       const active = document.id === activeDocumentId;

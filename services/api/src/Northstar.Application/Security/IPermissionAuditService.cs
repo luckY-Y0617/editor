@@ -12,4 +12,16 @@ public interface IPermissionAuditService
         string? resourceType,
         Guid? resourceId,
         CancellationToken cancellationToken = default);
+
+    Task<WorkspaceAuditLogResponse> GetWorkspaceAuditLogAsync(
+        Guid workspaceId,
+        string? action,
+        string? resourceType,
+        Guid? resourceId,
+        Guid? actorId,
+        DateTimeOffset? from,
+        DateTimeOffset? to,
+        int? offset,
+        int? limit,
+        CancellationToken cancellationToken = default);
 }

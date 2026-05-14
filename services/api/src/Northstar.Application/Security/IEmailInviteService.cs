@@ -19,6 +19,10 @@ public interface IEmailInviteService
         Guid inviteId,
         CancellationToken cancellationToken = default);
 
+    Task<CreateEmailInviteResponse> RetryInviteAsync(
+        Guid inviteId,
+        CancellationToken cancellationToken = default);
+
     Task<ResolveEmailInviteResponse> ResolveInviteAsync(
         string token,
         CancellationToken cancellationToken = default);

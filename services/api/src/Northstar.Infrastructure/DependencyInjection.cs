@@ -25,10 +25,12 @@ public static class DependencyInjection
         services.Configure<AuthOptions>(configuration.GetSection(AuthOptions.SectionName));
         services.Configure<MfaOptions>(configuration.GetSection(MfaOptions.SectionName));
         services.Configure<FilesOptions>(configuration.GetSection(FilesOptions.SectionName));
+        services.Configure<FileOutboxOptions>(configuration.GetSection(FileOutboxOptions.SectionName));
         services.Configure<PermissionPublicShareOptions>(configuration.GetSection(PermissionPublicShareOptions.SectionName));
         services.Configure<EmailInviteDeliveryOptions>(configuration.GetSection(EmailInviteDeliveryOptions.SectionName));
         services.Configure<PermissionExpiryNotificationOptions>(configuration.GetSection(PermissionExpiryNotificationOptions.SectionName));
         services.AddSingleton(provider => provider.GetRequiredService<IOptions<FilesOptions>>().Value);
+        services.AddSingleton(provider => provider.GetRequiredService<IOptions<FileOutboxOptions>>().Value);
         services.AddSingleton(provider => provider.GetRequiredService<IOptions<AuthOptions>>().Value);
         services.AddSingleton(provider => provider.GetRequiredService<IOptions<MfaOptions>>().Value);
         services.AddSingleton(provider => provider.GetRequiredService<IOptions<PermissionPublicShareOptions>>().Value);
@@ -66,6 +68,7 @@ public static class DependencyInjection
         services.AddScoped<IDocumentContextQueryService, EfDocumentContextQueryService>();
         services.AddScoped<IDocumentActivityQueryService, EfDocumentActivityQueryService>();
         services.AddScoped<ISearchQueryService, EfSearchQueryService>();
+        services.AddScoped<ISearchIndexMaintenanceService, EfSearchIndexMaintenanceService>();
         services.AddScoped<ISpaceTransferRepository, EfSpaceTransferRepository>();
         services.AddScoped<IOrganizationSettingsRepository, EfOrganizationSettingsRepository>();
         services.AddScoped<IAuthRepository, EfAuthRepository>();
@@ -76,6 +79,7 @@ public static class DependencyInjection
         services.AddScoped<IWorkspaceMembershipQueryService, EfWorkspaceMembershipQueryService>();
         services.AddScoped<IWorkspaceAgendaQueryService, EfWorkspaceAgendaQueryService>();
         services.AddScoped<IResourceWorkspaceResolver, EfResourceWorkspaceResolver>();
+        services.AddScoped<IPermissionResourceDisplayResolver, EfPermissionResourceDisplayResolver>();
         services.AddScoped<IResourcePermissionRepository, EfResourcePermissionRepository>();
         services.AddScoped<IWorkspaceGroupRepository, EfWorkspaceGroupRepository>();
         services.AddScoped<IPermissionAuditRepository, EfPermissionAuditRepository>();
@@ -102,9 +106,23 @@ public static class DependencyInjection
         services.AddScoped<IWorkspaceMemberRepository, EfWorkspaceMemberRepository>();
         services.AddScoped<IIamSyncRepository, EfIamSyncRepository>();
         services.AddScoped<IFileRepository, EfFileRepository>();
-        services.AddScoped<IObjectStorage, LocalFileStorage>();
+        services.AddScoped<IObjectStorage>(CreateObjectStorage);
+        services.AddScoped<IFileOutboxProcessor, FileOutboxProcessor>();
         services.AddHostedService<PermissionExpiryNotificationHostedService>();
+        services.AddHostedService<FileOutboxHostedService>();
 
         return services;
+    }
+
+    private static IObjectStorage CreateObjectStorage(IServiceProvider provider)
+    {
+        var options = provider.GetRequiredService<FilesOptions>();
+        return options.StorageProvider.Trim().ToLowerInvariant() switch
+        {
+            "local" => ActivatorUtilities.CreateInstance<LocalFileStorage>(provider),
+            "s3" or "minio" or "s3compatible" or "s3-compatible" =>
+                ActivatorUtilities.CreateInstance<S3ObjectStorage>(provider),
+            _ => throw new InvalidOperationException($"Unsupported file storage provider '{options.StorageProvider}'.")
+        };
     }
 }

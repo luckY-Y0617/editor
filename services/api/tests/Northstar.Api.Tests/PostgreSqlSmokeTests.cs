@@ -49,6 +49,20 @@ public sealed class PostgreSqlSmokeTests
             var seeder = scope.ServiceProvider.GetRequiredService<INorthstarDataSeeder>();
             await seeder.SeedAsync();
             await seeder.SeedAsync();
+            var dbContext = scope.ServiceProvider.GetRequiredService<NorthstarDbContext>();
+            var pgTrgmEnabled = await dbContext.Database.SqlQueryRaw<bool>(
+                "SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_trgm') AS \"Value\"")
+                .SingleAsync();
+            var searchVectorExists = await dbContext.Database.SqlQueryRaw<bool>(
+                "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'document_search_index' AND column_name = 'search_vector') AS \"Value\"")
+                .SingleAsync();
+            var fullTextMatches = await dbContext.Database.SqlQueryRaw<int>(
+                "SELECT count(*)::int AS \"Value\" FROM document_search_index WHERE search_vector @@ websearch_to_tsquery('simple', 'principles')")
+                .SingleAsync();
+
+            Assert.True(pgTrgmEnabled);
+            Assert.True(searchVectorExists);
+            Assert.True(fullTextMatches > 0);
         }
 
         await LoginOwnerAsync(client);

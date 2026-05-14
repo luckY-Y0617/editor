@@ -12,7 +12,7 @@ export type SearchFilterGroup = {
   options: SearchFilterOption[];
 };
 
-export type SearchResultType = "document" | "collection" | "person";
+export type SearchResultType = "document" | "collection";
 
 export type SearchResultItem = {
   id: string;
@@ -59,9 +59,6 @@ export const searchFilterGroups: SearchFilterGroup[] = [
     options: [
       { id: "documents", label: "Documents", count: 128, selected: true },
       { id: "collections", label: "Folders", count: 24, selected: false },
-      { id: "people", label: "People", count: 18, selected: false },
-      { id: "tags", label: "Tags", count: 64, selected: false },
-      { id: "templates", label: "Templates", count: 12, selected: false },
     ],
   },
   {
@@ -178,14 +175,6 @@ export const searchResults: SearchResultItem[] = [
     updatedAt: "Updated Apr 30, 2024",
     collaboratorCount: 8,
     documentCount: 18,
-  },
-  {
-    id: "alice-kim",
-    type: "person",
-    title: "Alice Kim",
-    path: "Director of Strategy",
-    documentCount: 18,
-    collectionCount: 12,
   },
 ];
 

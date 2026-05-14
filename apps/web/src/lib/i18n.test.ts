@@ -65,6 +65,10 @@ describe("i18n", () => {
     expect(t("en", "settings.informationArchitecture")).toBe("Settings architecture");
     expect(t("en", "settings.workspaceNotificationPreference")).toBe("Workspace notification default");
     expect(t("en", "settings.inventoryWorkspaceNotifications")).toBe("Workspace notification preferences");
+    expect(t("en", "home.teamActivity")).toBe("Recent document activity");
+    expect(t("en", "settings.notificationPreferenceHelp")).toContain("access, sharing, and permission notifications");
+    expect(t("en", "settings.notificationBoundaryHelp")).toContain("Ordinary document edit activity stays in Activity");
+    expect(t("en", "updates.title")).toBe("Access & Sharing");
     expect(t("en", "settings.recommendedSettingsClosure")).toBe("Recommended settings closure");
     expect(t("en", "settings.workspaceProfileReadOnlyHelp")).toContain("no workspace profile update API contract");
     expect(t("en", "settings.libraryOperationsSurfaceHelp")).toContain("Settings shows summary and links only");
@@ -79,13 +83,15 @@ describe("i18n", () => {
     expect(t("en", "topbar.personalSettings")).toBe("Personal settings");
     expect(t("en", "topbar.organizationSettings")).toBe("Organization settings");
     expect(t("en", "topbar.workspaceSwitchingDeferred")).toContain("not supported");
-    expect(t("zh-CN", "nav.settings")).toBe("设置");
-    expect(t("zh-CN", "settings.libraryHeading")).toBe("资料库设置");
-    expect(t("zh-CN", "settings.editOrganizationProfile")).toBe("编辑组织资料");
-    expect(t("zh-CN", "settings.profileUpdated")).toBe("资料已更新");
+    expect(t("zh-CN", "nav.settings")).toBe("\u8bbe\u7f6e");
+    expect(t("zh-CN", "settings.libraryHeading")).toBe("\u8d44\u6599\u5e93\u8bbe\u7f6e");
+    expect(t("zh-CN", "settings.editOrganizationProfile")).toBe("\u7f16\u8f91\u7ec4\u7ec7\u8d44\u6599");
+    expect(t("zh-CN", "settings.profileUpdated")).toBe("\u8d44\u6599\u5df2\u66f4\u65b0");
     expect(t("zh-CN", "share.createInternalLink")).toBe("\u521b\u5efa\u5185\u90e8\u94fe\u63a5");
     expect(t("zh-CN", "share.linkRevoked")).toBe("\u5206\u4eab\u94fe\u63a5\u5df2\u64a4\u9500\u3002");
     expect(t("zh-CN", "settings.workspaceNotificationWatched")).toBe("\u5173\u6ce8\u5de5\u4f5c\u533a");
+    expect(t("zh-CN", "home.teamActivity")).toBe("\u6700\u8fd1\u6587\u6863\u52a8\u6001");
+    expect(t("zh-CN", "settings.notificationBoundaryHelp")).toContain("\u4e0d\u8fdb\u5165 Updates");
     expect(t("zh-CN", "settings.recommendedSettingsClosure")).toBe("\u5efa\u8bae\u7684\u8bbe\u7f6e\u6536\u53e3");
     expect(t("zh-CN", "settings.resourceShareSurfaceHelp")).toContain("public-link");
     expect(t("zh-CN", "settings.centerHeading")).toBe("\u8bbe\u7f6e");
@@ -98,7 +104,7 @@ describe("i18n", () => {
   test("exposes supported display language options", () => {
     expect(getDisplayLanguageOptions()).toEqual([
       { label: "English", locale: "en" },
-      { label: "简体中文", locale: "zh-CN" },
+      { label: "\u7b80\u4f53\u4e2d\u6587", locale: "zh-CN" },
     ]);
   });
 });

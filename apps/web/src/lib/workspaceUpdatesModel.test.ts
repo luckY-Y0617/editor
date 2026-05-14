@@ -22,6 +22,7 @@ describe("workspaceUpdatesModel", () => {
     expect(getNotificationKind("group.member_added")).toBe("grant");
     expect(getNotificationKind("share_link.created")).toBe("sharing");
     expect(getNotificationKind("email_invite.revoked")).toBe("sharing");
+    expect(getNotificationKind("email_invite.delivery_failed")).toBe("failed");
     expect(getNotificationKind("permission.grant_expiring")).toBe("expiry");
     expect(getNotificationKind("group.member_expired")).toBe("expiry");
     expect(getNotificationKind("unknown")).toBe("permission");
@@ -40,21 +41,69 @@ describe("workspaceUpdatesModel", () => {
     expect(getNotificationActionHref(createNotification({ resourceId: documentId, type: "permission.grant_created" }))).toBe(
       `#share?documentId=${documentId}`,
     );
+    expect(
+      getNotificationActionHref(createNotification({
+        action: {
+          kind: "manage_share_link",
+          label: "Manage",
+          resourceId: documentId,
+          resourceType: "document",
+        },
+        resourceId: null,
+      })),
+    ).toBe(`#share?documentId=${documentId}`);
     expect(getNotificationActionHref(createNotification({ type: "permission.grant_created" }))).toBe(
       "#settings?scope=workspace&tab=permissions",
     );
   });
 
   test("maps live DTOs into update rows", () => {
-    const row = toWorkspaceNotification(createNotification({ readAt: null, type: "access_request.created" }));
+    const row = toWorkspaceNotification(createNotification({
+      actor: {
+        displayName: "Alice Kim",
+        email: "alice@example.com",
+        id: "user-1",
+      },
+      readAt: null,
+      type: "access_request.created",
+    }));
 
     expect(row).toMatchObject({
       actionHref: "#settings?scope=workspace&tab=permissions",
       actionLabel: "Review",
+      actor: {
+        avatarTone: "blue",
+        initials: "A",
+        name: "Alice Kim",
+      },
       kind: "access",
       messagePrefix: "requested access",
       subject: "Access requested",
       unread: true,
+    });
+
+    const resourceRow = toWorkspaceNotification(createNotification({
+      action: {
+        kind: "manage_share_link",
+        label: "Manage",
+        resourceId: documentId,
+        resourceType: "document",
+      },
+      resource: {
+        path: "Atlas Library / 01. Foundations",
+        resourceId: documentId,
+        resourceType: "document",
+        title: "Mission & Vision",
+      },
+      type: "share_link.created",
+    }));
+
+    expect(resourceRow).toMatchObject({
+      actionHref: `#share?documentId=${documentId}`,
+      actionLabel: "Manage",
+      kind: "sharing",
+      messageSuffix: "in Atlas Library / 01. Foundations",
+      subject: "Mission & Vision",
     });
   });
 
@@ -64,6 +113,7 @@ describe("workspaceUpdatesModel", () => {
       createNotification({ id: "grant", type: "permission.grant_updated" }),
       createNotification({ id: "sharing", type: "email_invite.created" }),
       createNotification({ id: "expiry", readAt: null, type: "permission.grant_expiring" }),
+      createNotification({ id: "failed", state: "failed", type: "email_invite.delivery_failed" }),
     ];
 
     expect(filterWorkspaceNotifications(notifications, "unread").map((notification) => notification.id)).toEqual([
@@ -77,12 +127,25 @@ describe("workspaceUpdatesModel", () => {
     ]);
     expect(filterWorkspaceNotifications(notifications, "sharing").map((notification) => notification.id)).toEqual([
       "sharing",
+      "failed",
+    ]);
+    expect(filterWorkspaceNotifications(notifications, "links").map((notification) => notification.id)).toEqual([]);
+    expect(filterWorkspaceNotifications(notifications, "invites").map((notification) => notification.id)).toEqual([
+      "sharing",
+      "failed",
     ]);
     expect(filterWorkspaceNotifications(notifications, "expiry").map((notification) => notification.id)).toEqual([
       "expiry",
     ]);
+    expect(filterWorkspaceNotifications(notifications, "failed").map((notification) => notification.id)).toEqual([
+      "failed",
+    ]);
     expect(getWorkspaceUpdatesTabLabel("grants")).toBe("Grants & groups");
+    expect(getWorkspaceUpdatesTabLabel("links")).toBe("Links");
+    expect(getWorkspaceUpdatesTabLabel("invites")).toBe("Invites");
+    expect(getWorkspaceUpdatesTabLabel("failed")).toBe("Failed invites");
     expect(getWorkspaceUpdatesTabFromHash("#updates?tab=access")).toBe("access");
+    expect(getWorkspaceUpdatesTabFromHash("#updates?tab=failed")).toBe("failed");
     expect(getWorkspaceUpdatesTabFromHash("#notifications?tab=sharing")).toBe("sharing");
     expect(getWorkspaceUpdatesTabFromHash("#notifications?tab=documents")).toBe("all");
     expect(getWorkspaceUpdatesTabFromHash("#updates?tab=unknown")).toBe("all");
@@ -91,12 +154,24 @@ describe("workspaceUpdatesModel", () => {
   test("maps live watched and muted preference resources", () => {
     const rows = toNotificationPreferenceResourceRows([
       createPreference({ id: "pref-doc", resourceId: documentId, resourceType: "document", watched: true }),
-      createPreference({ id: "pref-collection", resourceId: collectionId, resourceType: "collection", muted: true }),
+      createPreference({
+        id: "pref-collection",
+        muted: true,
+        resource: {
+          path: "Atlas Library / 01. Foundations",
+          resourceId: collectionId,
+          resourceType: "collection",
+          title: "01. Foundations",
+        },
+        resourceId: collectionId,
+        resourceType: "collection",
+      }),
       createPreference({ id: "pref-empty", watched: false, muted: false }),
     ]);
 
     expect(rows).toEqual([
       {
+        description: undefined,
         href: `#editor?documentId=${documentId}`,
         id: "pref-doc",
         label: "Document 11111111...1111",
@@ -105,9 +180,10 @@ describe("workspaceUpdatesModel", () => {
         updatedAt: "2024-02-03T00:00:00.000Z",
       },
       {
+        description: "Atlas Library / 01. Foundations",
         href: `#libraries?collectionId=${collectionId}`,
         id: "pref-collection",
-        label: "Folder 22222222...2222",
+        label: "01. Foundations",
         resourceType: "collection",
         state: "muted",
         updatedAt: "2024-02-03T00:00:00.000Z",

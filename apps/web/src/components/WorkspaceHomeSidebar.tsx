@@ -3,7 +3,6 @@ import {
   Home,
   Layers3,
   Library,
-  Search,
   Settings,
 } from "lucide-react";
 import { AtlasIcon } from "./AtlasIcon";
@@ -17,7 +16,7 @@ type WorkspaceHomeSidebarProps = {
   showCollections?: boolean;
 };
 
-type WorkspaceNavItemId = "home" | "libraries" | "search" | "settings" | "updates";
+type WorkspaceNavItemId = "home" | "libraries" | "settings" | "updates";
 
 type WorkspaceSidebarCollection = {
   displayTitle: string;
@@ -29,7 +28,6 @@ type WorkspaceSidebarCollection = {
 const workspaceNavItems = [
   { id: "home" as const, labelKey: "nav.home" as const, icon: Home, href: "#home" },
   { id: "libraries" as const, labelKey: "nav.libraries" as const, icon: Library, href: "#libraries" },
-  { id: "search" as const, labelKey: "nav.search" as const, icon: Search, href: "#search" },
   { id: "updates" as const, labelKey: "nav.updates" as const, icon: Bell, href: "#updates" },
   { id: "settings" as const, labelKey: "nav.settings" as const, icon: Settings, href: "#settings" },
 ];

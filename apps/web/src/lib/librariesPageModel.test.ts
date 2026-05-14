@@ -4,7 +4,14 @@ import {
   createCollectionReorderIds,
   createLibrariesPageModel,
   getCollectionIdAfterDelete,
+  getCreateCollectionDisabledReason,
+  getDeleteCollectionDisabledReason,
+  getDocumentMoveDestinationHash,
+  getLibraryDocumentEmptyReason,
+  getLibrariesCanonicalHash,
   getPreferredLibraryId,
+  getRenameCollectionDisabledReason,
+  getReorderCollectionDisabledReason,
 } from "./librariesPageModel";
 
 const activeLibraryId = "11111111-1111-4111-8111-111111111111";
@@ -347,6 +354,40 @@ describe("librariesPageModel", () => {
     expect(getCollectionIdAfterDelete(model.collections.slice(0, 1), selectedCollectionId)).toBe(null);
   });
 
+  test("canonicalizes stale library and folder filters without exposing legacy route state", () => {
+    const model = createLibrariesPageModel(createBootstrap(), createMap(), {
+      collectionId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      libraryId: "88888888-8888-4888-8888-888888888888",
+    });
+
+    expect(getLibrariesCanonicalHash(model, {
+      collectionId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      libraryId: "88888888-8888-4888-8888-888888888888",
+    })).toBe(`#libraries?libraryId=${activeLibraryId}`);
+    expect(getLibrariesCanonicalHash(model, {
+      collectionId: null,
+      libraryId: activeLibraryId,
+    })).toBe(null);
+  });
+
+  test("routes to the destination folder after moving a document out of the active folder", () => {
+    const model = createLibrariesPageModel(createBootstrap(), createMap(), {
+      collectionId: selectedCollectionId,
+      libraryId: activeLibraryId,
+    });
+    const document = model.documents.find((item) => item.id === selectedDocumentId)!;
+
+    expect(getDocumentMoveDestinationHash(model, document, otherCollectionId)).toBe(
+      `#libraries?libraryId=${activeLibraryId}&collectionId=${otherCollectionId}`,
+    );
+    expect(getDocumentMoveDestinationHash(model, document, selectedCollectionId)).toBe(null);
+    expect(getDocumentMoveDestinationHash(
+      { ...model, activeCollectionId: null },
+      document,
+      otherCollectionId,
+    )).toBe(null);
+  });
+
   test("reports create document as unavailable when the current library has no collections", () => {
     const model = createLibrariesPageModel(createBootstrap(), { documents: [], folders: [] }, {
       collectionId: null,
@@ -356,7 +397,62 @@ describe("librariesPageModel", () => {
     expect(model.hasCollections).toBe(false);
     expect(model.canCreateCollection).toBe(true);
     expect(model.canCreateDocument).toBe(false);
-    expect(model.createDocumentDisabledReason).toBe("Select a folder before creating a document.");
+    expect(model.createDocumentDisabledReason).toBe("Create a folder before creating a document.");
+    expect(getLibraryDocumentEmptyReason(model)).toBe("library-folders-empty");
+  });
+
+  test("reports folder operation disabled reasons from the current library state", () => {
+    const model = createLibrariesPageModel(createBootstrap(), createMap(), {
+      collectionId: null,
+      libraryId: activeLibraryId,
+    });
+
+    expect(getCreateCollectionDisabledReason(model)).toBe(null);
+    expect(getRenameCollectionDisabledReason(model)).toBe("Select a folder before renaming it.");
+    expect(getDeleteCollectionDisabledReason(model)).toBe("Select a folder before deleting it.");
+    expect(getReorderCollectionDisabledReason(model, "up")).toBe("Select a folder before reordering it.");
+  });
+
+  test("reports non-empty and boundary folder disabled reasons", () => {
+    const model = createLibrariesPageModel(createBootstrap(), createMap(), {
+      collectionId: selectedCollectionId,
+      libraryId: activeLibraryId,
+    });
+
+    expect(getRenameCollectionDisabledReason(model)).toBe(null);
+    expect(getDeleteCollectionDisabledReason(model)).toBe(
+      "2 documents are still in this folder. Move or delete them before deleting the folder.",
+    );
+    expect(getReorderCollectionDisabledReason(model, "up")).toBe("This folder is already first.");
+    expect(getReorderCollectionDisabledReason(model, "down")).toBe(null);
+  });
+
+  test("reports folder and filter empty states separately", () => {
+    const emptyFolderId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const map = createMap();
+    const folderModel = createLibrariesPageModel(createBootstrap(), {
+      ...map,
+      folders: [
+        ...map.folders,
+        {
+          documentCount: 0,
+          id: emptyFolderId,
+          sortOrder: 3,
+          title: "03. Empty",
+        },
+      ],
+    }, {
+      collectionId: emptyFolderId,
+      libraryId: activeLibraryId,
+    });
+    const filteredModel = createLibrariesPageModel(createBootstrap(), createMap(), {
+      collectionId: selectedCollectionId,
+      libraryId: activeLibraryId,
+      query: "missing",
+    });
+
+    expect(getLibraryDocumentEmptyReason(folderModel)).toBe("folder-documents-empty");
+    expect(getLibraryDocumentEmptyReason(filteredModel)).toBe("filter-results-empty");
   });
 
   test("chooses a preferred library from requested, active, current, then first library", () => {

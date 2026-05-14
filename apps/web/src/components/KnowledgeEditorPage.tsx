@@ -2,8 +2,8 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties } from "re
 import { EditorCanvas } from "./EditorCanvas";
 import { DocumentShareDrawer } from "./DocumentShareDrawer";
 import { EditorSidebar } from "./EditorSidebar";
-import { EditorTopBar } from "./EditorTopBar";
 import { OutlinePanel } from "./OutlinePanel";
+import { WorkspaceHomeTopBar } from "./WorkspaceHomeTopBar";
 import { useMockAutoSave } from "../hooks/useMockAutoSave";
 import {
   cloneContent,
@@ -13,25 +13,49 @@ import {
 import { loadKnowledgeEditorState, saveKnowledgeEditorState } from "../storage/knowledgeStorage";
 import { exportKnowledgeState, parseKnowledgeImport } from "../utils/knowledgeTransfer";
 import {
+  compareDocumentVersions,
   createDocument,
+  deleteDocumentAttachment,
   getBootstrap,
   getDocument,
+  getDocumentAttachments,
   getDocumentActivity,
   getDocumentContext,
+  getDocumentVersions,
+  publishDocumentVersion,
+  restoreDocumentVersion,
+  unpublishDocumentVersion,
   updateDocument,
+  type CompareDocumentVersionsResponse,
   type DocumentActivityResponse,
+  type DocumentAttachmentDto,
   type DocumentContextResponse,
+  type DocumentVersionsResponse,
   type KnowledgeDocumentDto,
   type KnowledgeDocumentSummaryDto,
   type KnowledgeFolderDto,
 } from "../lib/appApi";
 import { ApiClientError, getConfiguredApiBaseUrl } from "../lib/apiClient";
 import {
+  createEditorVersionTrailRowsFromVersions,
   createEditorDocumentContextPanelModel,
   formatDocumentStatus,
   type EditorContextLoadStatus,
 } from "../lib/editorDocumentContextModel";
-import { createLibrariesHash, createSearchHash, createSettingsHash, createShareHash } from "../lib/hashRouting";
+import {
+  formatEditorOperationError,
+  getApiSaveStatusLabel,
+  toTopBarSaveStatus,
+  type ApiSaveStatus,
+  type EditorApiLoadStatus,
+} from "../lib/editorReliabilityModel";
+import {
+  documentAttachmentChangedEvent,
+  type DocumentAttachmentChangedEventDetail,
+  uploadDocumentAttachment,
+  validateDocumentAttachmentFiles,
+} from "../lib/documentFilesModel";
+import { createLibrariesHash, createSearchHash, createShareHash } from "../lib/hashRouting";
 import coordinatePatternUrl from "../assets/svg/patterns/coordinate-ticks.svg";
 import routePatternUrl from "../assets/svg/patterns/route-line.svg";
 import topographicPatternUrl from "../assets/svg/patterns/topographic-lines.svg";
@@ -77,8 +101,9 @@ type TransferMessage = {
   text: string;
 };
 
-type EditorApiLoadStatus = "demo" | "error" | "loading" | "ready";
-type ApiSaveStatus = "saved" | "editing" | "saving" | "created" | "conflict" | "error";
+type DocumentAttachmentLoadState = "demo" | "error" | "forbidden" | "idle" | "loading" | "ready";
+type DocumentVersionLoadState = "demo" | "error" | "forbidden" | "idle" | "loading" | "ready";
+type DocumentVersionOperation = "compare" | "publish" | "restore" | "unpublish" | null;
 
 const EMPTY_COMMENT_THREADS: CommentThread[] = [];
 const EMPTY_COMMENT_MATCH_RESULTS: Record<string, AnchorMatchResult> = {};
@@ -90,9 +115,18 @@ export function KnowledgeEditorPage({ requestedDocumentId = null }: { requestedD
   const [documents, setDocuments] = useState<KnowledgeDocument[]>(initialEditorState.documents);
   const [folders, setFolders] = useState<KnowledgeFolder[]>(knowledgeFolders);
   const [activeDocumentId, setActiveDocumentId] = useState(initialEditorState.activeDocumentId);
+  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(() => {
+    const initialDocument =
+      initialEditorState.documents.find((document) => document.id === initialEditorState.activeDocumentId) ??
+      initialEditorState.documents[0];
+
+    return initialDocument?.folderId ?? knowledgeFolders[0]?.id ?? null;
+  });
   const [editorApiLoadStatus, setEditorApiLoadStatus] = useState<EditorApiLoadStatus>(() =>
     getConfiguredApiBaseUrl() ? "loading" : "demo",
   );
+  const [editorApiLoadError, setEditorApiLoadError] = useState<string | null>(null);
+  const [editorApiLoadRetryKey, setEditorApiLoadRetryKey] = useState(0);
   const [workspaceName, setWorkspaceName] = useState("Northstar");
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
   const [activeLibraryId, setActiveLibraryId] = useState<string | null>(null);
@@ -102,6 +136,23 @@ export function KnowledgeEditorPage({ requestedDocumentId = null }: { requestedD
   const [documentContextStatus, setDocumentContextStatus] = useState<EditorContextLoadStatus>(() =>
     getConfiguredApiBaseUrl() ? "idle" : "demo",
   );
+  const [documentVersionsResponse, setDocumentVersionsResponse] = useState<DocumentVersionsResponse | null>(null);
+  const [documentVersionsStatus, setDocumentVersionsStatus] = useState<DocumentVersionLoadState>(() =>
+    getConfiguredApiBaseUrl() ? "idle" : "demo",
+  );
+  const [documentVersionsError, setDocumentVersionsError] = useState<string | null>(null);
+  const [documentVersionsReloadKey, setDocumentVersionsReloadKey] = useState(0);
+  const [documentVersionCompare, setDocumentVersionCompare] = useState<CompareDocumentVersionsResponse | null>(null);
+  const [documentVersionOperation, setDocumentVersionOperation] = useState<DocumentVersionOperation>(null);
+  const [documentAttachments, setDocumentAttachments] = useState<DocumentAttachmentDto[]>([]);
+  const [documentAttachmentsStatus, setDocumentAttachmentsStatus] = useState<DocumentAttachmentLoadState>(() =>
+    getConfiguredApiBaseUrl() ? "idle" : "demo",
+  );
+  const [documentAttachmentsError, setDocumentAttachmentsError] = useState<string | null>(null);
+  const [documentAttachmentRemovePendingId, setDocumentAttachmentRemovePendingId] = useState<string | null>(null);
+  const [documentAttachmentUploadStatus, setDocumentAttachmentUploadStatus] = useState<"error" | "idle" | "uploading">("idle");
+  const [documentAttachmentUploadError, setDocumentAttachmentUploadError] = useState<string | null>(null);
+  const [documentAttachmentsReloadKey, setDocumentAttachmentsReloadKey] = useState(0);
   const [apiSaveStatus, setApiSaveStatus] = useState<ApiSaveStatus>("saved");
   const [isContentEmpty, setIsContentEmpty] = useState(false);
   const [contentTextLength, setContentTextLength] = useState(0);
@@ -126,6 +177,7 @@ export function KnowledgeEditorPage({ requestedDocumentId = null }: { requestedD
   const [pendingCommentComposer, setPendingCommentComposer] = useState<PendingCommentComposer | null>(null);
   const [transferMessage, setTransferMessage] = useState<TransferMessage | null>(null);
   const [isShareDrawerOpen, setIsShareDrawerOpen] = useState(false);
+  const [isOutlinePanelCollapsed, setIsOutlinePanelCollapsed] = useState(false);
   const activeDocumentIdRef = useRef(activeDocumentId);
   const documentsRef = useRef(documents);
   const commentRepositoryRef = useRef(createCommentRepository());
@@ -176,7 +228,7 @@ export function KnowledgeEditorPage({ requestedDocumentId = null }: { requestedD
   const effectiveUpdatedAtLabel = isApiMode
     ? formatDocumentUpdatedAt(activeDocument?.updatedAt)
     : mockUpdatedAtLabel;
-  const activeFolder = activeDocument
+  const activeDocumentFolder = activeDocument
     ? folders.find((folder) => folder.id === activeDocument.folderId)
     : null;
   const libraryHref = createLibrariesHash({ libraryId: activeLibraryId });
@@ -184,15 +236,16 @@ export function KnowledgeEditorPage({ requestedDocumentId = null }: { requestedD
     collectionId: activeDocument?.folderId,
     libraryId: activeLibraryId,
   });
-  const librarySettingsHref = createSettingsHash({
-    scope: "library",
-    spaceId: activeLibraryId,
-    tab: "general",
-  });
   const shareHref = createShareHash(activeDocument?.id);
+  const versionHistoryHref = activeDocument
+    ? `#versions?documentId=${encodeURIComponent(activeDocument.id)}`
+    : "#versions";
   const documentStatusLabel = formatDocumentStatus(activeDocument?.status);
   const documentContextPanelModel = isApiMode
     ? createEditorDocumentContextPanelModel(documentContextResponse, documentActivityResponse)
+    : null;
+  const documentVersionTrailRows = isApiMode
+    ? createEditorVersionTrailRowsFromVersions(documentVersionsResponse?.versions)
     : null;
   const atlasPatternStyle = {
     "--atlas-coordinate-pattern": `url(${coordinatePatternUrl})`,
@@ -219,6 +272,7 @@ export function KnowledgeEditorPage({ requestedDocumentId = null }: { requestedD
 
     const controller = new AbortController();
     setEditorApiLoadStatus("loading");
+    setEditorApiLoadError(null);
 
     void getBootstrap(controller.signal)
       .then(async (bootstrap) => {
@@ -255,15 +309,12 @@ export function KnowledgeEditorPage({ requestedDocumentId = null }: { requestedD
         }
 
         setDocuments([]);
+        setEditorApiLoadError(formatEditorOperationError(error, "Document API load failed."));
         setEditorApiLoadStatus("error");
-        setTransferMessage({
-          type: "error",
-          text: error instanceof Error ? error.message : "Document API load failed.",
-        });
       });
 
     return () => controller.abort();
-  }, [isApiMode, requestedDocumentId]);
+  }, [editorApiLoadRetryKey, isApiMode, requestedDocumentId]);
 
   useEffect(() => {
     if (isApiMode) {
@@ -322,20 +373,125 @@ export function KnowledgeEditorPage({ requestedDocumentId = null }: { requestedD
         setDocumentActivityResponse(activityResponse);
         setDocumentContextStatus("ready");
       })
-      .catch((error) => {
+      .catch(() => {
         if (controller.signal.aborted) {
           return;
         }
 
         setDocumentContextStatus("error");
-        setTransferMessage({
-          type: "error",
-          text: error instanceof Error ? error.message : "Document context load failed.",
-        });
       });
 
     return () => controller.abort();
   }, [activeDocument?.id, editorApiLoadStatus, isApiMode]);
+
+  useEffect(() => {
+    if (!isApiMode) {
+      setDocumentVersionsResponse(null);
+      setDocumentVersionsStatus("demo");
+      setDocumentVersionsError(null);
+      setDocumentVersionCompare(null);
+      return;
+    }
+
+    if (!activeDocument || editorApiLoadStatus !== "ready") {
+      setDocumentVersionsResponse(null);
+      setDocumentVersionsStatus("idle");
+      setDocumentVersionsError(null);
+      setDocumentVersionCompare(null);
+      return;
+    }
+
+    const controller = new AbortController();
+    setDocumentVersionsStatus("loading");
+    setDocumentVersionsError(null);
+
+    void getDocumentVersions(activeDocument.id, controller.signal)
+      .then((response) => {
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        setDocumentVersionsResponse(response);
+        setDocumentVersionsStatus("ready");
+      })
+      .catch((error) => {
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        setDocumentVersionsResponse(null);
+        setDocumentVersionsStatus(
+          error instanceof ApiClientError && (error.status === 401 || error.status === 403) ? "forbidden" : "error",
+        );
+        setDocumentVersionsError(formatEditorOperationError(error, "Document versions could not be loaded."));
+      });
+
+    return () => controller.abort();
+  }, [activeDocument?.id, documentVersionsReloadKey, editorApiLoadStatus, isApiMode]);
+
+  useEffect(() => {
+    if (!isApiMode) {
+      setDocumentAttachments([]);
+      setDocumentAttachmentsStatus("demo");
+      setDocumentAttachmentsError(null);
+      setDocumentAttachmentUploadStatus("idle");
+      setDocumentAttachmentUploadError(null);
+      return;
+    }
+
+    if (!activeDocument || editorApiLoadStatus !== "ready") {
+      setDocumentAttachments([]);
+      setDocumentAttachmentsStatus("idle");
+      setDocumentAttachmentsError(null);
+      setDocumentAttachmentUploadStatus("idle");
+      setDocumentAttachmentUploadError(null);
+      return;
+    }
+
+    const controller = new AbortController();
+    setDocumentAttachmentsStatus("loading");
+    setDocumentAttachmentsError(null);
+
+    void getDocumentAttachments(activeDocument.id, controller.signal)
+      .then((response) => {
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        setDocumentAttachments(response.attachments);
+        setDocumentAttachmentsStatus("ready");
+      })
+      .catch((error) => {
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        setDocumentAttachments([]);
+        setDocumentAttachmentsStatus(
+          error instanceof ApiClientError && (error.status === 401 || error.status === 403) ? "forbidden" : "error",
+        );
+        setDocumentAttachmentsError(formatEditorOperationError(error, "Document attachments could not be loaded."));
+      });
+
+    return () => controller.abort();
+  }, [activeDocument?.id, documentAttachmentsReloadKey, editorApiLoadStatus, isApiMode]);
+
+  useEffect(() => {
+    if (!isApiMode) {
+      return;
+    }
+
+    const handleAttachmentChange = (event: Event) => {
+      const detail = (event as CustomEvent<DocumentAttachmentChangedEventDetail>).detail;
+      if (detail?.documentId && detail.documentId === activeDocumentIdRef.current) {
+        setDocumentAttachmentsReloadKey((currentKey) => currentKey + 1);
+      }
+    };
+
+    window.addEventListener(documentAttachmentChangedEvent, handleAttachmentChange);
+
+    return () => window.removeEventListener(documentAttachmentChangedEvent, handleAttachmentChange);
+  }, [isApiMode]);
 
   useEffect(() => () => window.clearTimeout(apiSaveTimerRef.current), []);
 
@@ -420,7 +576,10 @@ export function KnowledgeEditorPage({ requestedDocumentId = null }: { requestedD
         }
 
         setApiSaveStatus("error");
-        setTransferMessage({ type: "error", text: error instanceof Error ? error.message : "Save failed." });
+        setTransferMessage({
+          type: "error",
+          text: formatEditorOperationError(error, "Save failed."),
+        });
       }
     },
     [isApiMode],
@@ -471,7 +630,7 @@ export function KnowledgeEditorPage({ requestedDocumentId = null }: { requestedD
         setApiSaveStatus("error");
         setTransferMessage({
           type: "error",
-          text: error instanceof Error ? error.message : "Document load failed.",
+          text: formatEditorOperationError(error, "Document load failed."),
         });
       }
     },
@@ -844,6 +1003,7 @@ export function KnowledgeEditorPage({ requestedDocumentId = null }: { requestedD
 
       activeDocumentIdRef.current = documentId;
       setActiveDocumentId(documentId);
+      setSelectedFolderId(selectedDocument.folderId);
       setOutlineFocusRequest(null);
       setActiveCommentThreadId(null);
       setCommentFocusRequest(null);
@@ -859,9 +1019,18 @@ export function KnowledgeEditorPage({ requestedDocumentId = null }: { requestedD
     [activeDocumentId, documents, isApiMode, loadDocumentFromApi, resetMockSaved],
   );
 
+  const handleSelectFolder = useCallback((folderId: string) => {
+    setSelectedFolderId(folderId);
+  }, []);
+
   const handleCreateDocument = useCallback(() => {
     const now = new Date();
-    const folderId = activeDocument?.folderId ?? folders[0]?.id ?? knowledgeFolders[0]?.id ?? "product";
+    const folderId =
+      (selectedFolderId && folders.some((folder) => folder.id === selectedFolderId) ? selectedFolderId : null) ??
+      activeDocument?.folderId ??
+      folders[0]?.id ??
+      knowledgeFolders[0]?.id ??
+      "product";
 
     if (isApiMode) {
       setApiSaveStatus("saving");
@@ -878,6 +1047,7 @@ export function KnowledgeEditorPage({ requestedDocumentId = null }: { requestedD
           documentsRef.current = nextDocuments;
           activeDocumentIdRef.current = createdDocument.id;
           setActiveDocumentId(createdDocument.id);
+          setSelectedFolderId(createdDocument.folderId);
           setIsContentEmpty(true);
           setContentTextLength(0);
           setOutlineItems([]);
@@ -892,7 +1062,7 @@ export function KnowledgeEditorPage({ requestedDocumentId = null }: { requestedD
           setApiSaveStatus("error");
           setTransferMessage({
             type: "error",
-            text: error instanceof Error ? error.message : "Document create failed.",
+            text: formatEditorOperationError(error, "Document create failed."),
           });
         });
       return;
@@ -910,6 +1080,7 @@ export function KnowledgeEditorPage({ requestedDocumentId = null }: { requestedD
     setDocuments((currentDocuments) => [newDocument, ...currentDocuments]);
     activeDocumentIdRef.current = newDocument.id;
     setActiveDocumentId(newDocument.id);
+    setSelectedFolderId(folderId);
     setIsContentEmpty(true);
     setContentTextLength(0);
     setOutlineItems([]);
@@ -919,7 +1090,7 @@ export function KnowledgeEditorPage({ requestedDocumentId = null }: { requestedD
     setPendingCommentComposer(null);
     setCommentLifecycleActionState(createThreadLifecycleActionState());
     markMockCreated(now);
-  }, [activeDocument?.folderId, folders, isApiMode, markMockCreated]);
+  }, [activeDocument?.folderId, folders, isApiMode, markMockCreated, selectedFolderId]);
 
   const handleSearch = useCallback(
     (query: string) => {
@@ -927,11 +1098,12 @@ export function KnowledgeEditorPage({ requestedDocumentId = null }: { requestedD
 
       window.location.hash = createSearchHash({
         folderId: activeDocument?.folderId,
-        folderTitle: activeFolder?.title,
+        folderTitle: activeDocumentFolder?.title,
+        libraryId: activeLibraryId,
         q: trimmedQuery || null,
       });
     },
-    [activeDocument?.folderId, activeFolder?.title],
+    [activeDocument?.folderId, activeDocumentFolder?.title, activeLibraryId],
   );
 
   const handleExportJson = useCallback(() => {
@@ -988,6 +1160,198 @@ export function KnowledgeEditorPage({ requestedDocumentId = null }: { requestedD
     [isApiMode, resetMockSaved],
   );
 
+  const applyApiDocument = useCallback((document: KnowledgeDocumentDto) => {
+    const mappedDocument = mapDocumentDto(document);
+    const nextDocuments = upsertDocument(documentsRef.current, mappedDocument);
+    setDocuments(nextDocuments);
+    documentsRef.current = nextDocuments;
+    activeDocumentIdRef.current = mappedDocument.id;
+    setActiveDocumentId(mappedDocument.id);
+    setApiSaveStatus("saved");
+  }, []);
+
+  const handleRetryLoadDocumentVersions = useCallback(() => {
+    setDocumentVersionsReloadKey((currentKey) => currentKey + 1);
+  }, []);
+
+  const handleOpenVersions = useCallback(() => {
+    const documentId = activeDocumentIdRef.current;
+    window.location.hash = documentId ? `#versions?documentId=${encodeURIComponent(documentId)}` : "#versions";
+  }, []);
+
+  const handlePublishDocumentVersion = useCallback(async () => {
+    const document = documentsRef.current.find((item) => item.id === activeDocumentIdRef.current);
+    if (!isApiMode || !document || typeof document.revision !== "number" || documentVersionOperation) {
+      return;
+    }
+
+    setDocumentVersionOperation("publish");
+    setDocumentVersionCompare(null);
+    try {
+      const response = await publishDocumentVersion(document.id, { baseRevision: document.revision });
+      applyApiDocument(response.document);
+      setDocumentVersionsReloadKey((currentKey) => currentKey + 1);
+      setTransferMessage({ type: "success", text: `Published version ${response.version.label}.` });
+    } catch (error) {
+      setTransferMessage({
+        type: "error",
+        text: formatEditorOperationError(error, "Document could not be published."),
+      });
+    } finally {
+      setDocumentVersionOperation(null);
+    }
+  }, [applyApiDocument, documentVersionOperation, isApiMode]);
+
+  const handleUnpublishDocumentVersion = useCallback(async () => {
+    const document = documentsRef.current.find((item) => item.id === activeDocumentIdRef.current);
+    if (!isApiMode || !document || typeof document.revision !== "number" || documentVersionOperation) {
+      return;
+    }
+
+    setDocumentVersionOperation("unpublish");
+    setDocumentVersionCompare(null);
+    try {
+      const response = await unpublishDocumentVersion(document.id, { baseRevision: document.revision });
+      applyApiDocument(response.document);
+      setDocumentVersionsReloadKey((currentKey) => currentKey + 1);
+      setTransferMessage({ type: "success", text: "Document unpublished. Version history was kept." });
+    } catch (error) {
+      setTransferMessage({
+        type: "error",
+        text: formatEditorOperationError(error, "Document could not be unpublished."),
+      });
+    } finally {
+      setDocumentVersionOperation(null);
+    }
+  }, [applyApiDocument, documentVersionOperation, isApiMode]);
+
+  const handleRestoreDocumentVersion = useCallback(
+    async (versionId: string) => {
+      const document = documentsRef.current.find((item) => item.id === activeDocumentIdRef.current);
+      if (!isApiMode || !document || typeof document.revision !== "number" || documentVersionOperation) {
+        return;
+      }
+
+      setDocumentVersionOperation("restore");
+      setDocumentVersionCompare(null);
+      try {
+        const response = await restoreDocumentVersion(document.id, versionId, { baseRevision: document.revision });
+        applyApiDocument(response.document);
+        setDocumentVersionsReloadKey((currentKey) => currentKey + 1);
+        setTransferMessage({ type: "success", text: `Restored version ${response.restoredFrom.label} to draft.` });
+      } catch (error) {
+        setTransferMessage({
+          type: "error",
+          text: formatEditorOperationError(error, "Document version could not be restored."),
+        });
+      } finally {
+        setDocumentVersionOperation(null);
+      }
+    },
+    [applyApiDocument, documentVersionOperation, isApiMode],
+  );
+
+  const handleCompareDocumentVersion = useCallback(
+    async (versionId: string) => {
+      const document = documentsRef.current.find((item) => item.id === activeDocumentIdRef.current);
+      if (!isApiMode || !document || documentVersionOperation) {
+        return;
+      }
+
+      setDocumentVersionOperation("compare");
+      try {
+        const response = await compareDocumentVersions(document.id, {
+          from: { type: "version", versionId },
+          to: { type: "draft", versionId: null },
+        });
+        setDocumentVersionCompare(response);
+      } catch (error) {
+        setTransferMessage({
+          type: "error",
+          text: formatEditorOperationError(error, "Document versions could not be compared."),
+        });
+      } finally {
+        setDocumentVersionOperation(null);
+      }
+    },
+    [documentVersionOperation, isApiMode],
+  );
+
+  const handleRetryLoadAttachments = useCallback(() => {
+    setDocumentAttachmentsReloadKey((currentKey) => currentKey + 1);
+  }, []);
+
+  const handleRemoveDocumentAttachment = useCallback(
+    async (attachmentId: string) => {
+      const documentId = activeDocumentIdRef.current;
+      if (!isApiMode || !documentId || documentAttachmentRemovePendingId) {
+        return;
+      }
+
+      setDocumentAttachmentRemovePendingId(attachmentId);
+      try {
+        await deleteDocumentAttachment(documentId, attachmentId);
+        setDocumentAttachments((currentAttachments) =>
+          currentAttachments.filter((attachment) => attachment.id !== attachmentId),
+        );
+        setTransferMessage({ type: "success", text: "Attachment removed from this document." });
+      } catch (error) {
+        setTransferMessage({
+          type: "error",
+          text: formatEditorOperationError(error, "Attachment could not be removed."),
+        });
+      } finally {
+        setDocumentAttachmentRemovePendingId(null);
+      }
+    },
+    [documentAttachmentRemovePendingId, isApiMode],
+  );
+
+  const handleUploadDocumentAttachment = useCallback(
+    async (files: File[]) => {
+      const documentId = activeDocumentIdRef.current;
+      if (!isApiMode || !documentId || documentAttachmentUploadStatus === "uploading") {
+        return;
+      }
+
+      const validation = validateDocumentAttachmentFiles(files);
+      if (validation.acceptedFiles.length === 0) {
+        setDocumentAttachmentUploadStatus("error");
+        setDocumentAttachmentUploadError(validation.message ?? "Choose at least one file before uploading.");
+        return;
+      }
+
+      setDocumentAttachmentUploadStatus("uploading");
+      setDocumentAttachmentUploadError(validation.message);
+      try {
+        const uploadedAttachments: DocumentAttachmentDto[] = [];
+        for (const file of validation.acceptedFiles) {
+          uploadedAttachments.push(await uploadDocumentAttachment(documentId, file, { workspaceId }));
+        }
+
+        setDocumentAttachments((currentAttachments) => [
+          ...uploadedAttachments.filter(
+            (attachment) => !currentAttachments.some((currentAttachment) => currentAttachment.id === attachment.id),
+          ),
+          ...currentAttachments,
+        ]);
+        setDocumentAttachmentsStatus("ready");
+        setTransferMessage({
+          type: "success",
+          text:
+            uploadedAttachments.length === 1
+              ? "Attachment uploaded."
+              : `${uploadedAttachments.length} attachments uploaded.`,
+        });
+        setDocumentAttachmentUploadStatus("idle");
+      } catch (error) {
+        setDocumentAttachmentUploadStatus("error");
+        setDocumentAttachmentUploadError(formatEditorOperationError(error, "Attachment could not be uploaded."));
+      }
+    },
+    [documentAttachmentUploadStatus, isApiMode, workspaceId],
+  );
+
   if (isApiMode && editorApiLoadStatus === "loading") {
     return (
       <main className="atlas-shell flex h-screen flex-col overflow-hidden" style={atlasPatternStyle}>
@@ -1001,8 +1365,25 @@ export function KnowledgeEditorPage({ requestedDocumentId = null }: { requestedD
   if (isApiMode && editorApiLoadStatus === "error") {
     return (
       <main className="atlas-shell flex h-screen flex-col overflow-hidden" style={atlasPatternStyle}>
-        <div className="grid flex-1 place-items-center bg-[var(--northstar-canvas)] px-6 text-center text-sm font-semibold text-[var(--ns-navy-700)]">
-          Document API load failed. Check the backend session and retry.
+        <div className="grid flex-1 place-items-center bg-[var(--northstar-canvas)] px-6 text-center text-sm text-[var(--ns-navy-700)]">
+          <div className="max-w-md border border-[var(--ns-border)] bg-[rgba(251,248,241,0.9)] p-6 shadow-sm">
+            <h1 className="font-serif text-3xl text-[var(--ns-navy-900)]">Document could not be loaded.</h1>
+            <p className="mt-3 text-sm leading-6 text-[var(--ns-slate-700)]">
+              {editorApiLoadError ?? "Check the backend session and retry."}
+            </p>
+            <div className="mt-5 flex justify-center gap-3">
+              <button
+                className="atlas-row-button"
+                onClick={() => setEditorApiLoadRetryKey((currentKey) => currentKey + 1)}
+                type="button"
+              >
+                Retry
+              </button>
+              <a className="atlas-row-button" href={libraryHref}>
+                Back to Library
+              </a>
+            </div>
+          </div>
         </div>
       </main>
     );
@@ -1014,18 +1395,18 @@ export function KnowledgeEditorPage({ requestedDocumentId = null }: { requestedD
 
   return (
     <main className="atlas-shell flex h-screen flex-col overflow-hidden" style={atlasPatternStyle}>
-      <EditorTopBar
+      <WorkspaceHomeTopBar
         canImportJson={!isApiMode}
-        libraryHref={libraryHref}
-        libraryName={activeLibraryName}
+        contextHref={libraryHref}
+        contextLabel={activeLibraryName}
+        contextTitle="Open Library"
         onExportJson={handleExportJson}
         onImportJsonFile={handleImportJsonFile}
         onSearch={handleSearch}
         saveStatus={effectiveSaveStatus}
         saveStatusLabel={atlasSaveStatusLabel}
-        title={activeDocument.title}
+        searchPlaceholder={`Search ${workspaceName}`}
         transferMessage={transferMessage}
-        workspaceName={workspaceName}
       />
       <div className="atlas-workspace flex min-h-0 flex-1 overflow-hidden">
         <EditorSidebar
@@ -1035,7 +1416,9 @@ export function KnowledgeEditorPage({ requestedDocumentId = null }: { requestedD
           libraryHref={libraryHref}
           libraryName={activeLibraryName}
           onCreateDocument={handleCreateDocument}
+          onSelectFolder={handleSelectFolder}
           onSelectDocument={handleSelectDocument}
+          selectedFolderId={selectedFolderId ?? activeDocument.folderId}
         />
         <section className="flex min-w-0 flex-1 bg-[var(--northstar-canvas)]">
           <EditorCanvas
@@ -1046,9 +1429,10 @@ export function KnowledgeEditorPage({ requestedDocumentId = null }: { requestedD
             documentId={activeDocument.id}
             documentStatusLabel={documentStatusLabel}
             folderHref={folderHref}
-            folderTitle={activeFolder?.title ?? "Folder"}
+            folderTitle={activeDocumentFolder?.title ?? "Folder"}
             isContentEmpty={isContentEmpty}
             isCommentComposerOpen={pendingCommentComposer?.documentId === activeDocument.id}
+            isSidePanelCollapsed={isOutlinePanelCollapsed}
             libraryHref={libraryHref}
             libraryName={activeLibraryName}
             onCommentRuntimeStateChange={handleCommentRuntimeStateChange}
@@ -1056,17 +1440,21 @@ export function KnowledgeEditorPage({ requestedDocumentId = null }: { requestedD
             onContentStatsChange={handleContentStatsChange}
             onOpenCommentComposer={handleOpenCommentComposer}
             onOpenShare={() => setIsShareDrawerOpen(true)}
+            onOpenVersions={handleOpenVersions}
+            onPublishVersion={handlePublishDocumentVersion}
             onSelectCommentThread={handleSelectCommentThread}
+            onToggleSidePanel={() => setIsOutlinePanelCollapsed((isCollapsed) => !isCollapsed)}
             onTitleChange={handleTitleChange}
+            onUnpublishVersion={handleUnpublishDocumentVersion}
             outlineFocusRequest={outlineFocusRequest}
             saveStatusLabel={atlasSaveStatusLabel}
-            settingsHref={librarySettingsHref}
             shareHref={shareHref}
             tags={activeDocument.tags}
             textLength={contentTextLength}
             title={activeDocument.title}
             updatedAtLabel={effectiveUpdatedAtLabel}
             version={activeDocument.version}
+            versionOperation={documentVersionOperation}
           />
           <DocumentShareDrawer
             document={activeDocument}
@@ -1074,6 +1462,7 @@ export function KnowledgeEditorPage({ requestedDocumentId = null }: { requestedD
             onClose={() => setIsShareDrawerOpen(false)}
             workspaceId={workspaceId}
           />
+          {isOutlinePanelCollapsed ? null : (
           <OutlinePanel
             activeCommentThreadId={activeCommentThreadId}
             activeDocument={activeDocument}
@@ -1086,11 +1475,22 @@ export function KnowledgeEditorPage({ requestedDocumentId = null }: { requestedD
             commentRelocationResults={activeCommentRelocationResults}
             commentThreads={activeCommentThreads}
             contextLoadStatus={documentContextStatus}
+            documentAttachmentRemovePendingId={documentAttachmentRemovePendingId}
+            documentAttachmentUploadError={documentAttachmentUploadError}
+            documentAttachmentUploadStatus={documentAttachmentUploadStatus}
+            documentAttachments={documentAttachments}
+            documentAttachmentsError={documentAttachmentsError}
+            documentAttachmentsStatus={documentAttachmentsStatus}
             documentStatusLabel={documentStatusLabel}
+            documentVersionCompare={documentVersionCompare}
+            documentVersionOperation={documentVersionOperation}
+            documentVersionsError={documentVersionsError}
+            documentVersionsStatus={documentVersionsStatus}
             folderHref={folderHref}
-            folderTitle={activeFolder?.title ?? "Folder"}
+            folderTitle={activeDocumentFolder?.title ?? "Folder"}
             libraryHref={libraryHref}
             libraryName={activeLibraryName}
+            onCompareDocumentVersion={handleCompareDocumentVersion}
             onAddCommentMessage={handleAddCommentMessage}
             onCancelPendingComment={handleCancelPendingCommentComposer}
             onCreateCommentThread={handleCreateCommentThread}
@@ -1098,8 +1498,15 @@ export function KnowledgeEditorPage({ requestedDocumentId = null }: { requestedD
             onOpenShare={() => setIsShareDrawerOpen(true)}
             onPendingCommentBodyChange={handlePendingCommentBodyChange}
             onOutlineItemClick={handleOutlineItemClick}
+            onPublishDocumentVersion={handlePublishDocumentVersion}
             onReopenCommentThread={handleReopenCommentThread}
+            onRestoreDocumentVersion={handleRestoreDocumentVersion}
             onRetryLoadComments={() => loadCommentThreadsForDocument(activeDocument.id)}
+            onRetryLoadDocumentAttachments={handleRetryLoadAttachments}
+            onRetryLoadDocumentVersions={handleRetryLoadDocumentVersions}
+            onRemoveDocumentAttachment={handleRemoveDocumentAttachment}
+            onUnpublishDocumentVersion={handleUnpublishDocumentVersion}
+            onUploadDocumentAttachment={handleUploadDocumentAttachment}
             onResolveCommentThread={handleResolveCommentThread}
             outlineItems={outlineItems}
             pendingCommentComposer={
@@ -1108,10 +1515,12 @@ export function KnowledgeEditorPage({ requestedDocumentId = null }: { requestedD
             relatedDocumentRows={documentContextPanelModel?.relatedDocuments}
             saveStatusLabel={atlasSaveStatusLabel}
             shareHref={shareHref}
+            versionHistoryHref={versionHistoryHref}
             textLength={contentTextLength}
             updatedAtLabel={effectiveUpdatedAtLabel}
-            versionTrailRows={documentContextPanelModel?.versionTrail}
+            versionTrailRows={documentVersionTrailRows ?? documentContextPanelModel?.versionTrail}
           />
+          )}
         </section>
       </div>
     </main>
@@ -1178,34 +1587,6 @@ function createDocumentSaveSnapshot(document: KnowledgeDocument) {
 
 function isConflictError(error: unknown) {
   return error instanceof ApiClientError && (error.status === 409 || error.code === "CONFLICT");
-}
-
-function toTopBarSaveStatus(status: ApiSaveStatus) {
-  return status === "saving" || status === "saved" || status === "created" ? status : "editing";
-}
-
-function getApiSaveStatusLabel(status: ApiSaveStatus) {
-  if (status === "saving") {
-    return "Saving";
-  }
-
-  if (status === "editing") {
-    return "Unsaved changes";
-  }
-
-  if (status === "created") {
-    return "Created";
-  }
-
-  if (status === "conflict") {
-    return "Conflict detected";
-  }
-
-  if (status === "error") {
-    return "Save failed";
-  }
-
-  return "Saved";
 }
 
 function formatDocumentUpdatedAt(value?: string) {

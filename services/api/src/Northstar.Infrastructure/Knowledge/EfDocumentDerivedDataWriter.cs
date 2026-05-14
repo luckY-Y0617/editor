@@ -204,6 +204,92 @@ public sealed class EfDocumentDerivedDataWriter : IDocumentDerivedDataWriter
             cancellationToken);
     }
 
+    public async Task RecordDocumentVersionPublishedAsync(
+        Document document,
+        DocumentDraft draft,
+        DocumentVersion version,
+        Guid? actorId,
+        CancellationToken cancellationToken = default)
+    {
+        await UpsertSearchIndexAsync(document, draft, cancellationToken);
+
+        var metadata = JsonSerializer.Serialize(
+            new
+            {
+                versionId = version.Id.ToString(),
+                versionNo = version.VersionNo,
+                label = version.Label
+            },
+            JsonOptions);
+
+        await AddActivityAsync(
+            document,
+            actorId,
+            ActivityActions.DocumentVersionPublished,
+            $"Published version {version.Label}.",
+            metadata,
+            cancellationToken);
+    }
+
+    public async Task RecordDocumentVersionUnpublishedAsync(
+        Document document,
+        DocumentDraft draft,
+        DocumentVersion? previousVersion,
+        Guid? actorId,
+        CancellationToken cancellationToken = default)
+    {
+        await UpsertSearchIndexAsync(document, draft, cancellationToken);
+
+        var metadata = JsonSerializer.Serialize(
+            new
+            {
+                versionId = previousVersion?.Id.ToString(),
+                versionNo = previousVersion?.VersionNo,
+                label = previousVersion?.Label
+            },
+            JsonOptions);
+
+        var summary = previousVersion is null
+            ? "Unpublished document."
+            : $"Unpublished version {previousVersion.Label}.";
+
+        await AddActivityAsync(
+            document,
+            actorId,
+            ActivityActions.DocumentVersionUnpublished,
+            summary,
+            metadata,
+            cancellationToken);
+    }
+
+    public async Task RecordDocumentVersionRestoredAsync(
+        Document document,
+        DocumentDraft draft,
+        DocumentVersion version,
+        Guid? actorId,
+        CancellationToken cancellationToken = default)
+    {
+        await RebuildOutgoingLinksAsync(document, draft, actorId, cancellationToken);
+        await UpsertSearchIndexAsync(document, draft, cancellationToken);
+
+        var metadata = JsonSerializer.Serialize(
+            new
+            {
+                versionId = version.Id.ToString(),
+                versionNo = version.VersionNo,
+                label = version.Label
+            },
+            JsonOptions);
+
+        await AddActivityAsync(
+            document,
+            actorId,
+            ActivityActions.DocumentVersionRestored,
+            $"Restored version {version.Label} to draft.",
+            metadata,
+            cancellationToken);
+    }
+
     private async Task RebuildOutgoingLinksAsync(
         Document document,
         DocumentDraft draft,

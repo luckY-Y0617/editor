@@ -5,12 +5,19 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Amazon;
+using Amazon.Runtime;
+using Amazon.S3;
+using Amazon.S3.Model;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Northstar.Application.Common;
+using Northstar.Application.Files;
+using Northstar.Application.Knowledge;
 using Northstar.Application.Security;
 using Northstar.Contracts.Auth;
 using Northstar.Contracts.Common;
@@ -252,6 +259,29 @@ public sealed class KnowledgeApiTests
     }
 
     [Fact]
+    public async Task DocumentContext_FiltersInaccessibleRelatedDocumentsAndBacklinks()
+    {
+        using var factory = new NorthstarApiFactory();
+        var client = factory.CreateClient();
+        var ownerTokens = await LoginOwnerAsync(client);
+        var bootstrap = await client.GetFromJsonAsync<BootstrapResponse>("/api/v1/bootstrap");
+        Assert.NotNull(bootstrap);
+        var principles = FindDocument(bootstrap, "Our Principles");
+        var mission = FindDocument(bootstrap, "Mission & Vision");
+        var viewerTokens = await RegisterAndAddMemberAsync(client, ownerTokens, bootstrap.Workspace.Id, "viewer");
+
+        Authorize(client, ownerTokens);
+        await SetResourcePolicyAsync(client, ResourceTypes.Document, mission.Id, InheritanceModes.Restricted, LinkModes.Disabled);
+
+        Authorize(client, viewerTokens);
+        var context = await client.GetFromJsonAsync<DocumentContextResponse>($"/api/v1/documents/{principles.Id}/context");
+
+        Assert.NotNull(context);
+        Assert.DoesNotContain(context.Backlinks, backlink => backlink.Id == mission.Id);
+        Assert.DoesNotContain(context.RelatedDocuments, related => related.Id == mission.Id);
+    }
+
+    [Fact]
     public async Task DocumentActivity_ReturnsTimelineItems()
     {
         using var factory = new NorthstarApiFactory();
@@ -269,6 +299,345 @@ public sealed class KnowledgeApiTests
         Assert.NotNull(created.Document);
         Assert.Equal(document.Id.ToString(), created.Document.Id);
         Assert.Equal(document.Title, created.Document.Title);
+        Assert.NotNull(created.Classification);
+        Assert.Equal("document", created.Classification.Category);
+        Assert.Equal("activity", Assert.Single(created.Classification.Surfaces));
+        Assert.False(created.Classification.IsNotificationCandidate);
+    }
+
+    [Fact]
+    public async Task DocumentActivity_ClassifiesOrdinaryUpdatesAsCoalescibleActivityOnly()
+    {
+        using var factory = new NorthstarApiFactory();
+        var client = factory.CreateClient();
+        await LoginOwnerAsync(client);
+        var bootstrap = await client.GetFromJsonAsync<BootstrapResponse>("/api/v1/bootstrap");
+        var original = await client.GetFromJsonAsync<GetDocumentResponse>($"/api/v1/documents/{bootstrap!.ActiveDocumentId}");
+        Assert.NotNull(original);
+        using var updatedContent = JsonDocument.Parse(
+            """
+            {"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Updated activity classification."}]}]}
+            """);
+        var request = new UpdateDocumentRequest(
+            original.Document.Revision,
+            original.Document.Title,
+            updatedContent.RootElement.Clone(),
+            original.Document.Tags);
+
+        var response = await client.PatchAsJsonAsync($"/api/v1/documents/{original.Document.Id}", request);
+        response.EnsureSuccessStatusCode();
+
+        var activity = await client.GetFromJsonAsync<DocumentActivityResponse>($"/api/v1/documents/{original.Document.Id}/activity");
+
+        Assert.NotNull(activity);
+        var updated = Assert.Single(activity.Items.Where(item => item.Title == ActivityActions.DocumentUpdated));
+        Assert.NotNull(updated.Classification);
+        Assert.Equal("document", updated.Classification.Category);
+        Assert.Equal("low", updated.Classification.Signal);
+        Assert.Equal("activity", Assert.Single(updated.Classification.Surfaces));
+        Assert.True(updated.Classification.IsCoalescible);
+        Assert.False(updated.Classification.IsNotificationCandidate);
+        Assert.False(updated.Classification.IsAuditCandidate);
+        Assert.NotNull(updated.Classification.CoalescingKey);
+        Assert.Contains(
+            original.Document.Id.Replace("-", string.Empty, StringComparison.OrdinalIgnoreCase),
+            updated.Classification.CoalescingKey,
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task DocumentVersions_PublishCreatesImmutablePublishedSnapshot()
+    {
+        using var factory = new NorthstarApiFactory();
+        var client = factory.CreateClient();
+        await LoginOwnerAsync(client);
+        var bootstrap = await client.GetFromJsonAsync<BootstrapResponse>("/api/v1/bootstrap");
+        var original = await client.GetFromJsonAsync<GetDocumentResponse>($"/api/v1/documents/{bootstrap!.ActiveDocumentId}");
+        var publishedContent = Json("""
+            {"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Published version body."}]}]}
+            """);
+        var draftContent = Json("""
+            {"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Later draft body."}]}]}
+            """);
+        var update = await client.PatchAsJsonAsync(
+            $"/api/v1/documents/{original!.Document.Id}",
+            new UpdateDocumentRequest(original.Document.Revision, original.Document.Title, publishedContent, original.Document.Tags));
+        update.EnsureSuccessStatusCode();
+        var updated = await update.Content.ReadFromJsonAsync<UpdateDocumentResponse>();
+        Assert.NotNull(updated);
+
+        var publish = await client.PostAsJsonAsync(
+            $"/api/v1/documents/{original.Document.Id}/versions/publish",
+            new PublishDocumentVersionRequest(updated.Document.Revision, null));
+
+        publish.EnsureSuccessStatusCode();
+        var published = await publish.Content.ReadFromJsonAsync<PublishDocumentVersionResponse>();
+        Assert.NotNull(published);
+        Assert.Equal("published", published.Document.Status);
+        Assert.Equal(updated.Document.Revision, published.Document.Revision);
+        Assert.Equal(2, published.Version.VersionNo);
+        Assert.Equal("2.0", published.Version.Label);
+        Assert.Equal("published", published.Version.VersionType);
+        Assert.NotNull(published.Version.PublishedAt);
+
+        var versionDetail = await client.GetFromJsonAsync<DocumentVersionResponse>(
+            $"/api/v1/documents/{original.Document.Id}/versions/{published.Version.Id}");
+        var versions = await client.GetFromJsonAsync<DocumentVersionsResponse>(
+            $"/api/v1/documents/{original.Document.Id}/versions");
+        var draftUpdate = await client.PatchAsJsonAsync(
+            $"/api/v1/documents/{original.Document.Id}",
+            new UpdateDocumentRequest(published.Document.Revision, published.Document.Title, draftContent, published.Document.Tags));
+        draftUpdate.EnsureSuccessStatusCode();
+        var draft = await draftUpdate.Content.ReadFromJsonAsync<UpdateDocumentResponse>();
+        var versionAfterDraft = await client.GetFromJsonAsync<DocumentVersionResponse>(
+            $"/api/v1/documents/{original.Document.Id}/versions/{published.Version.Id}");
+        var activity = await client.GetFromJsonAsync<DocumentActivityResponse>(
+            $"/api/v1/documents/{original.Document.Id}/activity");
+
+        Assert.NotNull(versionDetail);
+        Assert.NotNull(versions);
+        Assert.Contains(versions.Versions, version => version.Label == "1.0" && version.VersionType == "system");
+        Assert.Contains(versions.Versions, version => version.Id == published.Version.Id);
+        Assert.Contains("Published version body.", versionDetail.Content.GetRawText(), StringComparison.Ordinal);
+        Assert.NotNull(draft);
+        Assert.Equal("draft", draft.Document.Status);
+        Assert.Equal(published.Document.Revision + 1, draft.Document.Revision);
+        Assert.NotNull(versionAfterDraft);
+        Assert.Contains("Published version body.", versionAfterDraft.Content.GetRawText(), StringComparison.Ordinal);
+        Assert.DoesNotContain("Later draft body.", versionAfterDraft.Content.GetRawText(), StringComparison.Ordinal);
+        Assert.NotNull(activity);
+        Assert.Contains(activity.Items, item => item.Title == ActivityActions.DocumentVersionPublished);
+    }
+
+    [Fact]
+    public async Task DocumentVersions_UnpublishClearsPublishedStateButKeepsVersion()
+    {
+        using var factory = new NorthstarApiFactory();
+        var client = factory.CreateClient();
+        await LoginOwnerAsync(client);
+        var bootstrap = await client.GetFromJsonAsync<BootstrapResponse>("/api/v1/bootstrap");
+        var original = await client.GetFromJsonAsync<GetDocumentResponse>($"/api/v1/documents/{bootstrap!.ActiveDocumentId}");
+        var publish = await client.PostAsJsonAsync(
+            $"/api/v1/documents/{original!.Document.Id}/versions/publish",
+            new PublishDocumentVersionRequest(original.Document.Revision, "release-ready"));
+        publish.EnsureSuccessStatusCode();
+        var published = await publish.Content.ReadFromJsonAsync<PublishDocumentVersionResponse>();
+        Assert.NotNull(published);
+
+        var unpublish = await client.PostAsJsonAsync(
+            $"/api/v1/documents/{original.Document.Id}/versions/unpublish",
+            new UnpublishDocumentVersionRequest(published.Document.Revision));
+
+        unpublish.EnsureSuccessStatusCode();
+        var unpublished = await unpublish.Content.ReadFromJsonAsync<UnpublishDocumentVersionResponse>();
+        var versionAfterUnpublish = await client.GetFromJsonAsync<DocumentVersionResponse>(
+            $"/api/v1/documents/{original.Document.Id}/versions/{published.Version.Id}");
+        var activity = await client.GetFromJsonAsync<DocumentActivityResponse>(
+            $"/api/v1/documents/{original.Document.Id}/activity");
+
+        Assert.NotNull(unpublished);
+        Assert.Equal("draft", unpublished.Document.Status);
+        Assert.Equal(published.Document.Revision, unpublished.Document.Revision);
+        Assert.NotNull(unpublished.UnpublishedVersion);
+        Assert.Equal(published.Version.Id, unpublished.UnpublishedVersion.Id);
+        Assert.NotNull(versionAfterUnpublish);
+        Assert.Equal("release-ready", versionAfterUnpublish.Version.Label);
+        Assert.NotNull(activity);
+        Assert.Contains(activity.Items, item => item.Title == ActivityActions.DocumentVersionUnpublished);
+    }
+
+    [Fact]
+    public async Task DocumentVersions_CompareReturnsTextDiffBetweenVersionAndDraft()
+    {
+        using var factory = new NorthstarApiFactory();
+        var client = factory.CreateClient();
+        await LoginOwnerAsync(client);
+        var bootstrap = await client.GetFromJsonAsync<BootstrapResponse>("/api/v1/bootstrap");
+        var original = await client.GetFromJsonAsync<GetDocumentResponse>($"/api/v1/documents/{bootstrap!.ActiveDocumentId}");
+        var publishedContent = Json("""
+            {"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Alpha beta. Redo Log 的核心作用是事务持久化。Redo Log 的组成结构在 InnoDB 中是循环日志。"}]}]}
+            """);
+        var draftContent = Json("""
+            {"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Alpha gamma. Redo Log 的核心作用是确保事务持久化。Redo Log 的组成结构在 InnoDB 中是循环日志。"}]}]}
+            """);
+        var update = await client.PatchAsJsonAsync(
+            $"/api/v1/documents/{original!.Document.Id}",
+            new UpdateDocumentRequest(original.Document.Revision, original.Document.Title, publishedContent, original.Document.Tags));
+        update.EnsureSuccessStatusCode();
+        var updated = await update.Content.ReadFromJsonAsync<UpdateDocumentResponse>();
+        Assert.NotNull(updated);
+        var publish = await client.PostAsJsonAsync(
+            $"/api/v1/documents/{original.Document.Id}/versions/publish",
+            new PublishDocumentVersionRequest(updated.Document.Revision, "alpha-beta"));
+        publish.EnsureSuccessStatusCode();
+        var published = await publish.Content.ReadFromJsonAsync<PublishDocumentVersionResponse>();
+        Assert.NotNull(published);
+        var draftUpdate = await client.PatchAsJsonAsync(
+            $"/api/v1/documents/{original.Document.Id}",
+            new UpdateDocumentRequest(published.Document.Revision, published.Document.Title, draftContent, published.Document.Tags));
+        draftUpdate.EnsureSuccessStatusCode();
+
+        var compare = await client.PostAsJsonAsync(
+            $"/api/v1/documents/{original.Document.Id}/versions/compare",
+            new CompareDocumentVersionsRequest(
+                new DocumentVersionCompareTargetDto("version", published.Version.Id),
+                new DocumentVersionCompareTargetDto("draft", null)));
+
+        compare.EnsureSuccessStatusCode();
+        var result = await compare.Content.ReadFromJsonAsync<CompareDocumentVersionsResponse>();
+
+        Assert.NotNull(result);
+        Assert.Equal("alpha-beta", result.Summary.FromLabel);
+        Assert.Equal("Current draft", result.Summary.ToLabel);
+        Assert.True(result.Summary.TextChanged);
+        Assert.Contains(result.Segments, segment => segment.Kind == "removed" && segment.Text.Contains("Alpha beta", StringComparison.Ordinal));
+        Assert.Contains(result.Segments, segment => segment.Kind == "added" && segment.Text.Contains("Alpha gamma", StringComparison.Ordinal));
+        Assert.Contains(result.Lines, line =>
+            line.Kind == "modified"
+            && line.LeftText is not null
+            && line.LeftText.Contains("Redo Log 的核心作用", StringComparison.Ordinal)
+            && line.RightTokens.Any(token => token.Kind == "added" && token.Text.Contains("确保", StringComparison.Ordinal)));
+        Assert.Contains(result.Lines, line =>
+            line.Kind == "unchanged"
+            && line.LeftText is not null
+            && line.LeftText.Contains("Redo Log 的组成结构", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task DocumentVersions_CompareRejectsInvalidTargetAndCrossDocumentVersion()
+    {
+        using var factory = new NorthstarApiFactory();
+        var client = factory.CreateClient();
+        await LoginOwnerAsync(client);
+        var bootstrap = await client.GetFromJsonAsync<BootstrapResponse>("/api/v1/bootstrap");
+        Assert.NotNull(bootstrap);
+        var firstDocument = FindDocument(bootstrap, "Mission & Vision");
+        var secondDocument = FindDocument(bootstrap, "Our Principles");
+        var first = await client.GetFromJsonAsync<GetDocumentResponse>($"/api/v1/documents/{firstDocument.Id}");
+        var second = await client.GetFromJsonAsync<GetDocumentResponse>($"/api/v1/documents/{secondDocument.Id}");
+        Assert.NotNull(first);
+        Assert.NotNull(second);
+        var secondPublish = await client.PostAsJsonAsync(
+            $"/api/v1/documents/{secondDocument.Id}/versions/publish",
+            new PublishDocumentVersionRequest(second.Document.Revision, "other-document"));
+        secondPublish.EnsureSuccessStatusCode();
+        var secondPublished = await secondPublish.Content.ReadFromJsonAsync<PublishDocumentVersionResponse>();
+        Assert.NotNull(secondPublished);
+
+        var invalidTarget = await client.PostAsJsonAsync(
+            $"/api/v1/documents/{firstDocument.Id}/versions/compare",
+            new CompareDocumentVersionsRequest(
+                new DocumentVersionCompareTargetDto("snapshot", null),
+                new DocumentVersionCompareTargetDto("draft", null)));
+        var crossDocumentTarget = await client.PostAsJsonAsync(
+            $"/api/v1/documents/{firstDocument.Id}/versions/compare",
+            new CompareDocumentVersionsRequest(
+                new DocumentVersionCompareTargetDto("version", secondPublished.Version.Id),
+                new DocumentVersionCompareTargetDto("draft", null)));
+
+        Assert.Equal(HttpStatusCode.BadRequest, invalidTarget.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, crossDocumentTarget.StatusCode);
+    }
+
+    [Fact]
+    public async Task DocumentVersions_RestoreRequiresFreshRevisionAndRestoresSnapshotToDraft()
+    {
+        using var factory = new NorthstarApiFactory();
+        var client = factory.CreateClient();
+        await LoginOwnerAsync(client);
+        var bootstrap = await client.GetFromJsonAsync<BootstrapResponse>("/api/v1/bootstrap");
+        var original = await client.GetFromJsonAsync<GetDocumentResponse>($"/api/v1/documents/{bootstrap!.ActiveDocumentId}");
+        var versionContent = Json("""
+            {"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Version content to restore."}]}]}
+            """);
+        var laterContent = Json("""
+            {"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Work in progress after publish."}]}]}
+            """);
+        var update = await client.PatchAsJsonAsync(
+            $"/api/v1/documents/{original!.Document.Id}",
+            new UpdateDocumentRequest(original.Document.Revision, original.Document.Title, versionContent, original.Document.Tags));
+        update.EnsureSuccessStatusCode();
+        var updated = await update.Content.ReadFromJsonAsync<UpdateDocumentResponse>();
+        Assert.NotNull(updated);
+        var publish = await client.PostAsJsonAsync(
+            $"/api/v1/documents/{original.Document.Id}/versions/publish",
+            new PublishDocumentVersionRequest(updated.Document.Revision, "customer-ready"));
+        publish.EnsureSuccessStatusCode();
+        var published = await publish.Content.ReadFromJsonAsync<PublishDocumentVersionResponse>();
+        Assert.NotNull(published);
+        var laterUpdate = await client.PatchAsJsonAsync(
+            $"/api/v1/documents/{original.Document.Id}",
+            new UpdateDocumentRequest(published.Document.Revision, published.Document.Title, laterContent, published.Document.Tags));
+        laterUpdate.EnsureSuccessStatusCode();
+        var later = await laterUpdate.Content.ReadFromJsonAsync<UpdateDocumentResponse>();
+        Assert.NotNull(later);
+
+        var staleRestore = await client.PostAsJsonAsync(
+            $"/api/v1/documents/{original.Document.Id}/versions/{published.Version.Id}/restore",
+            new RestoreDocumentVersionRequest(published.Document.Revision));
+        var restore = await client.PostAsJsonAsync(
+            $"/api/v1/documents/{original.Document.Id}/versions/{published.Version.Id}/restore",
+            new RestoreDocumentVersionRequest(later.Document.Revision));
+
+        Assert.Equal(HttpStatusCode.Conflict, staleRestore.StatusCode);
+        restore.EnsureSuccessStatusCode();
+        var restored = await restore.Content.ReadFromJsonAsync<RestoreDocumentVersionResponse>();
+        var current = await client.GetFromJsonAsync<GetDocumentResponse>($"/api/v1/documents/{original.Document.Id}");
+        var activity = await client.GetFromJsonAsync<DocumentActivityResponse>(
+            $"/api/v1/documents/{original.Document.Id}/activity");
+
+        Assert.NotNull(restored);
+        Assert.NotNull(current);
+        Assert.Equal("customer-ready", restored.RestoredFrom.Label);
+        Assert.Equal(later.Document.Revision + 1, restored.Document.Revision);
+        Assert.Equal("draft", restored.Document.Status);
+        Assert.Contains("Version content to restore.", current.Document.Content.GetRawText(), StringComparison.Ordinal);
+        Assert.DoesNotContain("Work in progress after publish.", current.Document.Content.GetRawText(), StringComparison.Ordinal);
+        Assert.NotNull(activity);
+        Assert.Contains(activity.Items, item => item.Title == ActivityActions.DocumentVersionRestored);
+    }
+
+    [Fact]
+    public async Task DocumentVersions_ViewerCanReadButCannotPublishOrRestore()
+    {
+        using var factory = new NorthstarApiFactory();
+        var client = factory.CreateClient();
+        var ownerTokens = await LoginOwnerAsync(client);
+        var bootstrap = await client.GetFromJsonAsync<BootstrapResponse>("/api/v1/bootstrap");
+        var viewerTokens = await RegisterAndAddMemberAsync(client, ownerTokens, bootstrap!.Workspace.Id, "viewer");
+        var document = FindDocument(bootstrap, "Our Principles");
+        var current = await client.GetFromJsonAsync<GetDocumentResponse>($"/api/v1/documents/{document.Id}");
+        var publish = await client.PostAsJsonAsync(
+            $"/api/v1/documents/{document.Id}/versions/publish",
+            new PublishDocumentVersionRequest(current!.Document.Revision, "owner-published"));
+        publish.EnsureSuccessStatusCode();
+        var published = await publish.Content.ReadFromJsonAsync<PublishDocumentVersionResponse>();
+        Assert.NotNull(published);
+
+        Authorize(client, viewerTokens);
+        var versions = await client.GetAsync($"/api/v1/documents/{document.Id}/versions");
+        var version = await client.GetAsync($"/api/v1/documents/{document.Id}/versions/{published.Version.Id}");
+        var compare = await client.PostAsJsonAsync(
+            $"/api/v1/documents/{document.Id}/versions/compare",
+            new CompareDocumentVersionsRequest(
+                new DocumentVersionCompareTargetDto("version", published.Version.Id),
+                new DocumentVersionCompareTargetDto("draft", null)));
+        var viewerPublish = await client.PostAsJsonAsync(
+            $"/api/v1/documents/{document.Id}/versions/publish",
+            new PublishDocumentVersionRequest(published.Document.Revision, "viewer-published"));
+        var viewerUnpublish = await client.PostAsJsonAsync(
+            $"/api/v1/documents/{document.Id}/versions/unpublish",
+            new UnpublishDocumentVersionRequest(published.Document.Revision));
+        var viewerRestore = await client.PostAsJsonAsync(
+            $"/api/v1/documents/{document.Id}/versions/{published.Version.Id}/restore",
+            new RestoreDocumentVersionRequest(published.Document.Revision));
+
+        Assert.Equal(HttpStatusCode.OK, versions.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, version.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, compare.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, viewerPublish.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, viewerUnpublish.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, viewerRestore.StatusCode);
     }
 
     [Fact]
@@ -292,6 +661,60 @@ public sealed class KnowledgeApiTests
         Assert.Contains(bodySearch.Results, result => result.Title == "Operating System");
         Assert.NotNull(emptySearch);
         Assert.Empty(emptySearch.Results);
+    }
+
+    [Fact]
+    public async Task SearchIndexMaintenance_RebuildsMissingRowsAndRemovesInactiveRows()
+    {
+        using var factory = new NorthstarApiFactory();
+        var client = factory.CreateClient();
+        await LoginOwnerAsync(client);
+        var bootstrap = await client.GetFromJsonAsync<BootstrapResponse>("/api/v1/bootstrap");
+        Assert.NotNull(bootstrap);
+        var mission = FindDocument(bootstrap, "Mission & Vision");
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var dbContext = scope.ServiceProvider.GetRequiredService<NorthstarDbContext>();
+            dbContext.DocumentSearchIndexes.RemoveRange(dbContext.DocumentSearchIndexes);
+            await dbContext.SaveChangesAsync();
+
+            var maintenance = scope.ServiceProvider.GetRequiredService<ISearchIndexMaintenanceService>();
+            var rebuild = await maintenance.RebuildAsync(Guid.Parse(bootstrap.ActiveSpaceId));
+
+            Assert.Equal(bootstrap.Documents.Count, rebuild.Created);
+            Assert.Equal(0, rebuild.Removed);
+            Assert.Equal(bootstrap.Documents.Count, rebuild.ActiveDocuments);
+        }
+
+        var rebuiltSearch = await client.GetFromJsonAsync<SearchResponse>(
+            $"/api/v1/search?q=Mission&spaceId={bootstrap.ActiveSpaceId}");
+        Assert.NotNull(rebuiltSearch);
+        Assert.Contains(rebuiltSearch.Results, result => result.Id == mission.Id);
+
+        var archiveResponse = await client.PatchAsync($"/api/v1/documents/{mission.Id}/archive", null);
+        archiveResponse.EnsureSuccessStatusCode();
+        using (var scope = factory.Services.CreateScope())
+        {
+            var dbContext = scope.ServiceProvider.GetRequiredService<NorthstarDbContext>();
+            await dbContext.DocumentSearchIndexes.AddAsync(new Northstar.Infrastructure.Search.DocumentSearchIndex(
+                Guid.Parse(mission.Id),
+                Guid.Parse(bootstrap.Workspace.Id),
+                Guid.Parse(bootstrap.ActiveSpaceId),
+                mission.Title,
+                "stale archived document"));
+            await dbContext.SaveChangesAsync();
+
+            var maintenance = scope.ServiceProvider.GetRequiredService<ISearchIndexMaintenanceService>();
+            var repair = await maintenance.RebuildAsync(Guid.Parse(bootstrap.ActiveSpaceId));
+
+            Assert.Equal(1, repair.Removed);
+        }
+
+        var archivedSearch = await client.GetFromJsonAsync<SearchResponse>(
+            $"/api/v1/search?q=Mission&spaceId={bootstrap.ActiveSpaceId}");
+        Assert.NotNull(archivedSearch);
+        Assert.DoesNotContain(archivedSearch.Results, result => result.Id == mission.Id);
     }
 
     [Fact]
@@ -449,6 +872,37 @@ public sealed class KnowledgeApiTests
         var response = await client.PostAsJsonAsync("/api/v1/auth/login", new LoginRequest(OwnerEmail, "wrong-password"));
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Seed_RepairsOwnerCredentialWhenConfiguredPasswordChanges()
+    {
+        using var factory = new NorthstarApiFactory();
+        var client = factory.CreateClient();
+        await LoginOwnerAsync(client);
+        client.DefaultRequestHeaders.Authorization = null;
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var dbContext = scope.ServiceProvider.GetRequiredService<NorthstarDbContext>();
+            var passwordHashService = scope.ServiceProvider.GetRequiredService<IPasswordHashService>();
+            var user = await dbContext.Users.SingleAsync(user => user.Email == OwnerEmail);
+            var credential = await dbContext.UserCredentials.SingleAsync(credential => credential.UserId == user.Id);
+            credential.UpdatePassword(passwordHashService.HashPassword(user, "old-local-password"));
+            await dbContext.SaveChangesAsync();
+        }
+
+        var staleResponse = await client.PostAsJsonAsync("/api/v1/auth/login", new LoginRequest(OwnerEmail, OwnerPassword));
+        Assert.Equal(HttpStatusCode.Unauthorized, staleResponse.StatusCode);
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var seeder = scope.ServiceProvider.GetRequiredService<INorthstarDataSeeder>();
+            await seeder.SeedAsync();
+        }
+
+        var repairedTokens = await LoginOwnerAsync(client);
+        Assert.Equal(OwnerEmail, repairedTokens.User.Email);
     }
 
     [Fact]
@@ -1259,10 +1713,18 @@ public sealed class KnowledgeApiTests
         var viewerGetAfterRevoke = await client.GetAsync($"/api/v1/documents/{document.Id}");
         var viewerAudit = await client.GetAsync(
             $"/api/v1/permissions/audit?workspaceId={bootstrap!.Workspace.Id}&resourceType=document&resourceId={document.Id}");
+        var viewerWorkspaceAudit = await client.GetAsync(
+            $"/api/v1/workspaces/{bootstrap.Workspace.Id}/audit?resourceType=document&resourceId={document.Id}");
 
         Authorize(client, ownerTokens);
         var audit = await client.GetFromJsonAsync<PermissionAuditResponse>(
             $"/api/v1/permissions/audit?workspaceId={bootstrap!.Workspace.Id}&resourceType=document&resourceId={document.Id}");
+        var workspaceAudit = await client.GetFromJsonAsync<WorkspaceAuditLogResponse>(
+            $"/api/v1/workspaces/{bootstrap.Workspace.Id}/audit?resourceType=document&resourceId={document.Id}&action={PermissionAuditActions.GrantRevoked}&limit=1");
+        var secondPage = await client.GetFromJsonAsync<WorkspaceAuditLogResponse>(
+            $"/api/v1/workspaces/{bootstrap.Workspace.Id}/audit?resourceType=document&resourceId={document.Id}&offset=1&limit=1");
+        var invalidFilter = await client.GetAsync(
+            $"/api/v1/workspaces/{bootstrap.Workspace.Id}/audit?resourceId={document.Id}");
 
         updatedGrantResponse.EnsureSuccessStatusCode();
         Assert.Equal(HttpStatusCode.NoContent, revokeResponse.StatusCode);
@@ -1270,11 +1732,26 @@ public sealed class KnowledgeApiTests
         Assert.NotNull(grantState.RevokedAt);
         Assert.Equal(HttpStatusCode.Forbidden, viewerGetAfterRevoke.StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, viewerAudit.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, viewerWorkspaceAudit.StatusCode);
         Assert.NotNull(audit);
         Assert.Contains(audit.Events, item => item.Action == PermissionAuditActions.PolicyUpdated);
         Assert.Contains(audit.Events, item => item.Action == PermissionAuditActions.GrantCreated);
         Assert.Contains(audit.Events, item => item.Action == PermissionAuditActions.GrantUpdated);
         Assert.Contains(audit.Events, item => item.Action == PermissionAuditActions.GrantRevoked);
+        Assert.NotNull(workspaceAudit);
+        Assert.Single(workspaceAudit.Events);
+        Assert.Equal(PermissionAuditActions.GrantRevoked, workspaceAudit.Events[0].Action);
+        Assert.Equal(document.Id, workspaceAudit.Events[0].ResourceId);
+        Assert.Equal(ownerTokens.User.Id, workspaceAudit.Events[0].ActorId);
+        Assert.Equal(ownerTokens.User.DisplayName, workspaceAudit.Events[0].ActorName);
+        Assert.Equal(0, workspaceAudit.Offset);
+        Assert.Equal(1, workspaceAudit.Limit);
+        Assert.True(workspaceAudit.TotalCount >= 1);
+        Assert.NotNull(secondPage);
+        Assert.Equal(1, secondPage.Offset);
+        Assert.Equal(1, secondPage.Limit);
+        Assert.True(secondPage.TotalCount >= 4);
+        Assert.Equal(HttpStatusCode.BadRequest, invalidFilter.StatusCode);
     }
 
     [Fact]
@@ -1514,6 +1991,18 @@ public sealed class KnowledgeApiTests
             DateTimeOffset.UtcNow.AddHours(2));
 
         Authorize(client, adminTokens);
+        var linkNotifications = await client.GetFromJsonAsync<PermissionNotificationsResponse>(
+            $"/api/v1/notifications?workspaceId={bootstrap.Workspace.Id}");
+        var firstLinkCreatedNotification = Assert.Single(
+            linkNotifications!.Notifications,
+            item => item.Type == PermissionNotificationTypes.ShareLinkCreated &&
+                item.Action?.SubjectId == firstLink.Link.Id);
+        Assert.NotNull(firstLinkCreatedNotification.Actor);
+        Assert.Equal(ownerTokens.User.DisplayName, firstLinkCreatedNotification.Actor.DisplayName);
+        Assert.NotNull(firstLinkCreatedNotification.Resource);
+        Assert.Equal(document.Title, firstLinkCreatedNotification.Resource.Title);
+        Assert.NotNull(firstLinkCreatedNotification.Action);
+        Assert.Equal("share_link", firstLinkCreatedNotification.Action.SubjectType);
         var mute = await client.PutAsJsonAsync(
             "/api/v1/notifications/preferences",
             new UpdatePermissionNotificationPreferenceRequest(
@@ -2924,16 +3413,41 @@ public sealed class KnowledgeApiTests
             factory,
             adminId,
             PermissionNotificationTypes.EmailInviteDeliveryFailed);
+        Authorize(client, adminTokens);
+        var apiNotifications = await client.GetFromJsonAsync<PermissionNotificationsResponse>(
+            $"/api/v1/notifications?workspaceId={bootstrap.Workspace.Id}");
+        var failedNotification = Assert.Single(
+            apiNotifications!.Notifications,
+            item => item.Type == PermissionNotificationTypes.EmailInviteDeliveryFailed);
         var notificationRaw = JsonSerializer.Serialize(failedNotifications, JsonOptions);
 
+        Authorize(client, ownerTokens);
         Assert.Equal(EmailInviteDeliveryStatuses.Failed, invite.Delivery.Status);
         Assert.NotNull(persisted);
         Assert.Single(failedNotifications);
+        Assert.NotNull(failedNotification.Actor);
+        Assert.Equal(ownerTokens.User.DisplayName, failedNotification.Actor.DisplayName);
+        Assert.NotNull(failedNotification.Action);
+        Assert.Equal("email_invite", failedNotification.Action.SubjectType);
+        Assert.Equal(invite.Invite.Id, failedNotification.Action.SubjectId);
         Assert.Equal(1, await CountNotificationsAsync(factory, adminId, PermissionNotificationTypes.EmailInviteCreated));
         Assert.Equal(1, await CountNotificationsAsync(factory, adminId, PermissionNotificationTypes.EmailInviteDeliveryFailed));
         Assert.DoesNotContain(invite.Token, notificationRaw, StringComparison.Ordinal);
         Assert.DoesNotContain(persisted.TokenHash, notificationRaw, StringComparison.Ordinal);
         Assert.DoesNotContain(invite.Url, notificationRaw, StringComparison.Ordinal);
+
+        var retry = await client.PostAsync($"/api/v1/permissions/email-invites/{invite.Invite.Id}/retry", null);
+        var retried = await retry.Content.ReadFromJsonAsync<CreateEmailInviteResponse>();
+        var originalAfterRetry = await ReadEmailInviteAsync(factory, Guid.Parse(invite.Invite.Id));
+
+        retry.EnsureSuccessStatusCode();
+        Assert.NotNull(retried);
+        Assert.NotEqual(invite.Invite.Id, retried.Invite.Id);
+        Assert.Equal(EmailInviteDeliveryStatuses.Failed, retried.Delivery.Status);
+        Assert.NotNull(originalAfterRetry);
+        Assert.Equal(EmailInviteStatuses.Revoked, originalAfterRetry.Status);
+        Assert.Equal(2, await CountNotificationsAsync(factory, adminId, PermissionNotificationTypes.EmailInviteCreated));
+        Assert.Equal(2, await CountNotificationsAsync(factory, adminId, PermissionNotificationTypes.EmailInviteDeliveryFailed));
     }
 
     [Fact]
@@ -4399,6 +4913,8 @@ public sealed class KnowledgeApiTests
         Authorize(client, viewerTokens);
         var notifications = await client.GetFromJsonAsync<PermissionNotificationsResponse>(
             $"/api/v1/notifications?workspaceId={bootstrap.Workspace.Id}");
+        var summary = await client.GetFromJsonAsync<AccessSharingSummaryResponse>(
+            $"/api/v1/notifications/summary?workspaceId={bootstrap.Workspace.Id}");
         var notification = Assert.Single(
             notifications!.Notifications,
             item => item.Type == PermissionNotificationTypes.GrantCreated);
@@ -4418,6 +4934,30 @@ public sealed class KnowledgeApiTests
         read.EnsureSuccessStatusCode();
         Assert.NotNull(readNotification);
         Assert.NotNull(readNotification.ReadAt);
+        Assert.NotNull(summary);
+        Assert.Equal(1, summary.TotalCount);
+        Assert.Equal(1, summary.UnreadCount);
+        Assert.Equal(0, summary.PendingReviewCount);
+        Assert.Equal(1, summary.GrantCount);
+        Assert.Equal(0, summary.SharingCount);
+        Assert.Equal(0, summary.ExpiryCount);
+        Assert.Equal(0, summary.FailedInviteCount);
+        Assert.Equal("grant", notification.Category);
+        Assert.Equal("informational", notification.State);
+        Assert.NotNull(notification.Actor);
+        Assert.Equal(ownerTokens.User.DisplayName, notification.Actor.DisplayName);
+        Assert.Equal(ownerTokens.User.Email, notification.Actor.Email);
+        Assert.NotNull(notification.Resource);
+        Assert.Equal(ResourceTypes.Document, notification.Resource.ResourceType);
+        Assert.Equal(document.Id, notification.Resource.ResourceId);
+        Assert.Equal(document.Title, notification.Resource.Title);
+        Assert.NotNull(notification.Action);
+        Assert.Equal("open_permissions", notification.Action.Kind);
+        Assert.Equal("Open", notification.Action.Label);
+        Assert.Equal(ResourceTypes.Document, notification.Action.ResourceType);
+        Assert.Equal(document.Id, notification.Action.ResourceId);
+        Assert.Equal("permission_grant", notification.Action.SubjectType);
+        Assert.Equal(notification.PermissionGrantId, notification.Action.SubjectId);
     }
 
     [Fact]
@@ -4493,6 +5033,7 @@ public sealed class KnowledgeApiTests
         Assert.Equal(bootstrap.Workspace.Id, preference.WorkspaceId);
         Assert.Null(preference.ResourceType);
         Assert.Null(preference.ResourceId);
+        Assert.Null(preference.Resource);
         Assert.False(preference.Watched);
         Assert.True(preference.Muted);
     }
@@ -4544,8 +5085,19 @@ public sealed class KnowledgeApiTests
         Assert.NotNull(preference);
         Assert.Equal(ResourceTypes.Document, preference.ResourceType);
         Assert.Equal(document.Id, preference.ResourceId);
+        Assert.NotNull(preference.Resource);
+        Assert.Equal(ResourceTypes.Document, preference.Resource.ResourceType);
+        Assert.Equal(document.Id, preference.Resource.ResourceId);
+        Assert.Equal(document.Title, preference.Resource.Title);
+        Assert.Contains(document.Title, preference.Resource.Path);
         Assert.True(preference.Watched);
         Assert.False(preference.Muted);
+
+        var preferences = await client.GetFromJsonAsync<PermissionNotificationPreferencesResponse>(
+            $"/api/v1/notifications/preferences?workspaceId={bootstrap.Workspace.Id}");
+        var listed = Assert.Single(preferences!.Preferences);
+        Assert.NotNull(listed.Resource);
+        Assert.Equal(document.Title, listed.Resource.Title);
     }
 
     [Fact]
@@ -4648,6 +5200,24 @@ public sealed class KnowledgeApiTests
         Assert.Contains("idx_policies_resource", migration, StringComparison.Ordinal);
         Assert.Contains("role IN ('owner', 'admin', 'editor', 'viewer')", workspaceMemberConfiguration, StringComparison.Ordinal);
         Assert.DoesNotContain("role IN ('owner', 'admin', 'editor', 'commenter', 'viewer')", workspaceMemberConfiguration, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task SearchStrategyMigration_DefinesPostgresFullTextAndTrigramIndexes()
+    {
+        var migrationPath = FindRepositoryFile(
+            "src",
+            "Northstar.Infrastructure",
+            "Persistence",
+            "Migrations",
+            "20260511090000_AddSearchFullTextAndTrigramStrategyV1.cs");
+        var migration = await System.IO.File.ReadAllTextAsync(migrationPath);
+
+        Assert.Contains("CREATE EXTENSION IF NOT EXISTS pg_trgm", migration, StringComparison.Ordinal);
+        Assert.Contains("search_vector tsvector", migration, StringComparison.Ordinal);
+        Assert.Contains("document_search_vector_idx", migration, StringComparison.Ordinal);
+        Assert.Contains("document_search_title_trgm_idx", migration, StringComparison.Ordinal);
+        Assert.Contains("document_search_text_trgm_idx", migration, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -5159,6 +5729,94 @@ public sealed class KnowledgeApiTests
     }
 
     [Fact]
+    public async Task UploadSession_S3CompatibleProviderReturnsPresignedPutTarget()
+    {
+        using var factory = new NorthstarApiFactory(new Dictionary<string, string?>
+        {
+            ["Files:StorageProvider"] = "S3",
+            ["Files:DefaultBucket"] = "northstar-test",
+            ["Files:S3:Endpoint"] = "https://storage.example.test",
+            ["Files:S3:AccessKey"] = "access-key",
+            ["Files:S3:SecretKey"] = "secret-key",
+            ["Files:S3:ForcePathStyle"] = "true",
+            ["Files:S3:PresignedUploadMinutes"] = "10"
+        });
+        var client = factory.CreateClient();
+        await LoginOwnerAsync(client);
+        var bootstrap = await client.GetFromJsonAsync<BootstrapResponse>("/api/v1/bootstrap");
+        var document = FindDocument(bootstrap!, "Our Principles");
+
+        var response = await client.PostAsJsonAsync(
+            "/api/v1/files/uploads/sessions",
+            CreateUploadSessionRequest(document.Id, Encoding.UTF8.GetBytes("s3 upload target")));
+        response.EnsureSuccessStatusCode();
+        var session = await response.Content.ReadFromJsonAsync<CreateUploadSessionResponse>();
+
+        Assert.NotNull(session);
+        Assert.Equal("single", session.UploadMode);
+        Assert.Equal("s3-compatible", session.UploadTarget.Type);
+        Assert.Equal("PUT", session.UploadTarget.Method);
+        Assert.StartsWith("https://storage.example.test/", session.UploadTarget.Url, StringComparison.Ordinal);
+        Assert.Contains("X-Amz-Signature", session.UploadTarget.Url, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("text/plain", session.UploadTarget.Headers["Content-Type"]);
+    }
+
+    [Fact]
+    public async Task S3CompatibleStorageAcceptance_UploadReadDeleteThroughApi()
+    {
+        var endpoint = Environment.GetEnvironmentVariable("NORTHSTAR_S3_ACCEPTANCE_ENDPOINT");
+        var accessKey = Environment.GetEnvironmentVariable("NORTHSTAR_S3_ACCEPTANCE_ACCESS_KEY");
+        var secretKey = Environment.GetEnvironmentVariable("NORTHSTAR_S3_ACCEPTANCE_SECRET_KEY");
+        var bucket = Environment.GetEnvironmentVariable("NORTHSTAR_S3_ACCEPTANCE_BUCKET");
+        if (string.IsNullOrWhiteSpace(endpoint) ||
+            string.IsNullOrWhiteSpace(accessKey) ||
+            string.IsNullOrWhiteSpace(secretKey) ||
+            string.IsNullOrWhiteSpace(bucket))
+        {
+            return;
+        }
+
+        await EnsureS3AcceptanceBucketAsync(endpoint, accessKey, secretKey, bucket);
+        using var factory = new NorthstarApiFactory(new Dictionary<string, string?>
+        {
+            ["Files:StorageProvider"] = "S3",
+            ["Files:DefaultBucket"] = bucket,
+            ["Files:S3:Endpoint"] = endpoint,
+            ["Files:S3:AccessKey"] = accessKey,
+            ["Files:S3:SecretKey"] = secretKey,
+            ["Files:S3:ForcePathStyle"] = "true",
+            ["Files:S3:UseHttp"] = endpoint.StartsWith("http://", StringComparison.OrdinalIgnoreCase).ToString(),
+            ["Files:S3:PresignedUploadMinutes"] = "10"
+        });
+        var client = factory.CreateClient();
+        await LoginOwnerAsync(client);
+        var bootstrap = await client.GetFromJsonAsync<BootstrapResponse>("/api/v1/bootstrap");
+        var document = FindDocument(bootstrap!, "Our Principles");
+        var bytes = Encoding.UTF8.GetBytes($"s3 acceptance {Guid.NewGuid():N}");
+        var session = await CreateUploadSessionAsync(client, document.Id, bytes);
+
+        Assert.Equal("s3-compatible", session.UploadTarget.Type);
+        await UploadContentAsync(client, session.SessionId, bytes);
+        await CompleteSessionAsync(client, session.SessionId);
+        var finalized = await FinalizeSessionAsync(client, session.SessionId, document.Id);
+        var content = await client.GetAsync($"/api/v1/files/{finalized.File.Id}/content");
+        content.EnsureSuccessStatusCode();
+
+        var deleteAttached = await client.DeleteAsync($"/api/v1/files/{finalized.File.Id}");
+        var removeAttachment = await client.DeleteAsync(
+            $"/api/v1/documents/{document.Id}/attachments/{finalized.Attachment!.Id}");
+        removeAttachment.EnsureSuccessStatusCode();
+        var deleteFile = await client.DeleteAsync($"/api/v1/files/{finalized.File.Id}");
+        deleteFile.EnsureSuccessStatusCode();
+        await RunFileOutboxProcessorAsync(factory);
+        var deletedContent = await client.GetAsync($"/api/v1/files/{finalized.File.Id}/content");
+
+        Assert.Equal(bytes, await content.Content.ReadAsByteArrayAsync());
+        Assert.Equal(HttpStatusCode.Conflict, deleteAttached.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, deletedContent.StatusCode);
+    }
+
+    [Fact]
     public async Task UploadSession_IsIdempotent_AndFinalizeCreatesFileOnce()
     {
         using var factory = new NorthstarApiFactory();
@@ -5288,6 +5946,7 @@ public sealed class KnowledgeApiTests
 
         Assert.Equal(HttpStatusCode.OK, metadata.StatusCode);
         Assert.Equal(HttpStatusCode.OK, content.StatusCode);
+        await AssertFileMetadataDoesNotExposeStorageInternalsAsync(metadata);
         Assert.Equal("private file content", await content.Content.ReadAsStringAsync());
         Assert.Equal(HttpStatusCode.Forbidden, outsider.StatusCode);
         Assert.Equal(HttpStatusCode.Conflict, deleteWithAttachment.StatusCode);
@@ -5296,6 +5955,41 @@ public sealed class KnowledgeApiTests
         Assert.Equal(HttpStatusCode.NotFound, metadataAfterDelete.StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, contentAfterDelete.StatusCode);
         Assert.Equal(1, deleteOutboxCount);
+    }
+
+    [Fact]
+    public async Task FileAccess_UsesAttachedDocumentPermissionsWhenFileIsAttached()
+    {
+        using var factory = new NorthstarApiFactory();
+        var client = factory.CreateClient();
+        var ownerTokens = await LoginOwnerAsync(client);
+        var bootstrap = await client.GetFromJsonAsync<BootstrapResponse>("/api/v1/bootstrap");
+        var document = FindDocument(bootstrap!, "Our Principles");
+        var finalized = await UploadCompleteAndFinalizeAsync(
+            client,
+            document.Id,
+            Encoding.UTF8.GetBytes("restricted attachment content"),
+            attachOnFinalize: true);
+        var viewerTokens = await RegisterAndAddMemberAsync(client, ownerTokens, bootstrap!.Workspace.Id, "viewer");
+
+        await SetDocumentPolicyAsync(client, document.Id, InheritanceModes.Restricted);
+
+        Authorize(client, viewerTokens);
+        var restrictedMetadata = await client.GetAsync($"/api/v1/files/{finalized.File.Id}");
+        var restrictedContent = await client.GetAsync($"/api/v1/files/{finalized.File.Id}/content");
+
+        Authorize(client, ownerTokens);
+        await CreateDocumentGrantAsync(client, document.Id, viewerTokens.User.Id, PermissionRole.Viewer);
+
+        Authorize(client, viewerTokens);
+        var grantedMetadata = await client.GetAsync($"/api/v1/files/{finalized.File.Id}");
+        var grantedContent = await client.GetAsync($"/api/v1/files/{finalized.File.Id}/content");
+
+        Assert.Equal(HttpStatusCode.Forbidden, restrictedMetadata.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, restrictedContent.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, grantedMetadata.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, grantedContent.StatusCode);
+        Assert.Equal("restricted attachment content", await grantedContent.Content.ReadAsStringAsync());
     }
 
     [Fact]
@@ -5330,6 +6024,7 @@ public sealed class KnowledgeApiTests
         Assert.Equal(HttpStatusCode.OK, attach.StatusCode);
         Assert.NotNull(list);
         Assert.Contains(list.Attachments, item => item.FileId == finalized.File.Id);
+        await AssertFileMetadataDoesNotExposeStorageInternalsAsync(attach);
         Assert.Equal(HttpStatusCode.Forbidden, viewerAttach.StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, viewerDelete.StatusCode);
     }
@@ -5434,6 +6129,94 @@ public sealed class KnowledgeApiTests
 
         Assert.Equal(HttpStatusCode.BadRequest, missing.StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, crossWorkspace.StatusCode);
+    }
+
+    [Fact]
+    public async Task FileOutboxProcessor_PublishesFinalizeAttachmentAndDeleteEvents()
+    {
+        var storage = new RecordingObjectStorage();
+        using var factory = new NorthstarApiFactory(configureServices: services =>
+        {
+            services.RemoveAll<IObjectStorage>();
+            services.AddSingleton<IObjectStorage>(storage);
+        });
+        var client = factory.CreateClient();
+        await LoginOwnerAsync(client);
+        var bootstrap = await client.GetFromJsonAsync<BootstrapResponse>("/api/v1/bootstrap");
+        var document = FindDocument(bootstrap!, "Our Principles");
+        var finalized = await UploadCompleteAndFinalizeAsync(
+            client,
+            document.Id,
+            Encoding.UTF8.GetBytes("outbox processor content"),
+            attachOnFinalize: true);
+
+        await RunFileOutboxProcessorAsync(factory);
+        var finalizedEvent = await ReadFileOutboxEventAsync(
+            factory,
+            Guid.Parse(finalized.File.Id),
+            FileOutboxEventTypes.FileFinalized);
+        var attachmentEvent = await ReadFileOutboxEventAsync(
+            factory,
+            Guid.Parse(finalized.Attachment!.Id),
+            FileOutboxEventTypes.DocumentAttachmentCreated);
+
+        var deleteAttachment = await client.DeleteAsync(
+            $"/api/v1/documents/{document.Id}/attachments/{finalized.Attachment.Id}");
+        deleteAttachment.EnsureSuccessStatusCode();
+        var deleteFile = await client.DeleteAsync($"/api/v1/files/{finalized.File.Id}");
+        deleteFile.EnsureSuccessStatusCode();
+        await RunFileOutboxProcessorAsync(factory);
+        var deletedEvent = await ReadFileOutboxEventAsync(
+            factory,
+            Guid.Parse(finalized.File.Id),
+            FileOutboxEventTypes.FileDeleted);
+
+        Assert.NotNull(finalizedEvent);
+        Assert.NotNull(attachmentEvent);
+        Assert.NotNull(deletedEvent);
+        Assert.Equal(FileOutboxEventStatus.Published, finalizedEvent.Status);
+        Assert.Equal(FileOutboxEventStatus.Published, attachmentEvent.Status);
+        Assert.Equal(FileOutboxEventStatus.Published, deletedEvent.Status);
+        Assert.Contains(Guid.Parse(finalized.File.Id), storage.DeletedFileIds);
+    }
+
+    [Fact]
+    public async Task FileOutboxProcessor_RetriesThenFailsDeleteObjectErrors()
+    {
+        var storage = new RecordingObjectStorage { FailDeletes = true };
+        using var factory = new NorthstarApiFactory(configureServices: services =>
+        {
+            services.RemoveAll<IObjectStorage>();
+            services.AddSingleton<IObjectStorage>(storage);
+        });
+        var client = factory.CreateClient();
+        await LoginOwnerAsync(client);
+        var bootstrap = await client.GetFromJsonAsync<BootstrapResponse>("/api/v1/bootstrap");
+        var document = FindDocument(bootstrap!, "Our Principles");
+        var finalized = await UploadCompleteAndFinalizeAsync(
+            client,
+            document.Id,
+            Encoding.UTF8.GetBytes("outbox retry content"),
+            attachOnFinalize: false);
+        var deleteFile = await client.DeleteAsync($"/api/v1/files/{finalized.File.Id}");
+        deleteFile.EnsureSuccessStatusCode();
+        var now = DateTimeOffset.UtcNow;
+
+        var first = await RunFileOutboxProcessorAsync(factory, now);
+        var second = await RunFileOutboxProcessorAsync(factory, now.AddMinutes(2));
+        var third = await RunFileOutboxProcessorAsync(factory, now.AddMinutes(4));
+        var deletedEvent = await ReadFileOutboxEventAsync(
+            factory,
+            Guid.Parse(finalized.File.Id),
+            FileOutboxEventTypes.FileDeleted);
+
+        Assert.Equal(1, first.Retrying);
+        Assert.Equal(1, second.Retrying);
+        Assert.Equal(1, third.Failed);
+        Assert.NotNull(deletedEvent);
+        Assert.Equal(FileOutboxEventStatus.Failed, deletedEvent.Status);
+        Assert.Equal(3, deletedEvent.RetryCount);
+        Assert.False(string.IsNullOrWhiteSpace(deletedEvent.LastError));
     }
 
     [Fact]
@@ -6047,6 +6830,57 @@ public sealed class KnowledgeApiTests
         return await dbContext.FileOutboxEvents.CountAsync(outbox =>
             outbox.AggregateId == aggregateId &&
             outbox.EventType == eventType);
+    }
+
+    private static async Task<FileOutboxProcessResult> RunFileOutboxProcessorAsync(
+        NorthstarApiFactory factory,
+        DateTimeOffset? now = null)
+    {
+        using var scope = factory.Services.CreateScope();
+        var processor = scope.ServiceProvider.GetRequiredService<IFileOutboxProcessor>();
+        return await processor.ProcessDueAsync(now, batchSize: 50);
+    }
+
+    private static async Task<FileOutboxEvent?> ReadFileOutboxEventAsync(
+        NorthstarApiFactory factory,
+        Guid aggregateId,
+        string eventType)
+    {
+        using var scope = factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<NorthstarDbContext>();
+        return await dbContext.FileOutboxEvents
+            .AsNoTracking()
+            .SingleOrDefaultAsync(outbox =>
+                outbox.AggregateId == aggregateId &&
+                outbox.EventType == eventType);
+    }
+
+    private static async Task EnsureS3AcceptanceBucketAsync(
+        string endpoint,
+        string accessKey,
+        string secretKey,
+        string bucket)
+    {
+        var config = new AmazonS3Config
+        {
+            ServiceURL = endpoint,
+            ForcePathStyle = true,
+            UseHttp = endpoint.StartsWith("http://", StringComparison.OrdinalIgnoreCase),
+            RegionEndpoint = RegionEndpoint.USEast1
+        };
+        using var client = new AmazonS3Client(
+            new BasicAWSCredentials(accessKey, secretKey),
+            config);
+        var buckets = await client.ListBucketsAsync();
+        if (buckets.Buckets.Any(item => string.Equals(item.BucketName, bucket, StringComparison.Ordinal)))
+        {
+            return;
+        }
+
+        await client.PutBucketAsync(new PutBucketRequest
+        {
+            BucketName = bucket
+        });
     }
 
     private static async Task<Guid> CreateCrossWorkspaceFileAsync(NorthstarApiFactory factory)
@@ -6983,6 +7817,38 @@ public sealed class KnowledgeApiTests
         Assert.DoesNotContain("content", json, StringComparison.Ordinal);
     }
 
+    private static async Task AssertFileMetadataDoesNotExposeStorageInternalsAsync(HttpResponseMessage response)
+    {
+        var json = await response.Content.ReadAsStringAsync();
+        using var document = JsonDocument.Parse(json);
+        AssertJsonDoesNotContainProperty(document.RootElement, "storageProvider");
+        AssertJsonDoesNotContainProperty(document.RootElement, "bucket");
+        AssertJsonDoesNotContainProperty(document.RootElement, "objectKey");
+    }
+
+    private static void AssertJsonDoesNotContainProperty(JsonElement element, string propertyName)
+    {
+        switch (element.ValueKind)
+        {
+            case JsonValueKind.Object:
+                foreach (var property in element.EnumerateObject())
+                {
+                    Assert.NotEqual(propertyName, property.Name);
+                    AssertJsonDoesNotContainProperty(property.Value, propertyName);
+                }
+
+                break;
+
+            case JsonValueKind.Array:
+                foreach (var item in element.EnumerateArray())
+                {
+                    AssertJsonDoesNotContainProperty(item, propertyName);
+                }
+
+                break;
+        }
+    }
+
     private sealed record DocumentPersistenceState(
         long Revision,
         string DraftContent,
@@ -7046,6 +7912,84 @@ public sealed class KnowledgeApiTests
                     _provider,
                     DateTimeOffset.UtcNow,
                     "provider_error"));
+        }
+    }
+
+    private sealed class RecordingObjectStorage : IObjectStorage
+    {
+        private readonly Dictionary<string, byte[]> _objects = new(StringComparer.Ordinal);
+
+        public bool FailDeletes { get; init; }
+
+        public List<Guid> DeletedFileIds { get; } = [];
+
+        public UploadTargetDto CreateUploadTarget(UploadSession session)
+        {
+            return new UploadTargetDto(
+                "local-api",
+                "PUT",
+                $"/api/v1/files/uploads/sessions/{session.Id}/content",
+                new Dictionary<string, string>());
+        }
+
+        public async Task WriteUploadContentAsync(
+            UploadSession session,
+            Stream content,
+            long maxBytes,
+            CancellationToken cancellationToken = default)
+        {
+            using var memory = new MemoryStream();
+            var buffer = new byte[81920];
+            long total = 0;
+            int read;
+            while ((read = await content.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken)) > 0)
+            {
+                total += read;
+                if (total > maxBytes || total > session.ByteSize)
+                {
+                    throw new ApplicationErrorException(
+                        ErrorCodes.ValidationError,
+                        "Uploaded content exceeds the configured size limit.");
+                }
+
+                memory.Write(buffer, 0, read);
+            }
+
+            _objects[session.ObjectKey] = memory.ToArray();
+        }
+
+        public Task<StoredObjectInfo?> GetObjectInfoAsync(
+            UploadSession session,
+            CancellationToken cancellationToken = default)
+        {
+            if (!_objects.TryGetValue(session.ObjectKey, out var bytes))
+            {
+                return Task.FromResult<StoredObjectInfo?>(null);
+            }
+
+            return Task.FromResult<StoredObjectInfo?>(new StoredObjectInfo(bytes.LongLength, Sha256(bytes)));
+        }
+
+        public Task<Stream> OpenReadAsync(StoredFile file, CancellationToken cancellationToken = default)
+        {
+            if (!_objects.TryGetValue(file.ObjectKey, out var bytes))
+            {
+                throw new ApplicationErrorException(ErrorCodes.NotFound, "File content was not found.");
+            }
+
+            return Task.FromResult<Stream>(new MemoryStream(bytes, writable: false));
+        }
+
+        public Task DeleteObjectAsync(StoredFile file, CancellationToken cancellationToken = default)
+        {
+            if (FailDeletes)
+            {
+                throw new InvalidOperationException("delete_failed");
+            }
+
+            _objects.Remove(file.ObjectKey);
+            DeletedFileIds.Add(file.Id);
+            return Task.CompletedTask;
         }
     }
 

@@ -3,9 +3,11 @@ import type {
   BacklinkItemDto,
   DocumentActivityResponse,
   DocumentContextResponse,
+  DocumentVersionSummaryDto,
   RelatedDocumentDto,
   VersionTrailItemDto,
 } from "./appApi";
+import { isUuid } from "./apiClient";
 import { createEditorHash } from "./hashRouting";
 
 export type EditorContextLoadStatus = "demo" | "error" | "idle" | "loading" | "ready";
@@ -19,10 +21,13 @@ export type EditorRelatedDocumentRow = {
 
 export type EditorVersionTrailRow = {
   id: string;
-  author: string;
+  author?: string;
   date: string;
   status: string;
   version: string;
+  versionId?: string;
+  versionType?: string;
+  wordCount?: number;
 };
 
 export type EditorBacklinkRow = {
@@ -57,8 +62,8 @@ export function createEditorDocumentContextPanelModel(
 ): EditorDocumentContextPanelModel {
   return {
     activity: aggregateEditorActivityRows(activity?.items.map(toActivityRow) ?? []),
-    backlinks: context?.backlinks.map(toBacklinkRow) ?? [],
-    relatedDocuments: context?.relatedDocuments.map(toRelatedDocumentRow) ?? [],
+    backlinks: context?.backlinks.filter(isValidContextResource).map(toBacklinkRow) ?? [],
+    relatedDocuments: context?.relatedDocuments.filter(isValidContextResource).map(toRelatedDocumentRow) ?? [],
     versionTrail: context?.versionTrail.map(toVersionTrailRow) ?? [],
   };
 }
@@ -76,6 +81,21 @@ export function formatDocumentStatus(value?: string | null) {
     .filter(Boolean)
     .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1).toLowerCase()}`)
     .join(" ");
+}
+
+export function createEditorVersionTrailRowsFromVersions(
+  versions: DocumentVersionSummaryDto[] | null | undefined,
+): EditorVersionTrailRow[] {
+  return (versions ?? []).map((version) => ({
+    id: version.id,
+    author: formatVersionAuthor(version.createdBy),
+    date: formatPanelDate(version.publishedAt ?? version.createdAt),
+    status: formatDocumentStatus(version.versionType),
+    version: version.label,
+    versionId: version.id,
+    versionType: version.versionType,
+    wordCount: version.wordCount,
+  }));
 }
 
 function toRelatedDocumentRow(document: RelatedDocumentDto): EditorRelatedDocumentRow {
@@ -97,6 +117,15 @@ function toVersionTrailRow(item: VersionTrailItemDto): EditorVersionTrailRow {
   };
 }
 
+function formatVersionAuthor(value?: string | null) {
+  if (!value?.trim()) {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  return isUuid(trimmed) ? undefined : trimmed;
+}
+
 function toBacklinkRow(item: BacklinkItemDto): EditorBacklinkRow {
   return {
     id: item.id,
@@ -116,7 +145,7 @@ function toActivityRow(item: ActivityTimelineItemDto): EditorActivityRow {
     actorName,
     actionLabel,
     documentTitle,
-    href: createEditorHash(item.document?.id),
+    href: item.document?.id && isUuid(item.document.id) ? createEditorHash(item.document.id) : "#",
     id: item.id,
     date: formatPanelDate(item.date),
     detail: formatActivityDetail({
@@ -127,6 +156,10 @@ function toActivityRow(item: ActivityTimelineItemDto): EditorActivityRow {
     }),
     title: documentTitle,
   };
+}
+
+function isValidContextResource(item: { id: string }) {
+  return isUuid(item.id);
 }
 
 function aggregateEditorActivityRows(rows: EditorActivityRow[]): EditorActivityRow[] {

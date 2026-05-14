@@ -71,6 +71,12 @@ export type LibraryStatRow = {
   value: string;
 };
 
+export type LibraryDocumentEmptyReason =
+  | "filter-results-empty"
+  | "folder-documents-empty"
+  | "library-documents-empty"
+  | "library-folders-empty";
+
 export type LibrariesPageModel = {
   activeCollectionId: string | null;
   activeCollectionTitle: string | null;
@@ -136,6 +142,7 @@ export function createLibrariesPageModel(
     .sort((left, right) => compareDocuments(left, right, sortKey, collectionTitlesById))
     .map((document) => toLibraryDocumentRow(document, collectionTitlesById, collectionOptions));
   const canCreateDocument = Boolean(activeCollectionId);
+  const hasCollections = map.folders.length > 0;
 
   return {
     activeCollectionId,
@@ -152,9 +159,9 @@ export function createLibrariesPageModel(
     collectionOptions,
     collections: sortedCollections
       .map((collection) => toLibraryCollectionRow(collection, activeLibraryId, activeCollectionId)),
-    createDocumentDisabledReason: canCreateDocument ? null : "Select a folder before creating a document.",
+    createDocumentDisabledReason: getCreateDocumentDisabledReason(hasCollections, canCreateDocument),
     documents,
-    hasCollections: map.folders.length > 0,
+    hasCollections,
     hasLibraries: bootstrap.spaces.length > 0,
     libraries: bootstrap.spaces.map((library) => toLibraryNavRow(library, activeLibraryId)),
     query,
@@ -224,6 +231,142 @@ export function getCollectionIdAfterDelete(
   }
 
   return collections[deletedIndex + 1]?.id ?? collections[deletedIndex - 1]?.id ?? null;
+}
+
+export function getLibrariesCanonicalHash(
+  model: LibrariesPageModel,
+  filters: Pick<LibrariesPageFilters, "collectionId" | "libraryId">,
+) {
+  if (filters.libraryId && filters.libraryId !== model.activeLibraryId) {
+    return createLibrariesHash({ libraryId: model.activeLibraryId });
+  }
+
+  if (filters.collectionId && filters.collectionId !== model.activeCollectionId) {
+    return createLibrariesHash({ libraryId: model.activeLibraryId });
+  }
+
+  return null;
+}
+
+export function getDocumentMoveDestinationHash(
+  model: LibrariesPageModel,
+  document: Pick<LibraryDocumentRow, "collectionId" | "moveOptions">,
+  targetCollectionId: string,
+) {
+  if (!model.activeLibraryId || !model.activeCollectionId) {
+    return null;
+  }
+
+  if (targetCollectionId === document.collectionId) {
+    return null;
+  }
+
+  if (!document.moveOptions.some((option) => option.id === targetCollectionId && !option.isCurrent)) {
+    return null;
+  }
+
+  if (model.activeCollectionId !== document.collectionId) {
+    return null;
+  }
+
+  return createLibrariesHash({
+    collectionId: targetCollectionId,
+    libraryId: model.activeLibraryId,
+  });
+}
+
+export function getLibraryDocumentEmptyReason(model: LibrariesPageModel): LibraryDocumentEmptyReason | null {
+  if (!model.hasCollections) {
+    return "library-folders-empty";
+  }
+
+  if (model.totalDocumentCount === 0) {
+    return "library-documents-empty";
+  }
+
+  if (model.documents.length > 0) {
+    return null;
+  }
+
+  if (model.activeCollectionId && !model.query && !model.statusFilter && !model.tagFilter) {
+    return "folder-documents-empty";
+  }
+
+  return "filter-results-empty";
+}
+
+export function getCreateCollectionDisabledReason(model: LibrariesPageModel | null) {
+  if (!model) {
+    return "Load a library before creating a folder.";
+  }
+
+  if (!model.activeLibraryId) {
+    return "Select a library before creating a folder.";
+  }
+
+  return null;
+}
+
+export function getRenameCollectionDisabledReason(model: LibrariesPageModel | null) {
+  if (!model) {
+    return "Load a library before renaming a folder.";
+  }
+
+  if (!model.activeCollectionId) {
+    return "Select a folder before renaming it.";
+  }
+
+  return null;
+}
+
+export function getDeleteCollectionDisabledReason(model: LibrariesPageModel | null) {
+  if (!model) {
+    return "Load a library before deleting a folder.";
+  }
+
+  if (!model.activeCollectionId) {
+    return "Select a folder before deleting it.";
+  }
+
+  if (!model.canDeleteActiveCollection) {
+    const documentCount = model.collections.find((collection) => collection.id === model.activeCollectionId)?.documentCount ?? 0;
+    return `${documentCount} documents are still in this folder. Move or delete them before deleting the folder.`;
+  }
+
+  return null;
+}
+
+export function getReorderCollectionDisabledReason(
+  model: LibrariesPageModel | null,
+  direction: "down" | "up",
+) {
+  if (!model) {
+    return "Load a library before reordering folders.";
+  }
+
+  if (!model.activeCollectionId) {
+    return "Select a folder before reordering it.";
+  }
+
+  if (direction === "up" && !model.canReorderActiveCollectionUp) {
+    return "This folder is already first.";
+  }
+
+  if (direction === "down" && !model.canReorderActiveCollectionDown) {
+    return "This folder is already last.";
+  }
+
+  return null;
+}
+
+function getCreateDocumentDisabledReason(hasCollections: boolean, canCreateDocument: boolean) {
+  if (canCreateDocument) {
+    return null;
+  }
+
+  return hasCollections
+    ? "Select a folder before creating a document."
+    : "Create a folder before creating a document.";
 }
 
 function getActiveLibrary(bootstrap: BootstrapResponse, requestedLibraryId: string | null) {

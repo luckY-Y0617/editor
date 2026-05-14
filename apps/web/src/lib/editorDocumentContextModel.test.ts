@@ -1,6 +1,7 @@
 import { describe, expect, test } from "../test/harness";
 import {
   createEditorDocumentContextPanelModel,
+  createEditorVersionTrailRowsFromVersions,
   formatDocumentStatus,
 } from "./editorDocumentContextModel";
 import type { DocumentActivityResponse, DocumentContextResponse } from "./appApi";
@@ -74,6 +75,51 @@ describe("editorDocumentContextModel", () => {
       detail: "Unknown user updated Mission.",
       documentTitle: "Mission",
       href: `#editor?documentId=${relatedDocumentId}`,
+    });
+  });
+
+  test("does not create editor routes for invalid knowledge graph resource ids", () => {
+    const model = createEditorDocumentContextPanelModel(
+      {
+        backlinks: [
+          {
+            code: "bad-link",
+            excerpt: "Invalid backlink id.",
+            id: "not-a-document-id",
+            title: "Broken backlink",
+          },
+        ],
+        relatedDocuments: [
+          {
+            code: "bad-related",
+            id: "not-a-document-id",
+            title: "Broken related document",
+          },
+        ],
+        versionTrail: [],
+      },
+      {
+        items: [
+          {
+            actor: null,
+            date: "2024-05-15T10:00:00.000Z",
+            detail: "Updated content.",
+            document: {
+              id: "not-a-document-id",
+              title: "Broken document",
+            },
+            id: "activity-invalid-target",
+            title: "document.updated",
+          },
+        ],
+      },
+    );
+
+    expect(model.relatedDocuments).toEqual([]);
+    expect(model.backlinks).toEqual([]);
+    expect(model.activity[0]).toMatchObject({
+      documentTitle: "Broken document",
+      href: "#",
     });
   });
 
@@ -164,6 +210,34 @@ describe("editorDocumentContextModel", () => {
     expect(formatDocumentStatus("in_review")).toBe("In Review");
     expect(formatDocumentStatus("published")).toBe("Published");
     expect(formatDocumentStatus(null)).toBe("Draft");
+  });
+
+  test("maps backend document versions into actionable version trail rows", () => {
+    expect(
+      createEditorVersionTrailRowsFromVersions([
+        {
+          createdAt: "2026-05-12T08:30:00.000Z",
+          createdBy: "12345678-1234-1234-1234-123456789abc",
+          documentId: relatedDocumentId,
+          id: "version-api-1",
+          label: "2.0",
+          publishedAt: "2026-05-12T08:35:00.000Z",
+          versionNo: 2,
+          versionType: "published",
+          wordCount: 42,
+        },
+      ]),
+    ).toEqual([
+      {
+        id: "version-api-1",
+        date: "May 12, 2026",
+        status: "Published",
+        version: "2.0",
+        versionId: "version-api-1",
+        versionType: "published",
+        wordCount: 42,
+      },
+    ]);
   });
 });
 

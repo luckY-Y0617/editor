@@ -221,6 +221,95 @@ public sealed class EmailInviteService : IEmailInviteService
         }, cancellationToken);
     }
 
+    public Task<CreateEmailInviteResponse> RetryInviteAsync(
+        Guid inviteId,
+        CancellationToken cancellationToken = default)
+    {
+        return _transactionRunner.ExecuteAsync(async ct =>
+        {
+            var existing = await _inviteRepository.GetForUpdateAsync(inviteId, ct)
+                ?? throw new ApplicationErrorException(ErrorCodes.NotFound, "Invite was not found.");
+            var target = new PermissionResourceTarget(existing.ResourceType, existing.ResourceId, existing.WorkspaceId);
+            var shareResult = await EnsureCanShareAsync(target, ct);
+            await _stepUpService.EnsureSatisfiedAsync(ct);
+            var actorId = await _scopedAccessService.GetRequiredUserIdAsync(ct);
+            var now = DateTimeOffset.UtcNow;
+            if (existing.Status != EmailInviteStatuses.Pending || existing.ExpiresAt <= now)
+            {
+                throw new ApplicationErrorException(ErrorCodes.Conflict, "Only active pending invites can be retried.");
+            }
+
+            if (existing.DeliveryStatus != EmailInviteDeliveryStatuses.Failed)
+            {
+                throw new ApplicationErrorException(ErrorCodes.Conflict, "Only failed email invites can be retried.");
+            }
+
+            var before = InviteSnapshot(existing);
+            existing.Revoke(actorId);
+            await _auditService.AddAsync(
+                CreateAuditEvent(
+                    target,
+                    actorId,
+                    PermissionAuditActions.EmailInviteRevoked,
+                    before,
+                    InviteSnapshot(existing),
+                    shareResult,
+                    existing),
+                ct);
+
+            var token = _tokenService.GenerateToken();
+            var replacement = new ResourceEmailInvite(
+                target.WorkspaceId,
+                target.ResourceType,
+                target.ResourceId,
+                existing.Email,
+                _tokenService.HashToken(token),
+                existing.RoleKey,
+                existing.ExpiresAt,
+                actorId);
+
+            await _inviteRepository.AddAsync(replacement, ct);
+            await EnsureExternalLinkPolicyAsync(target, replacement.RoleKey, actorId, shareResult, replacement.Id, ct);
+            var acceptUrl = BuildAcceptUrl(token);
+            var delivery = await QueueAndAttemptDeliveryAsync(replacement, acceptUrl, ct);
+            replacement.MarkDelivery(delivery.Status, delivery.Provider, delivery.AttemptedAt, delivery.ErrorCode);
+            await _auditService.AddAsync(
+                CreateAuditEvent(
+                    target,
+                    actorId,
+                    PermissionAuditActions.EmailInviteCreated,
+                    before: null,
+                    after: InviteSnapshot(replacement),
+                    shareResult,
+                    replacement),
+                ct);
+            await _notificationFanoutService.AddEmailInviteCreatedAsync(
+                target.WorkspaceId,
+                target.ResourceType,
+                target.ResourceId,
+                replacement.Id,
+                actorId,
+                ct);
+            if (replacement.DeliveryStatus == EmailInviteDeliveryStatuses.Failed)
+            {
+                await _notificationFanoutService.AddEmailInviteDeliveryFailedAsync(
+                    target.WorkspaceId,
+                    target.ResourceType,
+                    target.ResourceId,
+                    replacement.Id,
+                    actorId,
+                    ct);
+            }
+
+            await _unitOfWork.SaveChangesAsync(ct);
+            return new CreateEmailInviteResponse(
+                ToDto(replacement, DateTimeOffset.UtcNow),
+                token,
+                acceptUrl,
+                ToDeliveryDto(replacement));
+        }, cancellationToken);
+    }
+
     public async Task<ResolveEmailInviteResponse> ResolveInviteAsync(
         string token,
         CancellationToken cancellationToken = default)

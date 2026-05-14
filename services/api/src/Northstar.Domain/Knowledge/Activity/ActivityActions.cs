@@ -10,4 +10,7 @@ public static class ActivityActions
     public const string DocumentRestored = "document.restored";
     public const string DocumentDeleted = "document.deleted";
     public const string DocumentImported = "document.imported";
+    public const string DocumentVersionPublished = "document.version_published";
+    public const string DocumentVersionUnpublished = "document.version_unpublished";
+    public const string DocumentVersionRestored = "document.version_restored";
 }

@@ -560,6 +560,11 @@ public sealed class AccessRequestServiceTests
             return Task.CompletedTask;
         }
 
+        public Task EnsureCanAccessWorkspaceAsync(Guid workspaceId, string actionKey, CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+
         public Task EnsureCanEditWorkspaceAsync(Guid workspaceId, CancellationToken cancellationToken = default)
         {
             return Task.CompletedTask;
@@ -585,6 +590,21 @@ public sealed class AccessRequestServiceTests
         {
             return Task.FromResult(new PermissionAuditResponse([]));
         }
+
+        public Task<WorkspaceAuditLogResponse> GetWorkspaceAuditLogAsync(
+            Guid workspaceId,
+            string? action,
+            string? resourceType,
+            Guid? resourceId,
+            Guid? actorId,
+            DateTimeOffset? from,
+            DateTimeOffset? to,
+            int? offset,
+            int? limit,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(new WorkspaceAuditLogResponse([], offset ?? 0, limit ?? 50, 0, false));
+        }
     }
 
     private sealed class TestPermissionNotificationService : IPermissionNotificationService
@@ -606,6 +626,11 @@ public sealed class AccessRequestServiceTests
         public Task<PermissionNotificationsResponse> GetNotificationsAsync(Guid? workspaceId, bool unreadOnly, CancellationToken cancellationToken = default)
         {
             return Task.FromResult(new PermissionNotificationsResponse([], 0));
+        }
+
+        public Task<AccessSharingSummaryResponse> GetSummaryAsync(Guid? workspaceId, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(new AccessSharingSummaryResponse(0, 0, 0, 0, 0, 0, 0, 0));
         }
 
         public Task<PermissionNotificationDto> MarkReadAsync(Guid notificationId, CancellationToken cancellationToken = default)

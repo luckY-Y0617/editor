@@ -1,4 +1,4 @@
-import { MoreHorizontal } from "lucide-react";
+import { History, PanelRightClose, PanelRightOpen } from "lucide-react";
 import { AtlasIcon } from "./AtlasIcon";
 import { DocumentMeta } from "./DocumentMeta";
 import { DocumentTitleEditor } from "./DocumentTitleEditor";
@@ -29,6 +29,7 @@ type EditorCanvasProps = {
   folderTitle: string;
   isContentEmpty: boolean;
   isCommentComposerOpen?: boolean;
+  isSidePanelCollapsed?: boolean;
   libraryHref: string;
   libraryName: string;
   shareHref: string;
@@ -36,15 +37,19 @@ type EditorCanvasProps = {
   tags?: string[];
   textLength: number;
   saveStatusLabel: string;
-  settingsHref: string;
   updatedAtLabel: string;
   version?: string | null;
   outlineFocusRequest: OutlineFocusRequest | null;
   onCommentRuntimeStateChange?: (runtimeState: CommentRuntimeAnchorState) => void;
   onOpenCommentComposer?: (composer: PendingCommentComposer) => void;
   onOpenShare?: () => void;
+  onOpenVersions?: () => void;
+  onPublishVersion?: () => void;
   onSelectCommentThread?: (threadId: string) => void;
   onTitleChange: (title: string) => void;
+  onToggleSidePanel?: () => void;
+  onUnpublishVersion?: () => void;
+  versionOperation?: "compare" | "publish" | "restore" | "unpublish" | null;
   onContentChange: (change: TiptapContentChange) => void;
   onContentStatsChange: (stats: TiptapContentStats) => void;
 };
@@ -60,6 +65,7 @@ export function EditorCanvas({
   folderTitle,
   isContentEmpty,
   isCommentComposerOpen,
+  isSidePanelCollapsed = false,
   libraryHref,
   libraryName,
   onCommentRuntimeStateChange,
@@ -67,26 +73,33 @@ export function EditorCanvas({
   onContentStatsChange,
   onOpenCommentComposer,
   onOpenShare,
+  onOpenVersions,
+  onPublishVersion,
   onSelectCommentThread,
+  onToggleSidePanel,
+  onUnpublishVersion,
   onTitleChange,
   outlineFocusRequest,
   saveStatusLabel,
-  settingsHref,
   shareHref,
   tags,
   textLength,
   title,
   updatedAtLabel,
   version,
+  versionOperation = null,
 }: EditorCanvasProps) {
   const displayTitle = title.trim() || "Untitled Field Note";
   const readingMinutes = Math.max(1, Math.ceil(textLength / 850));
   const toolbarSlotId = `atlas-toolbar-${documentId.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
   const folderLabel = folderTitle.trim() || "Folder";
+  const isPublished = documentStatusLabel.toLowerCase() === "published";
+  const publishButtonLabel = versionOperation === "publish" ? "Publishing..." : "Publish version";
+  const unpublishButtonLabel = versionOperation === "unpublish" ? "Moving to draft..." : "Move to draft";
 
   return (
     <section className="atlas-canvas flex h-full w-full min-w-0 flex-1 flex-col">
-      <div className="atlas-breadcrumb-row flex h-[52px] shrink-0 items-center justify-between border-b border-[var(--ns-border)] bg-[rgba(251,248,241,0.76)] px-6">
+      <div className="atlas-breadcrumb-row flex min-h-[64px] shrink-0 items-center justify-between border-b border-[var(--ns-border)] bg-[rgba(251,248,241,0.76)] px-8">
         <nav className="flex min-w-0 items-center gap-2 text-sm text-[var(--ns-slate-700)]" aria-label="Breadcrumb">
           <a className="truncate hover:text-[var(--ns-blue-600)]" href={libraryHref}>
             {libraryName}
@@ -106,6 +119,36 @@ export function EditorCanvas({
           </span>
           <button
             className="atlas-row-button hidden sm:inline-flex"
+            disabled={!onPublishVersion || Boolean(versionOperation)}
+            onClick={onPublishVersion}
+            title="Publish the current draft as a version"
+            type="button"
+          >
+            {publishButtonLabel}
+          </button>
+          {isPublished ? (
+            <button
+              className="atlas-row-button hidden sm:inline-flex"
+              disabled={!onUnpublishVersion || Boolean(versionOperation)}
+              onClick={onUnpublishVersion}
+              title="Move this document back to draft while keeping version history"
+              type="button"
+            >
+              {unpublishButtonLabel}
+            </button>
+          ) : null}
+          <button
+            className="atlas-row-button hidden sm:inline-flex"
+            disabled={!onOpenVersions}
+            onClick={onOpenVersions}
+            title="Open version history"
+            type="button"
+          >
+            <History className="h-4 w-4" />
+            Versions
+          </button>
+          <button
+            className="atlas-row-button hidden sm:inline-flex"
             onClick={onOpenShare ?? (() => { window.location.hash = shareHref; })}
             title="Share document"
             type="button"
@@ -113,15 +156,22 @@ export function EditorCanvas({
             <AtlasIcon className="h-4 w-4" src={shareIcon} />
             Share
           </button>
-          <a className="atlas-icon-button" href={settingsHref} title="Library settings">
-            <MoreHorizontal className="h-4 w-4" />
-          </a>
+          <button
+            aria-label={isSidePanelCollapsed ? "Show document panel" : "Collapse document panel"}
+            className="atlas-icon-button"
+            disabled={!onToggleSidePanel}
+            onClick={onToggleSidePanel}
+            title={isSidePanelCollapsed ? "Show document panel" : "Collapse document panel"}
+            type="button"
+          >
+            {isSidePanelCollapsed ? <PanelRightOpen className="h-4 w-4" /> : <PanelRightClose className="h-4 w-4" />}
+          </button>
         </div>
       </div>
 
       <div
         aria-label="Editor toolbar"
-        className="atlas-toolbar-slot flex h-11 shrink-0 items-center border-b border-[var(--ns-border)] bg-[rgba(251,248,241,0.84)]"
+        className="atlas-toolbar-slot flex shrink-0 items-center"
         id={toolbarSlotId}
       />
 

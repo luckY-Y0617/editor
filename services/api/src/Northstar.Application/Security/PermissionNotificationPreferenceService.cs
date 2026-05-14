@@ -11,6 +11,7 @@ public sealed class PermissionNotificationPreferenceService : IPermissionNotific
     private readonly IWorkspaceAccessService _workspaceAccessService;
     private readonly IScopedResourceAccessService _scopedResourceAccessService;
     private readonly IResourceWorkspaceResolver _resourceWorkspaceResolver;
+    private readonly IPermissionResourceDisplayResolver _resourceDisplayResolver;
     private readonly IUnitOfWork _unitOfWork;
 
     public PermissionNotificationPreferenceService(
@@ -18,12 +19,14 @@ public sealed class PermissionNotificationPreferenceService : IPermissionNotific
         IWorkspaceAccessService workspaceAccessService,
         IScopedResourceAccessService scopedResourceAccessService,
         IResourceWorkspaceResolver resourceWorkspaceResolver,
+        IPermissionResourceDisplayResolver resourceDisplayResolver,
         IUnitOfWork unitOfWork)
     {
         _repository = repository;
         _workspaceAccessService = workspaceAccessService;
         _scopedResourceAccessService = scopedResourceAccessService;
         _resourceWorkspaceResolver = resourceWorkspaceResolver;
+        _resourceDisplayResolver = resourceDisplayResolver;
         _unitOfWork = unitOfWork;
     }
 
@@ -34,8 +37,12 @@ public sealed class PermissionNotificationPreferenceService : IPermissionNotific
         var userId = await _workspaceAccessService.GetRequiredUserIdAsync(cancellationToken);
         await _workspaceAccessService.EnsureCanViewWorkspaceAsync(workspaceId, cancellationToken);
         var preferences = await _repository.GetForUserWorkspaceAsync(userId, workspaceId, cancellationToken);
+        var summaries = await ResolveDisplaySummariesAsync(workspaceId, preferences, cancellationToken);
 
-        return new PermissionNotificationPreferencesResponse(preferences.Select(ToDto).ToArray());
+        return new PermissionNotificationPreferencesResponse(
+            preferences
+                .Select(preference => ToDto(preference, GetDisplaySummary(summaries, preference)))
+                .ToArray());
     }
 
     public async Task<PermissionNotificationPreferenceDto> UpdatePreferenceAsync(
@@ -78,7 +85,8 @@ public sealed class PermissionNotificationPreferenceService : IPermissionNotific
         }
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
-        return ToDto(preference);
+        var summaries = await ResolveDisplaySummariesAsync(workspaceId, new[] { preference }, cancellationToken);
+        return ToDto(preference, GetDisplaySummary(summaries, preference));
     }
 
     private async Task EnsureCanSetResourcePreferenceAsync(
@@ -154,7 +162,77 @@ public sealed class PermissionNotificationPreferenceService : IPermissionNotific
             : throw new ApplicationErrorException(ErrorCodes.ValidationError, $"{fieldName} must be a valid UUID.");
     }
 
-    private static PermissionNotificationPreferenceDto ToDto(PermissionNotificationPreference preference)
+    private async Task<IReadOnlyDictionary<PreferenceScope, PermissionResourceDisplaySummary>> ResolveDisplaySummariesAsync(
+        Guid workspaceId,
+        IReadOnlyCollection<PermissionNotificationPreference> preferences,
+        CancellationToken cancellationToken)
+    {
+        var references = new List<PermissionResourceReference>();
+        foreach (var preference in preferences)
+        {
+            if (preference.ResourceType is null || preference.ResourceId is null)
+            {
+                continue;
+            }
+
+            if (await CanViewResourceAsync(preference.ResourceType, preference.ResourceId.Value, cancellationToken))
+            {
+                references.Add(new PermissionResourceReference(preference.ResourceType, preference.ResourceId.Value));
+            }
+        }
+
+        if (references.Count == 0)
+        {
+            return new Dictionary<PreferenceScope, PermissionResourceDisplaySummary>();
+        }
+
+        var summaries = await _resourceDisplayResolver.GetDisplaySummariesAsync(workspaceId, references, cancellationToken);
+        return summaries.ToDictionary(
+            summary => new PreferenceScope(summary.ResourceType, summary.ResourceId),
+            summary => summary);
+    }
+
+    private async Task<bool> CanViewResourceAsync(
+        string resourceType,
+        Guid resourceId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (resourceType == ResourceTypes.Document)
+            {
+                await _scopedResourceAccessService.EnsureCanAccessDocumentAsync(
+                    resourceId,
+                    PermissionActions.DocumentView,
+                    cancellationToken);
+                return true;
+            }
+
+            await _scopedResourceAccessService.EnsureCanAccessCollectionAsync(
+                resourceId,
+                PermissionActions.CollectionView,
+                cancellationToken);
+            return true;
+        }
+        catch (ApplicationErrorException exception) when (
+            exception.Code is ErrorCodes.Forbidden or ErrorCodes.NotFound)
+        {
+            return false;
+        }
+    }
+
+    private static PermissionResourceDisplaySummary? GetDisplaySummary(
+        IReadOnlyDictionary<PreferenceScope, PermissionResourceDisplaySummary> summaries,
+        PermissionNotificationPreference preference)
+    {
+        return preference.ResourceType is null || preference.ResourceId is null
+            ? null
+            : summaries.GetValueOrDefault(new PreferenceScope(preference.ResourceType, preference.ResourceId.Value));
+    }
+
+    private static PermissionNotificationPreferenceDto ToDto(
+        PermissionNotificationPreference preference,
+        PermissionResourceDisplaySummary? resource)
     {
         return new PermissionNotificationPreferenceDto(
             preference.Id.ToString(),
@@ -165,7 +243,14 @@ public sealed class PermissionNotificationPreferenceService : IPermissionNotific
             preference.Watched,
             preference.Muted,
             preference.CreatedAt,
-            preference.UpdatedAt);
+            preference.UpdatedAt,
+            resource is null
+                ? null
+                : new PermissionNotificationPreferenceResourceDto(
+                    resource.ResourceType,
+                    resource.ResourceId.ToString(),
+                    resource.Title,
+                    resource.Path));
     }
 
     private sealed record PreferenceScope(string? ResourceType, Guid? ResourceId);

@@ -572,9 +572,6 @@ type FileDto = {
   id: string;
   workspaceId: string;
   uploadedBy?: string | null;
-  storageProvider: "Local" | string;
-  bucket: string;
-  objectKey: string;
   originalFilename: string;
   mimeType: string;
   byteSize: number;

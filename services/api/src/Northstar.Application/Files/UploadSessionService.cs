@@ -5,6 +5,7 @@ using Northstar.Application.Security;
 using Northstar.Contracts.Common;
 using Northstar.Contracts.Files;
 using Northstar.Domain.Files;
+using Northstar.Domain.Security;
 
 namespace Northstar.Application.Files;
 
@@ -13,6 +14,7 @@ public sealed class UploadSessionService : IUploadSessionService
     private readonly IFileRepository _fileRepository;
     private readonly IObjectStorage _objectStorage;
     private readonly IWorkspaceAccessService _accessService;
+    private readonly IScopedResourceAccessService _scopedAccessService;
     private readonly IResourceWorkspaceResolver _workspaceResolver;
     private readonly ITransactionRunner _transactionRunner;
     private readonly IUnitOfWork _unitOfWork;
@@ -22,6 +24,7 @@ public sealed class UploadSessionService : IUploadSessionService
         IFileRepository fileRepository,
         IObjectStorage objectStorage,
         IWorkspaceAccessService accessService,
+        IScopedResourceAccessService scopedAccessService,
         IResourceWorkspaceResolver workspaceResolver,
         ITransactionRunner transactionRunner,
         IUnitOfWork unitOfWork,
@@ -30,6 +33,7 @@ public sealed class UploadSessionService : IUploadSessionService
         _fileRepository = fileRepository;
         _objectStorage = objectStorage;
         _accessService = accessService;
+        _scopedAccessService = scopedAccessService;
         _workspaceResolver = workspaceResolver;
         _transactionRunner = transactionRunner;
         _unitOfWork = unitOfWork;
@@ -44,7 +48,7 @@ public sealed class UploadSessionService : IUploadSessionService
         {
             ValidateCreateRequest(request);
             var workspaceId = await ResolveWorkspaceForCreateAsync(request, ct);
-            await _accessService.EnsureCanEditWorkspaceAsync(workspaceId, ct);
+            await EnsureCanCreateUploadSessionAsync(request, workspaceId, ct);
             var actorId = await _accessService.GetRequiredUserIdAsync(ct);
 
             var idempotencyKey = request.IdempotencyKey.Trim();
@@ -221,7 +225,10 @@ public sealed class UploadSessionService : IUploadSessionService
         var actorId = await _accessService.GetRequiredUserIdAsync(cancellationToken);
         if (session.OwnerId != actorId)
         {
-            await _accessService.EnsureCanEditWorkspaceAsync(session.WorkspaceId, cancellationToken);
+            await _accessService.EnsureCanAccessWorkspaceAsync(
+                session.WorkspaceId,
+                PermissionActions.FileUpload,
+                cancellationToken);
         }
 
         return session;
@@ -269,7 +276,10 @@ public sealed class UploadSessionService : IUploadSessionService
             throw new ApplicationErrorException(ErrorCodes.NotFound, "Document was not found.");
         }
 
-        await _accessService.EnsureCanEditWorkspaceAsync(location.WorkspaceId, cancellationToken);
+        await _scopedAccessService.EnsureCanAccessDocumentAnyAsync(
+            documentId,
+            [PermissionActions.AttachmentCreate, PermissionActions.FileUpload, PermissionActions.DocumentEdit],
+            cancellationToken);
         if (location.WorkspaceId != file.WorkspaceId)
         {
             throw new ApplicationErrorException(ErrorCodes.ValidationError, "File and document must belong to the same workspace.");
@@ -292,6 +302,27 @@ public sealed class UploadSessionService : IUploadSessionService
         await _fileRepository.AddDocumentAttachmentAsync(attachment, cancellationToken);
         await _fileRepository.AddOutboxEventAsync(FileOutboxFactory.DocumentAttachmentCreated(attachment), cancellationToken);
         return attachment;
+    }
+
+    private async Task EnsureCanCreateUploadSessionAsync(
+        CreateUploadSessionRequest request,
+        Guid workspaceId,
+        CancellationToken cancellationToken)
+    {
+        if (!string.IsNullOrWhiteSpace(request.DocumentId))
+        {
+            var documentId = ParseGuid(request.DocumentId, "documentId");
+            await _scopedAccessService.EnsureCanAccessDocumentAnyAsync(
+                documentId,
+                [PermissionActions.FileUpload, PermissionActions.AttachmentCreate, PermissionActions.DocumentEdit],
+                cancellationToken);
+            return;
+        }
+
+        await _accessService.EnsureCanAccessWorkspaceAsync(
+            workspaceId,
+            PermissionActions.FileUpload,
+            cancellationToken);
     }
 
     private async Task<FinalizeUploadSessionResponse> ToFinalizedResponseAsync(

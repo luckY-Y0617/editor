@@ -17,6 +17,7 @@ import {
   Plug,
   Puzzle,
   Save,
+  ScrollText,
   Settings,
   ShieldCheck,
   UserCheck,
@@ -33,6 +34,7 @@ import {
   getOrganizationMembers,
   getOrganizationProfile,
   getSpaceMap,
+  getWorkspaceAuditLog,
   getWorkspaceNotificationPreferences,
   updateWorkspaceNotificationPreference,
   updateOrganizationProfile,
@@ -42,6 +44,8 @@ import {
   type OrganizationProfileResponse,
   type UpdateOrganizationProfileRequest,
   type PermissionNotificationPreferenceDto,
+  type WorkspaceAuditEventDto,
+  type WorkspaceAuditLogResponse,
 } from "../lib/appApi";
 import {
   createSettingsHash,
@@ -151,6 +155,7 @@ export function WorkspaceSettingsPage() {
     () => getWorkspaceSettingsDashboardActiveTab(filters),
     [filters.panel, filters.scope, filters.tab],
   );
+  const audit = useSettingsWorkspaceAudit(workspaceId ?? null, activeDashboardTab === "security");
   const general = bootstrap.data ? toWorkspaceGeneralSettings(bootstrap.data, filters.spaceId) : null;
   const spaceSummary = bootstrap.data ? toSpaceSettingsSummary(bootstrap.data, map.data, filters.spaceId) : null;
 
@@ -208,22 +213,18 @@ export function WorkspaceSettingsPage() {
             workspaceId={workspaceId ?? null}
           />
         ) : null}
-        {activeDashboardTab === "security" ? <SecuritySettingsTab security={security} /> : null}
-        {activeDashboardTab === "plan" ? <DeferredSettingsTab tab="plan" /> : null}
-        {activeDashboardTab === "developer" ? <DeferredSettingsTab tab="developer" /> : null}
+        {activeDashboardTab === "security" ? <SecuritySettingsTab audit={audit} security={security} /> : null}
       </div>
     </SettingsPageFrame>
   );
 }
 
 type WorkspaceSettingsDashboardTab =
-  | "developer"
   | "general"
   | "integrations"
   | "members"
   | "notifications"
   | "permissions"
-  | "plan"
   | "security";
 
 type WorkspaceSettingsDashboardTabRow = {
@@ -306,22 +307,24 @@ function WorkspacePermissionsSettingsTab({
           <SettingsMetric label="Library folders" value={libraryValue} />
           <SettingsMetric label={t(locale, "settings.security")} value={securityValue} />
         </div>
-        <p className="workspace-settings-note">Workspace Settings owns member and permission administration. Daily document sharing stays in the Editor Share drawer; document Advanced permissions stays document-scoped.</p>
+        <p className="workspace-settings-note">Workspace Settings owns workspace member, group, security, and integration administration. Daily document sharing stays in the Editor Share drawer; document Advanced permissions stays document-scoped.</p>
       </section>
       <section className="permission-admin-section">
         <SectionTitle title={t(locale, "settings.groups")} />
         <SettingsCard icon={<UsersRound className="h-4 w-4" />} status={groups.status === "ready" ? "live" : "unavailable"} title={t(locale, "settings.groups")}>
-          <p className="workspace-settings-note">Workspace groups are managed here as part of the Workspace permissions boundary.</p>
+          <p className="workspace-settings-note">Workspace groups are managed here as part of the workspace permission boundary. Organization members remain outside this workspace-scoped surface.</p>
           <WorkspaceGroupsSummary groups={groups.groups} status={groups.status} />
         </SettingsCard>
       </section>
       <section className="permission-admin-section">
         <SectionTitle title={t(locale, "settings.shareLinksPublicLinks")} />
         <SettingsCard icon={<LockKeyhole className="h-4 w-4" />} status="reused" title={t(locale, "settings.shareLinksPublicLinks")}>
-          <p className="workspace-settings-note">Public links are created only through dedicated share-link API. Daily document sharing remains in the Editor Share drawer.</p>
+          <p className="workspace-settings-note">Public links are created only through dedicated share-link API. This tab shows the boundary; daily document sharing remains in the Editor Share drawer.</p>
           <DefinitionList
             rows={[
-              ["Direct grants", "Managed from document Advanced permissions."],
+              ["Workspace members", "Managed in the Members tab."],
+              ["Workspace groups", "Managed in this Permissions tab."],
+              ["Direct document grants", "Managed from document Advanced permissions."],
               ["Access requests", "Reviewed from Updates access requests."],
               ["Workspace inheritance", "Shown here as the workspace permission boundary."],
             ]}
@@ -415,10 +418,6 @@ function WorkspaceSettingsChip({
 
 function getWorkspaceSettingsDashboardActiveTab(filters: ReturnType<typeof getSettingsFiltersFromHash>): WorkspaceSettingsDashboardTab {
   switch (filters.panel) {
-    case "deferred-developer":
-      return "developer";
-    case "deferred-plan":
-      return "plan";
     case "workspace-general":
       return "general";
     case "workspace-integrations":
@@ -438,8 +437,6 @@ function getWorkspaceSettingsDashboardActiveTab(filters: ReturnType<typeof getSe
   }
 
   switch (filters.tab) {
-    case "developer":
-      return "developer";
     case "integrations":
       return "integrations";
     case "members":
@@ -448,8 +445,6 @@ function getWorkspaceSettingsDashboardActiveTab(filters: ReturnType<typeof getSe
       return "notifications";
     case "permissions":
       return "permissions";
-    case "plan":
-      return "plan";
     case "security":
       return "security";
     case "general":
@@ -460,7 +455,7 @@ function getWorkspaceSettingsDashboardActiveTab(filters: ReturnType<typeof getSe
 
 function getWorkspaceSettingsDashboardIntro(locale: DisplayLocale) {
   return locale === "zh-CN"
-    ? "管理工作区成员、权限、安全与集成设置。"
+    ? "\u7ba1\u7406\u5de5\u4f5c\u533a\u6210\u5458\u3001\u6743\u9650\u3001\u5b89\u5168\u4e0e\u96c6\u6210\u8bbe\u7f6e\u3002"
     : "Manage workspace members, permissions, security, and integrations.";
 }
 
@@ -522,11 +517,11 @@ function getWorkspaceDashboardText(locale: DisplayLocale, key: string) {
 }
 
 function formatPeopleCount(locale: DisplayLocale, count: number) {
-  return locale === "zh-CN" ? `${count} 人` : `${count} people`;
+  return locale === "zh-CN" ? `${count} \u4eba` : `${count} people`;
 }
 
 function formatItemCount(locale: DisplayLocale, count: number) {
-  return locale === "zh-CN" ? `${count} 个` : `${count}`;
+  return locale === "zh-CN" ? `${count} \u4e2a` : `${count}`;
 }
 
 function getWorkspaceRoleBreakdown(members: WorkspaceMemberDto[]) {
@@ -678,7 +673,7 @@ function SettingsPageFrame({
   activeSidebarItem,
   children,
 }: {
-  activeSidebarItem: "home" | "libraries" | "search" | "settings" | "updates" | null;
+  activeSidebarItem: "home" | "libraries" | "settings" | "updates" | null;
   children: ReactNode;
 }) {
   const { locale } = useDisplayLanguage();
@@ -690,10 +685,9 @@ function SettingsPageFrame({
         <section className="permission-admin-feed workspace-settings-feed editor-scrollbar min-w-0 flex-1 overflow-y-auto">
           <div className="workspace-home-mobile-nav md:hidden" aria-label="Workspace navigation">
             <a href="#home">{t(locale, "nav.home")}</a>
-              <a href="#libraries">{t(locale, "nav.libraries")}</a>
-              <a href="#search">{t(locale, "nav.search")}</a>
-              <a href="#updates">{t(locale, "nav.updates")}</a>
-              <a aria-current={activeSidebarItem === "settings" ? "page" : undefined} href="#settings">{t(locale, "nav.settings")}</a>
+            <a href="#libraries">{t(locale, "nav.libraries")}</a>
+            <a href="#updates">{t(locale, "nav.updates")}</a>
+            <a aria-current={activeSidebarItem === "settings" ? "page" : undefined} href="#settings">{t(locale, "nav.settings")}</a>
           </div>
           <div className="permission-admin-feed-inner workspace-settings-inner">
             {children}
@@ -1037,10 +1031,21 @@ function LibraryPermissionsSettingsTab() {
   return (
     <section className="permission-admin-section">
       <SectionTitle title={t(locale, "settings.permissions")} />
-      <div className="workspace-settings-card-grid is-three">
-        <SettingsLinkCard href="#settings?scope=workspace&tab=members" icon={<UsersRound className="h-4 w-4" />} status="reused" title={t(locale, "settings.members")} />
-        <SettingsLinkCard href="#settings?scope=workspace&tab=permissions" icon={<ShieldCheck className="h-4 w-4" />} status="reused" title={t(locale, "settings.documentPermissions")} />
-        <SettingsLinkCard href="#updates?tab=access" icon={<Bell className="h-4 w-4" />} status="reused" title={t(locale, "settings.accessRequests")} />
+      <div className="workspace-settings-card-grid is-two">
+        <SettingsCard icon={<ShieldCheck className="h-4 w-4" />} status="reused" title={t(locale, "settings.roleBoundaries")}>
+          <p className="workspace-settings-note">{t(locale, "settings.libraryPermissionsBoundaryHelp")}</p>
+          <DefinitionList
+            rows={[
+              [t(locale, "settings.members"), t(locale, "settings.membersManagedInWorkspaceSettings")],
+              [t(locale, "settings.documentPermissions"), t(locale, "settings.documentPermissionsManagedFromDocument")],
+              [t(locale, "settings.accessRequests"), t(locale, "settings.accessRequestsManagedInUpdates")],
+            ]}
+          />
+          <div className="workspace-settings-card-actions">
+            <a href={createSettingsHash({ scope: "workspace", tab: "members" })}>{t(locale, "settings.openWorkspaceMembers")}</a>
+            <a href="#updates?tab=access">{t(locale, "settings.openWorkspaceNotifications")}</a>
+          </div>
+        </SettingsCard>
         <SettingsCard icon={<LockKeyhole className="h-4 w-4" />} status="deferred" title={t(locale, "settings.libraryHeading")}>
           <p className="workspace-settings-note">{t(locale, "settings.libraryLevelPermissions")}</p>
         </SettingsCard>
@@ -1489,40 +1494,6 @@ function OrganizationAssessmentTab({
   );
 }
 
-function AccessIdentitySettingsTab() {
-  const { locale } = useDisplayLanguage();
-  return (
-    <section className="permission-admin-section">
-      <SectionTitle title={t(locale, "settings.permissions")} />
-      <div className="workspace-settings-card-grid is-three">
-        <SettingsCard icon={<UsersRound className="h-4 w-4" />} status="reused" title={t(locale, "settings.members")}>
-          <p className="workspace-settings-note">{t(locale, "settings.membersSurfaceHelp")}</p>
-          <div className="workspace-settings-card-actions">
-            <a href="#settings?scope=workspace&tab=members">{t(locale, "settings.openMembersSurface")}</a>
-          </div>
-        </SettingsCard>
-        <SettingsCard icon={<ShieldCheck className="h-4 w-4" />} status="reused" title={t(locale, "settings.roleBoundaries")}>
-          <DefinitionList
-            rows={[
-              ["Viewer", t(locale, "settings.viewerManagementDisabled")],
-              ["Admin / Owner", t(locale, "settings.backendPermissionChecked")],
-              ["Last owner", t(locale, "settings.lastOwnerProtected")],
-            ]}
-          />
-        </SettingsCard>
-        <SettingsCard icon={<LockKeyhole className="h-4 w-4" />} status="reused" title={t(locale, "settings.shareLinksPublicLinks")}>
-          <p className="workspace-settings-note">{t(locale, "settings.resourceShareSurfaceHelp")}</p>
-          <div className="workspace-settings-card-actions">
-            <a href="#settings?scope=workspace&tab=permissions">{t(locale, "common.open")}</a>
-          </div>
-        </SettingsCard>
-        <SettingsLinkCard href="#updates?tab=access" icon={<Bell className="h-4 w-4" />} status="reused" title={t(locale, "settings.accessRequests")} />
-        <SettingsLinkCard href="#settings?scope=workspace&tab=permissions" icon={<Boxes className="h-4 w-4" />} status="reused" title={t(locale, "settings.groups")} />
-      </div>
-    </section>
-  );
-}
-
 function NotificationsSettingsTab({
   preferences,
   workspaceId,
@@ -1871,24 +1842,6 @@ function WorkspaceRoleInlineSelect({
   );
 }
 
-function PermissionsSettingsTab() {
-  const { locale } = useDisplayLanguage();
-  return (
-    <section className="permission-admin-section">
-      <SectionTitle title={t(locale, "settings.permissions")} />
-      <div className="workspace-settings-card-grid is-three">
-        <SettingsLinkCard href="#settings?scope=workspace&tab=members" icon={<UsersRound className="h-4 w-4" />} status="reused" title={t(locale, "settings.members")} />
-        <SettingsLinkCard href="#settings?scope=workspace&tab=permissions" icon={<Boxes className="h-4 w-4" />} status="reused" title={t(locale, "settings.groups")} />
-        <SettingsLinkCard href="#settings?scope=workspace&tab=permissions" icon={<ShieldCheck className="h-4 w-4" />} status="reused" title={t(locale, "settings.documentPermissions")} />
-        <SettingsLinkCard href="#updates?tab=access" icon={<Bell className="h-4 w-4" />} status="reused" title={t(locale, "settings.accessRequests")} />
-        <SettingsCard icon={<LockKeyhole className="h-4 w-4" />} status="reused" title={t(locale, "settings.shareLinksPublicLinks")}>
-          <p className="workspace-settings-note">{t(locale, "settings.resourceShareSurfaceHelp")}</p>
-        </SettingsCard>
-      </div>
-    </section>
-  );
-}
-
 function IntegrationsSettingsTab({
   discovery,
   scimTokens,
@@ -1905,11 +1858,20 @@ function IntegrationsSettingsTab({
         <SectionTitle title={t(locale, "settings.integrations")} />
         <SettingsCard icon={<Plug className="h-4 w-4" />} status={discovery.status === "ready" ? "live" : "unavailable"} title="SCIM endpoint">
           <p className="workspace-settings-note">Workspace-scoped SCIM is managed here. Organization-wide identity ownership remains separate unless a backend contract adds it.</p>
-          <div className="permission-admin-endpoint">
-            <Plug className="h-5 w-5" />
-            <code>{`/api/v1/workspaces/${workspaceId ?? "{workspaceId}"}/scim/v2`}</code>
-          </div>
-          <ScimDiscoverySummary discovery={discovery} />
+          {discovery.status !== "ready" ? (
+            <p className="workspace-settings-note">{getManagementStatusLabel(discovery.status, "SCIM discovery")}</p>
+          ) : null}
+          {discovery.status === "ready" && workspaceId ? (
+            <>
+              <div className="permission-admin-endpoint">
+                <Plug className="h-5 w-5" />
+                <code>{`/api/v1/workspaces/${workspaceId}/scim/v2`}</code>
+              </div>
+              <ScimDiscoverySummary discovery={discovery} />
+            </>
+          ) : (
+            <SettingsEmptyState label={getManagementStatusLabel(discovery.status, "SCIM discovery")} />
+          )}
         </SettingsCard>
       </section>
       <section className="permission-admin-section">
@@ -1920,6 +1882,7 @@ function IntegrationsSettingsTab({
       </section>
       <section className="permission-admin-section">
         <SettingsCard icon={<Database className="h-4 w-4" />} status="deferred" title="External providers">
+          <p className="workspace-settings-note">These providers are shown as unavailable until a workspace-scoped backend contract exists. No setup toggle is enabled from this placeholder.</p>
           <DefinitionList
             rows={[
               ["OIDC / SAML redirect", "Deferred"],
@@ -2015,6 +1978,10 @@ function ScimTokenManagerInline({ scimTokens }: { scimTokens: ReturnType<typeof 
     });
   };
 
+  if (scimTokens.status !== "ready") {
+    return <SettingsEmptyState label={getManagementStatusLabel(scimTokens.status, "SCIM tokens")} />;
+  }
+
   return (
     <>
       <div className="permission-admin-form">
@@ -2072,9 +2039,7 @@ function ScimTokenManagerInline({ scimTokens }: { scimTokens: ReturnType<typeof 
         <SettingsMutationStatus error={scimTokens.error} message={scimTokens.message} />
       </div>
 
-      {scimTokens.status !== "ready" ? (
-        <SettingsEmptyState label={getManagementStatusLabel(scimTokens.status, "SCIM tokens")} />
-      ) : scimTokens.tokens.length === 0 ? (
+      {scimTokens.tokens.length === 0 ? (
         <SettingsEmptyState label="No SCIM tokens returned by the API." />
       ) : (
         <div className="permission-admin-table">
@@ -2115,7 +2080,7 @@ function ScimTokenManagerInline({ scimTokens }: { scimTokens: ReturnType<typeof 
                         }
                       });
                     }}
-                    title={confirmRevoke ? "Confirm token revoke" : "Revoke token"}
+                    title={!canMutate ? getManagementStatusLabel(scimTokens.status, "SCIM tokens") : token.revokedAt ? "Token already revoked" : confirmRevoke ? "Confirm token revoke" : "Revoke token"}
                     type="button"
                   >
                     {confirmRevoke ? "Confirm" : <X className="h-4 w-4" />}
@@ -2131,31 +2096,90 @@ function ScimTokenManagerInline({ scimTokens }: { scimTokens: ReturnType<typeof 
 }
 
 function SecuritySettingsTab({
+  audit,
   security,
 }: {
+  audit: ReturnType<typeof useSettingsWorkspaceAudit>;
   security: ReturnType<typeof useSettingsSecurityState>;
 }) {
   const { locale } = useDisplayLanguage();
   const rows = useMemo(() => toSecuritySettingsRows(security.state, security.status), [security.state, security.status]);
 
   return (
-    <section className="permission-admin-section">
-      <SectionTitle title={t(locale, "settings.security")} />
-      <div className="workspace-settings-card-grid is-two">
-        <SettingsCard icon={<ShieldCheck className="h-4 w-4" />} status={security.status === "ready" ? "live" : "unavailable"} title="Auth State">
-          <DefinitionList rows={rows.map((row) => [row.label, row.value])} />
+    <>
+      <section className="permission-admin-section">
+        <SectionTitle title={t(locale, "settings.security")} />
+        <div className="workspace-settings-card-grid is-two">
+          <SettingsCard icon={<ShieldCheck className="h-4 w-4" />} status={security.status === "ready" ? "live" : "unavailable"} title="Auth State">
+            <p className="workspace-settings-note">This is a read-only summary of the current workspace security state. New MFA, recovery, or WebAuthn flows are not enabled from this page.</p>
+            <DefinitionList rows={rows.map((row) => [row.label, row.value])} />
+          </SettingsCard>
+          <SettingsCard icon={<LockKeyhole className="h-4 w-4" />} status="deferred" title={t(locale, "settings.flows")}>
+            <DefinitionList
+              rows={[
+                ["MFA enrollment", "Existing backend flow only; no new UI flow here"],
+                ["WebAuthn / SMS / recovery codes", "Deferred"],
+                ["Admin recovery/reset", "Deferred"],
+              ]}
+            />
+          </SettingsCard>
+        </div>
+      </section>
+
+      <section className="permission-admin-section">
+        <SectionTitle title="Workspace audit log" />
+        <SettingsCard icon={<ScrollText className="h-4 w-4" />} status={audit.status === "ready" ? "live" : "unavailable"} title="Security and access trail">
+          <p className="workspace-settings-note">
+            Workspace audit tracks administrative, access, sharing, group, invite, and SCIM events. It is separate from document Activity and the Updates notification inbox.
+          </p>
+          <WorkspaceAuditTable audit={audit} />
         </SettingsCard>
-        <SettingsCard icon={<LockKeyhole className="h-4 w-4" />} status="deferred" title={t(locale, "settings.flows")}>
-          <DefinitionList
-            rows={[
-              ["MFA enrollment", "Existing backend flow only; no new UI flow here"],
-              ["WebAuthn / SMS / recovery codes", "Deferred"],
-              ["Admin recovery/reset", "Deferred"],
-            ]}
-          />
-        </SettingsCard>
+      </section>
+    </>
+  );
+}
+
+function WorkspaceAuditTable({ audit }: { audit: ReturnType<typeof useSettingsWorkspaceAudit> }) {
+  if (audit.status !== "ready") {
+    return <SettingsEmptyState label={getManagementStatusLabel(audit.status, "workspace audit log")} />;
+  }
+
+  if (!audit.data || audit.data.events.length === 0) {
+    return <SettingsEmptyState label="No workspace audit events returned by the API." />;
+  }
+
+  return (
+    <>
+      <div className="permission-admin-table">
+        <div className="permission-admin-table-head is-audit">
+          <span>Action</span>
+          <span>Actor</span>
+          <span>Resource</span>
+          <span>When</span>
+        </div>
+        {audit.data.events.map((event) => (
+          <article className="permission-admin-table-row is-audit" key={event.id}>
+            <span className="permission-admin-identity">
+              <SettingsAvatar initials={getInitials(formatAuditActor(event))} tone="audit" />
+              <span className="min-w-0">
+                <strong title={event.action}>{formatSettingsValue(event.action)}</strong>
+                <small>{event.subjectType ? `${formatSettingsValue(event.subjectType)} ${shortId(event.subjectId ?? "")}` : "Workspace event"}</small>
+              </span>
+            </span>
+            <span className="permission-admin-cell-text" title={event.actorEmail ?? event.actorId ?? undefined}>
+              {formatAuditActor(event)}
+            </span>
+            <span className="permission-admin-cell-text" title={`${event.resourceType} ${event.resourceId}`}>
+              {formatAuditResource(event)}
+            </span>
+            <span className="permission-admin-cell-text">{formatDateTime(event.createdAt)}</span>
+          </article>
+        ))}
       </div>
-    </section>
+      <p className="workspace-settings-note">
+        Showing {audit.data.events.length} of {audit.data.totalCount} events{audit.data.hasMore ? "; use the API for additional pages." : "."}
+      </p>
+    </>
   );
 }
 
@@ -2861,6 +2885,50 @@ function useSettingsSecurityState() {
   return { state, status };
 }
 
+function useSettingsWorkspaceAudit(workspaceId: string | null, enabled: boolean) {
+  const apiBaseUrl = useMemo(() => getConfiguredApiBaseUrl(), []);
+  const [data, setData] = useState<WorkspaceAuditLogResponse | null>(null);
+  const [status, setStatus] = useState<SettingsDataStatus>(() => (apiBaseUrl && workspaceId ? "idle" : apiBaseUrl ? "idle" : "unconfigured"));
+
+  useEffect(() => {
+    if (!enabled) {
+      return;
+    }
+
+    if (!apiBaseUrl) {
+      setData(null);
+      setStatus("unconfigured");
+      return;
+    }
+
+    if (!workspaceId) {
+      setData(null);
+      setStatus("idle");
+      return;
+    }
+
+    const controller = new AbortController();
+    setStatus("loading");
+    void getWorkspaceAuditLog(workspaceId, { limit: 10 }, controller.signal)
+      .then((response) => {
+        setData(response);
+        setStatus("ready");
+      })
+      .catch((error: unknown) => {
+        if (controller.signal.aborted || (error instanceof DOMException && error.name === "AbortError")) {
+          return;
+        }
+
+        setData(null);
+        setStatus(error instanceof ApiClientError && (error.status === 401 || error.status === 403) ? "forbidden" : "error");
+      });
+
+    return () => controller.abort();
+  }, [apiBaseUrl, enabled, workspaceId]);
+
+  return { data, status };
+}
+
 function useSettingsOrganizationData(organizationId: string | null) {
   const apiBaseUrl = useMemo(() => getConfiguredApiBaseUrl(), []);
   const [profile, setProfile] = useState<OrganizationProfileResponse | null>(null);
@@ -3033,22 +3101,22 @@ function getSettingsPanelLabel(locale: DisplayLocale, panelId: string) {
 
 function getUnavailableLabel(status: SettingsDataStatus, noun: string, locale: DisplayLocale) {
   if (status === "loading") {
-    return locale === "zh-CN" ? `正在加载${noun}。` : `Loading ${noun.toLowerCase()}.`;
+    return locale === "zh-CN" ? `\u6b63\u5728\u52a0\u8f7d${noun}\u3002` : `Loading ${noun.toLowerCase()}.`;
   }
 
   if (status === "forbidden") {
-    return locale === "zh-CN" ? `当前会话不可用：${noun}。` : `${noun} are not available for this session.`;
+    return locale === "zh-CN" ? `\u5f53\u524d\u4f1a\u8bdd\u4e0d\u53ef\u8bbf\u95ee\uff1a${noun}\u3002` : `${noun} are not available for this session.`;
   }
 
   if (status === "error") {
-    return locale === "zh-CN" ? `${noun} 无法从已配置 API 加载。` : `${noun} could not be loaded from the configured API.`;
+    return locale === "zh-CN" ? `${noun} \u65e0\u6cd5\u4ece\u5df2\u914d\u7f6e API \u52a0\u8f7d\u3002` : `${noun} could not be loaded from the configured API.`;
   }
 
   if (status === "idle") {
-    return locale === "zh-CN" ? `${noun} 正在等待工作区数据。` : `${noun} are waiting for workspace data.`;
+    return locale === "zh-CN" ? `${noun} \u6b63\u5728\u7b49\u5f85\u5de5\u4f5c\u533a\u6570\u636e\u3002` : `${noun} are waiting for workspace data.`;
   }
 
-  return locale === "zh-CN" ? `配置 API 后加载${noun}。` : `Configure the API to load ${noun.toLowerCase()}.`;
+  return locale === "zh-CN" ? `\u914d\u7f6e API \u540e\u52a0\u8f7d${noun}\u3002` : `Configure the API to load ${noun.toLowerCase()}.`;
 }
 
 function notificationStatusLabel(status: NotificationApiStatus) {
@@ -3156,6 +3224,22 @@ function getManagementStatusLabel(status: SettingsDataStatus, noun: string) {
 
 function shortId(value: string) {
   return value.length <= 12 ? value : `${value.slice(0, 8)}...${value.slice(-4)}`;
+}
+
+function formatAuditActor(event: WorkspaceAuditEventDto) {
+  if (event.actorName?.trim()) {
+    return event.actorName.trim();
+  }
+
+  if (event.actorEmail?.trim()) {
+    return event.actorEmail.trim();
+  }
+
+  return event.actorId ? `User ${shortId(event.actorId)}` : "System";
+}
+
+function formatAuditResource(event: WorkspaceAuditEventDto) {
+  return `${formatSettingsValue(event.resourceType)} ${shortId(event.resourceId)}`;
 }
 
 function getInitials(value: string) {

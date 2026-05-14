@@ -1,12 +1,32 @@
 import { describe, expect, test } from "../test/harness";
 import {
+  ApiClientError,
   apiFetch,
+  formatApiOperationError,
   getStoredAccessToken,
   getStoredRefreshToken,
   setStoredAuthTokens,
 } from "./apiClient";
 
 describe("apiClient", () => {
+  test("formats API operation errors without leaking endpoint URLs", () => {
+    expect(formatApiOperationError(new ApiClientError(0, "API base URL is not configured."), "Fallback")).toBe(
+      "API is not configured for this environment.",
+    );
+    expect(formatApiOperationError(new ApiClientError(0, "Could not reach API endpoint https://northstar.test/api/v1/documents. Failed to fetch"), "Fallback")).toBe(
+      "Could not reach the configured API. Check the backend session and retry.",
+    );
+    expect(formatApiOperationError(new ApiClientError(401, "Access expired"), "Fallback")).toBe(
+      "Sign in again and retry this action.",
+    );
+    expect(formatApiOperationError(new ApiClientError(403, "Forbidden"), "Fallback")).toBe(
+      "You do not have permission to perform this action.",
+    );
+    expect(formatApiOperationError(new ApiClientError(409, "Revision conflict."), "Fallback")).toBe(
+      "Revision conflict.",
+    );
+  });
+
   test("refreshes the access token and retries a 401 request once", async () => {
     await withMockWindow(async () => {
       const calls: Array<{ authorization: string | null; method: string; url: string }> = [];
@@ -165,6 +185,50 @@ describe("apiClient", () => {
       expect(errorMessage).toBe(
         "Could not reach API endpoint https://northstar.test/api/v1/auth/login. Failed to fetch",
       );
+    });
+  });
+
+  test("binds injected browser fetch context", async () => {
+    await withMockWindow(async () => {
+      const fetchFn = function fetchWithRequiredContext(this: unknown) {
+        if (this !== globalThis) {
+          throw new TypeError("Illegal invocation");
+        }
+
+        return Promise.resolve(jsonResponse({ ok: true }));
+      } as typeof fetch;
+
+      const result = await apiFetch<{ ok: boolean }>("/documents/doc-1", {
+        apiBaseUrl: "https://northstar.test/api/v1",
+        fetchFn,
+      });
+
+      expect(result.ok).toBe(true);
+    });
+  });
+
+  test("sends Blob bodies without JSON serialization", async () => {
+    await withMockWindow(async () => {
+      const blob = new Blob(["image-bytes"], { type: "image/png" });
+      let sentBody: BodyInit | null | undefined;
+      let sentContentType = "";
+
+      const fetchFn: typeof fetch = async (_input, init) => {
+        sentBody = init?.body;
+        sentContentType = new Headers(init?.headers).get("Content-Type") ?? "";
+        return jsonResponse({ ok: true });
+      };
+
+      await apiFetch<{ ok: boolean }>("/files/uploads/sessions/session-1/content", {
+        apiBaseUrl: "https://northstar.test/api/v1",
+        body: blob,
+        fetchFn,
+        headers: { "Content-Type": blob.type },
+        method: "PUT",
+      });
+
+      expect(sentBody as unknown).toBe(blob);
+      expect(sentContentType).toBe("image/png");
     });
   });
 });

@@ -7,6 +7,7 @@ import type {
   UpdatePermissionNotificationPreferenceRequest,
   UpdateOrganizationProfileRequest,
 } from "./appApi";
+import { formatApiOperationError } from "./apiClient";
 import {
   createEditorHash,
   createLibrariesHash,
@@ -293,9 +294,9 @@ export function toSettingsCapabilityInventoryRows(): SettingsCapabilityInventory
     },
     {
       backendStatus: "live-mutation",
-      frontendStatus: "should-move",
+      frontendStatus: "live",
       id: "workspace-members",
-      recommendation: "move",
+      recommendation: "keep",
       scope: "workspace",
       userExpectation: "high",
     },
@@ -367,8 +368,8 @@ export function getRecommendedSettingsClosureSlice(): SettingsClosureSlice {
       "library-collections-documents",
     ],
     reason:
-      "Workspace profile update has no inspected backend mutation contract, while members, resource share, and library operations already have task surfaces. Close Settings by making those boundaries explicit instead of duplicating half-finished controls.",
-    title: "Settings IA cleanup",
+      "Workspace members now live in Workspace Settings, while resource share and library operations stay on their own task surfaces. Keep the remaining closure focused on read-only workspace profile copy, clear boundaries, and no unsupported controls.",
+    title: "Settings final trust pass",
   };
 }
 
@@ -435,13 +436,6 @@ export function createSettingsNavGroups(): SettingsNavGroup[] {
         createSettingsNavItem("workspace-integrations", "reused"),
       ],
     },
-    {
-      id: "deferred",
-      items: [
-        createSettingsNavItem("deferred-plan", "deferred"),
-        createSettingsNavItem("deferred-developer", "deferred"),
-      ],
-    },
   ];
 }
 
@@ -481,6 +475,13 @@ export function normalizeSettingsPanel(filters: {
     };
   }
 
+  if (filters.panel === "deferred-plan" || filters.panel === "deferred-developer") {
+    return {
+      id: "workspace-general",
+      section: "workspace",
+    };
+  }
+
   if (filters.panel && getSettingsPanelSection(filters.panel) !== "organization" && getSettingsPanelSection(filters.panel) !== "personal") {
     return {
       id: filters.panel,
@@ -512,11 +513,11 @@ export function normalizeSettingsPanel(filters: {
   }
 
   if (filters.tab === "plan") {
-    return { id: "deferred-plan", section: "deferred" };
+    return { id: "workspace-general", section: "workspace" };
   }
 
   if (filters.tab === "developer") {
-    return { id: "deferred-developer", section: "deferred" };
+    return { id: "workspace-general", section: "workspace" };
   }
 
   return { id: "workspace-general", section: "workspace" };
@@ -864,11 +865,12 @@ export function prepareWorkspaceNotificationPreferenceRequest(
 }
 
 export function toWorkspaceNotificationPreferenceMutationError(error: unknown) {
-  if (error instanceof Error && error.message.trim()) {
-    return error.message;
-  }
-
-  return "Notification preference update failed.";
+  return formatApiOperationError(error, "Notification preference update failed.", {
+    forbidden: "You do not have permission to change workspace notification preferences.",
+    network: "Could not reach the notification preference API. Check the backend session and retry.",
+    unauthorized: "Sign in again before changing notification preferences.",
+    unconfigured: "Notification preference API is not configured for this environment.",
+  });
 }
 
 function getWorkspaceNotificationPreferenceDisabledReason(status: NotificationApiStatus) {

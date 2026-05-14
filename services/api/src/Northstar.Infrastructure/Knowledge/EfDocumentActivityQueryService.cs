@@ -30,7 +30,7 @@ public sealed class EfDocumentActivityQueryService : IDocumentActivityQueryServi
             return null;
         }
 
-        var items = await (
+        var activityRows = await (
             from activity in _dbContext.ActivityEvents.AsNoTracking()
             join actor in _dbContext.Users.AsNoTracking()
                 on activity.ActorId equals (Guid?)actor.Id into actorRows
@@ -39,14 +39,30 @@ public sealed class EfDocumentActivityQueryService : IDocumentActivityQueryServi
                 activity.EntityType == ActivityEntityTypes.Document &&
                 activity.EntityId == document.Id
             orderby activity.CreatedAt descending
-            select new ActivityTimelineItemDto(
+            select new
+            {
+                activity.Id,
+                activity.Action,
+                activity.CreatedAt,
+                activity.Summary,
+                activity.ActorId,
+                Actor = actor == null ? null : new ActivityActorDto(actor.Id.ToString(), actor.DisplayName)
+            })
+            .ToListAsync(cancellationToken);
+
+        var items = activityRows
+            .Select(activity => new ActivityTimelineItemDto(
                 activity.Id.ToString(),
                 activity.Action,
                 activity.CreatedAt,
                 activity.Summary,
-                actor == null ? null : new ActivityActorDto(actor.Id.ToString(), actor.DisplayName),
-                new ActivityDocumentDto(document.Id.ToString(), document.Title)))
-            .ToListAsync(cancellationToken);
+                activity.Actor,
+                new ActivityDocumentDto(document.Id.ToString(), document.Title),
+                ActivityClassification.ClassifyDocumentActivity(
+                    activity.Action,
+                    document.Id,
+                    activity.ActorId)))
+            .ToArray();
 
         return new DocumentActivityResponse(items);
     }

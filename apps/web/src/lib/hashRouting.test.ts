@@ -66,17 +66,19 @@ describe("hashRouting", () => {
   });
 
   test("creates and parses folder search hashes", () => {
-    const hash = createSearchHash({ folderId: documentId, folderTitle: "Foundations", q: "mission" });
+    const hash = createSearchHash({ folderId: documentId, folderTitle: "Foundations", libraryId, q: "mission" });
 
-    expect(hash).toBe(`#search?folderId=${documentId}&folderTitle=Foundations&q=mission`);
+    expect(hash).toBe(`#search?libraryId=${libraryId}&folderId=${documentId}&folderTitle=Foundations&q=mission`);
     expect(getSearchFiltersFromHash(hash)).toEqual({
       folderId: documentId,
       folderTitle: "Foundations",
+      libraryId,
       q: "mission",
     });
     expect(getSearchFiltersFromHash("#search?folderId=not-a-uuid&folderTitle=Drafts")).toEqual({
       folderId: null,
       folderTitle: "Drafts",
+      libraryId: null,
       q: null,
     });
   });
@@ -107,6 +109,7 @@ describe("hashRouting", () => {
     expect(createSettingsHash({ spaceId: libraryId, tab: "general" })).toBe(`#settings?spaceId=${libraryId}`);
     expect(createSettingsHash({ spaceId: libraryId, tab: "security" })).toBe(`#settings?tab=security&spaceId=${libraryId}`);
     expect(createSettingsHash({ scope: "workspace", tab: "general" })).toBe("#settings?scope=workspace");
+    expect(createSettingsHash({ scope: "workspace", tab: "developer" })).toBe("#settings?scope=workspace");
     expect(createSettingsHash({ scope: "library", spaceId: libraryId, tab: "general" })).toBe(
       `#settings?scope=library&tab=general&spaceId=${libraryId}`,
     );
@@ -118,6 +121,8 @@ describe("hashRouting", () => {
     expect(createSettingsHash({ scope: "organization", tab: "members" })).toBe("#settings?scope=organization&tab=members");
     expect(createSettingsHash({ scope: "organization", tab: "assessment" })).toBe("#settings?scope=organization&tab=assessment");
     expect(createSettingsHash({ panel: "workspace-notifications" })).toBe("#settings?panel=workspace-notifications");
+    expect(createSettingsHash({ panel: "workspace-access-identity" })).toBe("#settings?scope=workspace&tab=permissions");
+    expect(createSettingsHash({ panel: "deferred-plan" })).toBe("#settings?scope=workspace");
     expect(getSettingsFiltersFromHash("#settings?panel=workspace-notifications")).toEqual({
       panel: "workspace-notifications",
       scope: "workspace",
@@ -234,6 +239,12 @@ describe("hashRouting", () => {
     expect(getCanonicalHashRedirect("#groups")).toBe("#settings?scope=workspace&tab=permissions");
     expect(getCanonicalHashRedirect("#scim")).toBe("#settings?scope=workspace&tab=integrations");
     expect(getCanonicalHashRedirect("#share")).toBe("#settings?scope=workspace&tab=permissions");
+    expect(getCanonicalHashRedirect("#settings?panel=workspace-access-identity")).toBe("#settings?scope=workspace&tab=permissions");
+    expect(getCanonicalHashRedirect("#settings?panel=deferred-plan")).toBe("#settings?scope=workspace");
+    expect(getCanonicalHashRedirect("#settings?scope=workspace&tab=developer")).toBe("#settings?scope=workspace");
+    expect(getCanonicalHashRedirect(`#discovery?libraryId=${libraryId}&folderId=${collectionId}&folderTitle=Foundations&q=risk`)).toBe(
+      `#search?libraryId=${libraryId}&folderId=${collectionId}&folderTitle=Foundations&q=risk`,
+    );
     expect(getCanonicalHashRedirect(`#share?documentId=${documentId}`)).toBe(null);
     expect(getCanonicalHashRedirect("#settings")).toBe(null);
   });
@@ -243,6 +254,8 @@ describe("hashRouting", () => {
     expect(getPostLoginRedirectHash("#workspace-members")).toBe("#settings?scope=workspace&tab=members");
     expect(getPostLoginRedirectHash("#permission-admin")).toBe("#settings?scope=workspace&tab=permissions");
     expect(getPostLoginRedirectHash("#scim")).toBe("#settings?scope=workspace&tab=integrations");
+    expect(getPostLoginRedirectHash("#discovery?q=risk")).toBe("#search?q=risk");
+    expect(getPostLoginRedirectHash("#settings?panel=workspace-access-identity")).toBe("#settings?scope=workspace&tab=permissions");
     expect(getPostLoginRedirectHash("#personal-settings")).toBe("#personal-settings");
     expect(getPostLoginRedirectHash("#organization-settings?panel=profile")).toBe("#organization-settings?panel=profile");
     expect(getPostLoginRedirectHash(`#settings?tab=notifications&spaceId=${libraryId}`)).toBe(

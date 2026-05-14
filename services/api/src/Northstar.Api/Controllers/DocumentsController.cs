@@ -48,6 +48,66 @@ public sealed class DocumentsController : ControllerBase
         return Ok(await _documentService.GetAsync(documentId, cancellationToken, GetShareToken(shareToken)));
     }
 
+    [HttpGet("{documentId:guid}/versions")]
+    [ProducesResponseType(typeof(DocumentVersionsResponse), StatusCodes.Status200OK)]
+    public async Task<ActionResult<DocumentVersionsResponse>> GetVersions(
+        Guid documentId,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await _documentService.GetVersionsAsync(documentId, cancellationToken));
+    }
+
+    [HttpGet("{documentId:guid}/versions/{versionId:guid}")]
+    [ProducesResponseType(typeof(DocumentVersionResponse), StatusCodes.Status200OK)]
+    public async Task<ActionResult<DocumentVersionResponse>> GetVersion(
+        Guid documentId,
+        Guid versionId,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await _documentService.GetVersionAsync(documentId, versionId, cancellationToken));
+    }
+
+    [HttpPost("{documentId:guid}/versions/publish")]
+    [ProducesResponseType(typeof(PublishDocumentVersionResponse), StatusCodes.Status200OK)]
+    public async Task<ActionResult<PublishDocumentVersionResponse>> PublishVersion(
+        Guid documentId,
+        PublishDocumentVersionRequest request,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await _documentService.PublishVersionAsync(documentId, request, cancellationToken));
+    }
+
+    [HttpPost("{documentId:guid}/versions/unpublish")]
+    [ProducesResponseType(typeof(UnpublishDocumentVersionResponse), StatusCodes.Status200OK)]
+    public async Task<ActionResult<UnpublishDocumentVersionResponse>> UnpublishVersion(
+        Guid documentId,
+        UnpublishDocumentVersionRequest request,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await _documentService.UnpublishVersionAsync(documentId, request, cancellationToken));
+    }
+
+    [HttpPost("{documentId:guid}/versions/compare")]
+    [ProducesResponseType(typeof(CompareDocumentVersionsResponse), StatusCodes.Status200OK)]
+    public async Task<ActionResult<CompareDocumentVersionsResponse>> CompareVersions(
+        Guid documentId,
+        CompareDocumentVersionsRequest request,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await _documentService.CompareVersionsAsync(documentId, request, cancellationToken));
+    }
+
+    [HttpPost("{documentId:guid}/versions/{versionId:guid}/restore")]
+    [ProducesResponseType(typeof(RestoreDocumentVersionResponse), StatusCodes.Status200OK)]
+    public async Task<ActionResult<RestoreDocumentVersionResponse>> RestoreVersion(
+        Guid documentId,
+        Guid versionId,
+        RestoreDocumentVersionRequest request,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await _documentService.RestoreVersionAsync(documentId, versionId, request, cancellationToken));
+    }
+
     [HttpPatch("{documentId:guid}")]
     [ProducesResponseType(typeof(UpdateDocumentResponse), StatusCodes.Status200OK)]
     public async Task<ActionResult<UpdateDocumentResponse>> Update(

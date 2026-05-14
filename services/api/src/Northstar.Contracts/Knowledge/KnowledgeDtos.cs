@@ -70,6 +70,74 @@ public sealed record MoveDocumentResponse(
     KnowledgeDocumentSummaryDto Document,
     KnowledgeMapResponse Map);
 
+public sealed record DocumentVersionSummaryDto(
+    string Id,
+    string DocumentId,
+    int VersionNo,
+    string Label,
+    string VersionType,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset? PublishedAt,
+    string? CreatedBy,
+    int WordCount);
+
+public sealed record DocumentVersionsResponse(IReadOnlyList<DocumentVersionSummaryDto> Versions);
+
+public sealed record DocumentVersionResponse(
+    DocumentVersionSummaryDto Version,
+    JsonElement Content,
+    JsonElement Outline);
+
+public sealed record PublishDocumentVersionRequest(long BaseRevision, string? Label);
+
+public sealed record PublishDocumentVersionResponse(
+    KnowledgeDocumentDto Document,
+    DocumentVersionSummaryDto Version);
+
+public sealed record UnpublishDocumentVersionRequest(long BaseRevision);
+
+public sealed record UnpublishDocumentVersionResponse(
+    KnowledgeDocumentDto Document,
+    DocumentVersionSummaryDto? UnpublishedVersion);
+
+public sealed record RestoreDocumentVersionRequest(long BaseRevision);
+
+public sealed record RestoreDocumentVersionResponse(
+    KnowledgeDocumentDto Document,
+    DocumentVersionSummaryDto RestoredFrom);
+
+public sealed record DocumentVersionCompareTargetDto(string Type, string? VersionId);
+
+public sealed record CompareDocumentVersionsRequest(
+    DocumentVersionCompareTargetDto From,
+    DocumentVersionCompareTargetDto To);
+
+public sealed record DocumentVersionCompareSummaryDto(
+    string FromLabel,
+    string ToLabel,
+    bool TextChanged,
+    int AddedSegments,
+    int RemovedSegments,
+    int WordCountDelta);
+
+public sealed record DocumentVersionCompareSegmentDto(string Kind, string Text);
+
+public sealed record DocumentVersionCompareTokenDto(string Kind, string Text);
+
+public sealed record DocumentVersionCompareLineDto(
+    string Kind,
+    string? LeftText,
+    string? RightText,
+    IReadOnlyList<DocumentVersionCompareTokenDto> LeftTokens,
+    IReadOnlyList<DocumentVersionCompareTokenDto> RightTokens);
+
+public sealed record CompareDocumentVersionsResponse(
+    DocumentVersionCompareTargetDto From,
+    DocumentVersionCompareTargetDto To,
+    DocumentVersionCompareSummaryDto Summary,
+    IReadOnlyList<DocumentVersionCompareSegmentDto> Segments,
+    IReadOnlyList<DocumentVersionCompareLineDto> Lines);
+
 public sealed record CreateCollectionRequest(string Title, decimal? SortOrder);
 
 public sealed record UpdateCollectionRequest(string? Title, decimal? SortOrder);

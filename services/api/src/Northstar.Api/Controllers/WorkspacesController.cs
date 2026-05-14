@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Northstar.Application.Security;
 using Northstar.Application.Workspaces;
+using Northstar.Contracts.Security;
 using Northstar.Contracts.Workspaces;
 
 namespace Northstar.Api.Controllers;
@@ -14,17 +16,20 @@ public sealed class WorkspacesController : ControllerBase
     private readonly IWorkspaceMembersService _membersService;
     private readonly IWorkspaceGroupService _groupService;
     private readonly IIamSyncService _iamSyncService;
+    private readonly IPermissionAuditService _permissionAuditService;
 
     public WorkspacesController(
         IWorkspaceAgendaService agendaService,
         IWorkspaceMembersService membersService,
         IWorkspaceGroupService groupService,
-        IIamSyncService iamSyncService)
+        IIamSyncService iamSyncService,
+        IPermissionAuditService permissionAuditService)
     {
         _agendaService = agendaService;
         _membersService = membersService;
         _groupService = groupService;
         _iamSyncService = iamSyncService;
+        _permissionAuditService = permissionAuditService;
     }
 
     [HttpGet("{workspaceId:guid}/agenda")]
@@ -45,6 +50,33 @@ public sealed class WorkspacesController : ControllerBase
         CancellationToken cancellationToken)
     {
         return Ok(await _membersService.GetMembersAsync(workspaceId, cancellationToken));
+    }
+
+    [HttpGet("{workspaceId:guid}/audit")]
+    [ProducesResponseType(typeof(WorkspaceAuditLogResponse), StatusCodes.Status200OK)]
+    public async Task<ActionResult<WorkspaceAuditLogResponse>> GetAudit(
+        Guid workspaceId,
+        [FromQuery] string? action,
+        [FromQuery] string? resourceType,
+        [FromQuery] Guid? resourceId,
+        [FromQuery] Guid? actorId,
+        [FromQuery] DateTimeOffset? from,
+        [FromQuery] DateTimeOffset? to,
+        [FromQuery] int? offset,
+        [FromQuery] int? limit,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await _permissionAuditService.GetWorkspaceAuditLogAsync(
+            workspaceId,
+            action,
+            resourceType,
+            resourceId,
+            actorId,
+            from,
+            to,
+            offset,
+            limit,
+            cancellationToken));
     }
 
     [HttpPost("{workspaceId:guid}/members")]

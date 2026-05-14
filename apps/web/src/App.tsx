@@ -3,13 +3,20 @@ import { DocumentSharePermissionsPage } from "./components/DocumentSharePermissi
 import { KnowledgeEditorPage } from "./components/KnowledgeEditorPage";
 import { LibrariesPage } from "./components/LibrariesPage";
 import { NorthstarLoginPage } from "./components/NorthstarLoginPage";
-import { SearchDiscoveryPage } from "./components/SearchDiscoveryPage";
+import { SearchCommandPalette } from "./components/SearchCommandPalette";
 import { VersionHistoryComparePage } from "./components/VersionHistoryComparePage";
 import { WorkspaceHomePage } from "./components/WorkspaceHomePage";
 import { OrganizationSettingsPage, PersonalSettingsPage, WorkspaceSettingsPage } from "./components/WorkspaceSettingsPage";
 import { WorkspaceUpdatesPage } from "./components/WorkspaceUpdatesPage";
 import { getStoredAccessToken, subscribeToAuthChanges } from "./lib/apiClient";
-import { getCanonicalHashRedirect, getEditorDocumentIdFromHash, getHashRoute, getSettingsRouteTarget } from "./lib/hashRouting";
+import {
+  createSearchHash,
+  getCanonicalHashRedirect,
+  getEditorDocumentIdFromHash,
+  getHashRoute,
+  getSearchFiltersFromHash,
+  getSettingsRouteTarget,
+} from "./lib/hashRouting";
 
 const protectedHashes = new Set([
   "#home",
@@ -39,6 +46,7 @@ const protectedHashes = new Set([
 export default function App() {
   const [hash, setHash] = useState(window.location.hash);
   const [isAuthenticated, setIsAuthenticated] = useState(() => Boolean(getStoredAccessToken()));
+  const [lastContentHash, setLastContentHash] = useState(() => getSearchContentHash(window.location.hash));
 
   useEffect(() => {
     const syncHash = () => setHash(window.location.hash);
@@ -55,6 +63,30 @@ export default function App() {
 
   const route = getHashRoute(hash);
   const canonicalHash = getCanonicalHashRedirect(hash);
+  const isSearchOverlayRoute = route === "#search";
+  const contentHash = isSearchOverlayRoute ? getSearchContentHash(lastContentHash) : hash;
+  const contentRoute = getHashRoute(contentHash);
+  const searchFilters = getSearchFiltersFromHash(hash);
+
+  useEffect(() => {
+    if (!isSearchOverlayRoute) {
+      setLastContentHash(getSearchContentHash(hash));
+    }
+  }, [hash, isSearchOverlayRoute]);
+
+  useEffect(() => {
+    const openSearchFromKeyboard = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.key.toLowerCase() !== "k" || (!event.metaKey && !event.ctrlKey)) {
+        return;
+      }
+
+      event.preventDefault();
+      window.location.hash = createSearchHash();
+    };
+
+    window.addEventListener("keydown", openSearchFromKeyboard);
+    return () => window.removeEventListener("keydown", openSearchFromKeyboard);
+  }, []);
 
   useEffect(() => {
     if (canonicalHash && window.location.hash !== canonicalHash) {
@@ -70,6 +102,29 @@ export default function App() {
     return <NorthstarLoginPage />;
   }
 
+  const closeSearch = () => {
+    window.location.hash = getSearchContentHash(lastContentHash);
+  };
+
+  const page = renderPage(contentRoute, contentHash);
+
+  return (
+    <>
+      {page}
+      {isSearchOverlayRoute ? (
+        <SearchCommandPalette
+          folderId={searchFilters.folderId}
+          folderTitle={searchFilters.folderTitle}
+          initialQuery={searchFilters.q ?? ""}
+          libraryId={searchFilters.libraryId}
+          onClose={closeSearch}
+        />
+      ) : null}
+    </>
+  );
+}
+
+function renderPage(route: string, hash: string) {
   if (route === "#editor") {
     return <KnowledgeEditorPage requestedDocumentId={getEditorDocumentIdFromHash(hash)} />;
   }
@@ -80,10 +135,6 @@ export default function App() {
 
   if (route === "#libraries") {
     return <LibrariesPage />;
-  }
-
-  if (route === "#search" || route === "#discovery") {
-    return <SearchDiscoveryPage />;
   }
 
   if (route === "#personal-settings") {
@@ -120,4 +171,15 @@ export default function App() {
   }
 
   return <NorthstarLoginPage />;
+}
+
+function getSearchContentHash(hash: string) {
+  const normalizedHash = hash || "#home";
+  const route = getHashRoute(normalizedHash);
+
+  if (route === "#search" || route === "#discovery" || route === "#") {
+    return "#home";
+  }
+
+  return normalizedHash;
 }

@@ -1,7 +1,11 @@
 import { describe, expect, test } from "../test/harness";
 import { createTestCommentAnchor } from "../test/commentTestUtils";
 import type { CommentThread } from "../types/editor";
-import { createHttpCommentRepository, createInMemoryCommentRepository } from "./commentRepository";
+import {
+  CommentRepositoryError,
+  createHttpCommentRepository,
+  createInMemoryCommentRepository,
+} from "./commentRepository";
 
 describe("commentRepository", () => {
   test("listThreads is isolated by documentId", async () => {
@@ -247,6 +251,23 @@ describe("commentRepository", () => {
     expect(threads[0].comments[0].body).toBe("Backend body");
   });
 
+  test("HTTP adapter binds browser fetch context", async () => {
+    const repository = createHttpCommentRepository({
+      apiBaseUrl: "https://northstar.test/api/v1",
+      fetchFn: function fetchWithRequiredContext(this: unknown) {
+        if (this !== globalThis) {
+          throw new TypeError("Illegal invocation");
+        }
+
+        return Promise.resolve(jsonResponse({ threads: [] }));
+      } as typeof fetch,
+    });
+
+    const threads = await repository.listThreads("11111111-1111-4111-8111-111111111111");
+
+    expect(threads).toEqual([]);
+  });
+
   test("HTTP adapter sends only comment DTO fields", async () => {
     const calls: Array<{ input: string; init?: RequestInit }> = [];
     const anchor = createTestCommentAnchor({
@@ -289,7 +310,7 @@ describe("commentRepository", () => {
     expect(requestBody.includes("pendingCommentComposer")).toBe(false);
   });
 
-  test("HTTP adapter surfaces recoverable request failures", async () => {
+  test("HTTP adapter surfaces recoverable API failures", async () => {
     const repository = createHttpCommentRepository({
       apiBaseUrl: "https://northstar.test/api/v1",
       fetchFn: async () =>
@@ -308,7 +329,82 @@ describe("commentRepository", () => {
       errorMessage = error instanceof Error ? error.message : String(error);
     }
 
-    expect(errorMessage).toBe("Comment API request failed with 503");
+    expect(errorMessage).toBe("Service unavailable");
+  });
+
+  test("HTTP adapter maps forbidden and network failures to readable errors", async () => {
+    const forbiddenRepository = createHttpCommentRepository({
+      apiBaseUrl: "https://northstar.test/api/v1",
+      fetchFn: async () =>
+        new Response(
+          JSON.stringify({
+            error: {
+              code: "FORBIDDEN",
+              message: "Comment access is unavailable for this document.",
+            },
+          }),
+          {
+            headers: {
+              "Content-Type": "application/json",
+            },
+            status: 403,
+          },
+        ),
+    });
+    const networkRepository = createHttpCommentRepository({
+      apiBaseUrl: "https://northstar.test/api/v1",
+      fetchFn: async () => {
+        throw new TypeError("Failed to fetch");
+      },
+    });
+    let forbiddenErrorStatus = 0;
+    let forbiddenErrorCode = "";
+    let forbiddenErrorMessage = "";
+    let networkErrorMessage = "";
+
+    try {
+      await forbiddenRepository.listThreads("11111111-1111-4111-8111-111111111111");
+    } catch (error) {
+      if (error instanceof CommentRepositoryError) {
+        forbiddenErrorStatus = error.status;
+        forbiddenErrorCode = error.code ?? "";
+      }
+
+      forbiddenErrorMessage = error instanceof Error ? error.message : String(error);
+    }
+
+    try {
+      await networkRepository.listThreads("11111111-1111-4111-8111-111111111111");
+    } catch (error) {
+      networkErrorMessage = error instanceof Error ? error.message : String(error);
+    }
+
+    expect(forbiddenErrorStatus).toBe(403);
+    expect(forbiddenErrorCode).toBe("FORBIDDEN");
+    expect(forbiddenErrorMessage).toBe("Comment access is unavailable for this document.");
+    expect(networkErrorMessage).toContain("Could not reach Comment API endpoint");
+    expect(networkErrorMessage).toContain("Failed to fetch");
+  });
+
+  test("HTTP adapter reports unconfigured API base URL", () => {
+    let errorMessage = "";
+    let errorStatus = -1;
+
+    try {
+      createHttpCommentRepository({
+        apiBaseUrl: " ",
+        fetchFn: async () => jsonResponse({ threads: [] }),
+      });
+    } catch (error) {
+      if (error instanceof CommentRepositoryError) {
+        errorStatus = error.status;
+      }
+
+      errorMessage = error instanceof Error ? error.message : String(error);
+    }
+
+    expect(errorStatus).toBe(0);
+    expect(errorMessage).toBe("Comment API base URL is not configured.");
   });
 
   test("HTTP adapter uses comment-specific endpoints for mutations", async () => {

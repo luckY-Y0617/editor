@@ -48,6 +48,7 @@ public sealed class DocumentVersion
         WordCount = wordCount;
         CreatedBy = createdBy;
         CreatedAt = DateTimeOffset.UtcNow;
+        PublishedAt = VersionType == DocumentVersionType.Published ? CreatedAt : null;
     }
 
     public Guid Id { get; private set; }
@@ -74,4 +75,3 @@ public sealed class DocumentVersion
         return value.Trim();
     }
 }
-

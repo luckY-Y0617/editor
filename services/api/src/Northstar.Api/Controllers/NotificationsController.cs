@@ -51,6 +51,15 @@ public sealed class NotificationsController : ControllerBase
         return Ok(await _notificationService.GetNotificationsAsync(workspaceId, unreadOnly, cancellationToken));
     }
 
+    [HttpGet("summary")]
+    [ProducesResponseType(typeof(AccessSharingSummaryResponse), StatusCodes.Status200OK)]
+    public async Task<ActionResult<AccessSharingSummaryResponse>> GetSummary(
+        [FromQuery] Guid? workspaceId,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await _notificationService.GetSummaryAsync(workspaceId, cancellationToken));
+    }
+
     [HttpPatch("{notificationId:guid}/read")]
     [ProducesResponseType(typeof(PermissionNotificationDto), StatusCodes.Status200OK)]
     public async Task<ActionResult<PermissionNotificationDto>> MarkRead(

@@ -2,6 +2,8 @@ import { describe, expect, test } from "../test/harness";
 import type { BootstrapResponse, SearchResponse } from "./appApi";
 import {
   getSearchEmptyState,
+  getSearchResultCountLabel,
+  getSearchScopeState,
   getSearchStatusLabel,
   toFolderSearchResultItems,
   toSearchResultItems,
@@ -13,10 +15,31 @@ const libraryId = "33333333-3333-4333-8333-333333333333";
 
 describe("searchDiscoveryModel", () => {
   test("returns stable copy for idle and error states", () => {
-    expect(getSearchStatusLabel("idle")).toBe("Enter a search term to search Northstar.");
+    expect(getSearchStatusLabel("ready")).toBe("Live document search API is connected.");
+    expect(getSearchStatusLabel("idle")).toBe("Enter a search term to search Library content.");
+    expect(getSearchResultCountLabel({ isDemo: false, resultCount: 0, status: "idle" })).toBe("Ready to search");
+    expect(getSearchResultCountLabel({ isDemo: false, resultCount: 3, status: "ready" })).toBe("3 results");
+    expect(getSearchResultCountLabel({ isDemo: true, resultCount: 2, status: "unconfigured" })).toBe("2 demo results");
     expect(getSearchEmptyState("error")).toEqual({
       detail: "No demo data is shown while the API is configured.",
       title: "Live search results could not be loaded.",
+    });
+  });
+
+  test("returns route-aware empty state for folder-scoped search", () => {
+    expect(getSearchEmptyState("ready", { folderId, folderTitle: "Foundations", libraryId, query: "risk" })).toEqual({
+      actionHref: `#search?libraryId=${libraryId}&q=risk`,
+      actionLabel: "Search all Library content",
+      detail: 'No documents in Foundations matched "risk".',
+      title: "No folder results found.",
+    });
+  });
+
+  test("returns folder scope links without exposing collection terminology", () => {
+    expect(getSearchScopeState({ folderId, folderTitle: "Foundations", libraryId, query: "strategy" })).toEqual({
+      allResultsHref: `#search?libraryId=${libraryId}&q=strategy`,
+      folderHref: `#libraries?libraryId=${libraryId}&collectionId=${folderId}`,
+      label: "Searching in folder: Foundations",
     });
   });
 
@@ -26,7 +49,7 @@ describe("searchDiscoveryModel", () => {
     expect(results.length).toBe(1);
     expect(results[0]).toMatchObject({
       href: `#editor?documentId=${documentId}`,
-      path: "Foundations",
+      path: "Atlas / Foundations",
       title: "Strategy Memo",
     });
   });
@@ -53,10 +76,68 @@ describe("searchDiscoveryModel", () => {
       ],
     };
 
-    expect(toSearchResultItems(response, createBootstrap()).map((result) => result.href)).toEqual([
+    const results = toSearchResultItems(response, createBootstrap());
+
+    expect(results.map((result) => result.href)).toEqual([
       `#editor?documentId=${documentId}`,
       `#libraries?libraryId=${libraryId}&collectionId=${folderId}`,
     ]);
+    expect(results[0]).toMatchObject({
+      path: "Atlas / Foundations",
+      selected: true,
+      status: "Draft",
+    });
+    expect(results[1]).toMatchObject({
+      documentCount: 2,
+      path: "Atlas",
+      selected: false,
+      status: undefined,
+    });
+  });
+
+  test("preserves requested library context for folder result routes", () => {
+    const requestedLibraryId = "55555555-5555-4555-8555-555555555555";
+    const response: SearchResponse = {
+      results: [
+        {
+          excerpt: "",
+          folderId: "",
+          id: folderId,
+          title: "Foundations",
+          type: "collection",
+          updatedAt: "2024-02-01T00:00:00.000Z",
+        },
+      ],
+    };
+
+    expect(toSearchResultItems(response, createBootstrap(), requestedLibraryId)[0]?.href).toBe(
+      `#libraries?libraryId=${requestedLibraryId}&collectionId=${folderId}`,
+    );
+  });
+
+  test("drops unsupported live search entities instead of routing them to workspace admin", () => {
+    const response: SearchResponse = {
+      results: [
+        {
+          excerpt: "",
+          folderId: "",
+          id: "alice-kim",
+          title: "Alice Kim",
+          type: "person",
+          updatedAt: "2024-02-01T00:00:00.000Z",
+        },
+        {
+          excerpt: "",
+          folderId,
+          id: "not-a-uuid",
+          title: "Broken document",
+          type: "document",
+          updatedAt: "2024-02-01T00:00:00.000Z",
+        },
+      ],
+    };
+
+    expect(toSearchResultItems(response, createBootstrap())).toEqual([]);
   });
 });
 

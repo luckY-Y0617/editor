@@ -26,7 +26,7 @@ import {
 import { type CSSProperties, type ReactNode, useEffect, useMemo, useState } from "react";
 import { WorkspaceHomeSidebar } from "./WorkspaceHomeSidebar";
 import { WorkspaceHomeTopBar } from "./WorkspaceHomeTopBar";
-import { ApiClientError, getConfiguredApiBaseUrl } from "../lib/apiClient";
+import { ApiClientError, formatApiOperationError, getConfiguredApiBaseUrl } from "../lib/apiClient";
 import {
   archiveDocument,
   createCollection,
@@ -45,6 +45,13 @@ import {
 import {
   createLibrariesPageModel,
   createCollectionReorderIds,
+  getCreateCollectionDisabledReason,
+  getDeleteCollectionDisabledReason,
+  getDocumentMoveDestinationHash,
+  getLibraryDocumentEmptyReason,
+  getLibrariesCanonicalHash,
+  getRenameCollectionDisabledReason,
+  getReorderCollectionDisabledReason,
   getCollectionIdAfterDelete,
   getPreferredLibraryId,
   type LibrariesPageModel,
@@ -75,6 +82,10 @@ type DocumentActionMessage = {
   kind: "error" | "success";
   text: string;
 } | null;
+type DocumentMutationSuccessOptions = {
+  afterSuccessHash?: string | null;
+  onSuccess?: () => void;
+};
 type LibraryActionPanelState =
   | { kind: "create-collection"; title: string }
   | { collectionId: string; kind: "delete-collection"; title: string; documentCount: number }
@@ -154,11 +165,11 @@ export function LibrariesPage() {
     : [];
   const pageTitle = model && model.hasLibraries ? model.activeLibraryName : t(locale, "nav.libraries");
   const stats = model?.stats ?? createPlaceholderStats(bootstrap.status, map.status);
-  const newDocumentDisabled = createStatus === "creating" || !model || !model.hasCollections;
+  const newDocumentDisabled = createStatus === "creating" || !model?.canCreateDocument;
   const collectionBusy = Boolean(collectionMutation);
-  const settingsHref = model?.activeLibraryId
+  const librarySettingsHref = model?.activeLibraryId
     ? createSettingsHash({ scope: "library", spaceId: model.activeLibraryId, tab: "general" })
-    : createSettingsHash({ scope: "workspace", tab: "general" });
+    : null;
 
   useEffect(() => {
     const syncHash = () => setHash(window.location.hash);
@@ -175,6 +186,17 @@ export function LibrariesPage() {
     setCollectionActionMessage(null);
     setActionPanel(null);
   }, [selectedLibraryId]);
+
+  useEffect(() => {
+    if (!model) {
+      return;
+    }
+
+    const canonicalHash = getLibrariesCanonicalHash(model, filters);
+    if (canonicalHash && canonicalHash !== window.location.hash) {
+      window.location.replace(canonicalHash);
+    }
+  }, [filters, model]);
 
   const retryAll = () => {
     setBootstrapRetryKey((current) => current + 1);
@@ -202,7 +224,7 @@ export function LibrariesPage() {
       window.location.hash = createEditorHash(response.document.id);
     } catch (error) {
       setCreateStatus("error");
-      setCreateError(error instanceof ApiClientError ? error.message : "Document could not be created.");
+      setCreateError(formatLibraryOperationError(error, "Document could not be created."));
     }
   };
 
@@ -212,6 +234,7 @@ export function LibrariesPage() {
     action: () => Promise<unknown>,
     successMessage: string,
     failureMessage: string,
+    successOptions: DocumentMutationSuccessOptions = {},
   ) => {
     setDocumentMutation({ documentId: document.id, operation });
     setDocumentActionMessage(null);
@@ -220,12 +243,16 @@ export function LibrariesPage() {
 
     try {
       await action();
+      successOptions.onSuccess?.();
       setDocumentActionMessage({ kind: "success", text: successMessage });
       setMapRetryKey((current) => current + 1);
+      if (successOptions.afterSuccessHash) {
+        window.location.hash = successOptions.afterSuccessHash;
+      }
     } catch (error) {
       setDocumentActionMessage({
         kind: "error",
-        text: error instanceof ApiClientError ? error.message : failureMessage,
+        text: formatLibraryOperationError(error, failureMessage),
       });
     } finally {
       setDocumentMutation(null);
@@ -258,7 +285,7 @@ export function LibrariesPage() {
     } catch (error) {
       setCollectionActionMessage({
         kind: "error",
-        text: error instanceof ApiClientError ? error.message : failureMessage,
+        text: formatLibraryOperationError(error, failureMessage),
       });
     } finally {
       setCollectionMutation(null);
@@ -389,33 +416,52 @@ export function LibrariesPage() {
       return;
     }
 
+    const shouldClearFilters = Boolean(model?.documents.length === 1 && (searchQuery || statusFilter || tagFilter));
+
     void runDocumentMutation(
       actionPanel.document,
       "delete",
       () => deleteDocument(actionPanel.document.id),
-      "Document deleted.",
+      shouldClearFilters ? "Document deleted. Showing the current folder without filters." : "Document deleted.",
       "Document could not be deleted.",
+      {
+        onSuccess: shouldClearFilters
+          ? () => {
+              setSearchQuery("");
+              setStatusFilter(null);
+              setTagFilter(null);
+            }
+          : undefined,
+      },
     );
     setActionPanel(null);
   };
 
   const handleArchiveDocument = (document: LibraryDocumentRow) => {
+    const shouldClearStatusFilter = Boolean(statusFilter);
     void runDocumentMutation(
       document,
       "archive",
       () => archiveDocument(document.id),
-      "Document archived.",
+      shouldClearStatusFilter ? "Document archived. Showing all statuses." : "Document archived.",
       "Document could not be archived.",
+      {
+        onSuccess: shouldClearStatusFilter ? () => setStatusFilter(null) : undefined,
+      },
     );
   };
 
   const handleRestoreDocument = (document: LibraryDocumentRow) => {
+    const shouldClearStatusFilter = Boolean(statusFilter);
     void runDocumentMutation(
       document,
       "restore",
       () => restoreDocument(document.id),
-      "Document restored.",
+      shouldClearStatusFilter ? "Document restored. Showing all statuses." : "Document restored.",
       "Document could not be restored.",
+      {
+        onSuccess: shouldClearStatusFilter ? () => setStatusFilter(null) : undefined,
+      },
     );
   };
 
@@ -430,15 +476,17 @@ export function LibrariesPage() {
 
     const targetCollectionTitle = document.moveOptions.find((option) => option.id === folderId)?.label ?? "another folder";
     const leavesCurrentCollection = Boolean(model?.activeCollectionId && model.activeCollectionId === document.collectionId);
+    const destinationHash = model ? getDocumentMoveDestinationHash(model, document, folderId) : null;
 
     void runDocumentMutation(
       document,
       "move",
       () => moveDocument(document.id, { folderId }),
       leavesCurrentCollection
-        ? `Document moved to ${targetCollectionTitle}; it no longer matches this folder view.`
+        ? `Document moved to ${targetCollectionTitle}. Showing the destination folder.`
         : `Document moved to ${targetCollectionTitle}.`,
       "Document could not be moved.",
+      { afterSuccessHash: destinationHash },
     );
   };
 
@@ -454,7 +502,6 @@ export function LibrariesPage() {
           <div className="workspace-home-mobile-nav md:hidden" aria-label="Workspace navigation">
             <a href="#home">{t(locale, "nav.home")}</a>
             <a aria-current="page" href="#libraries">{t(locale, "nav.libraries")}</a>
-            <a href="#search">{t(locale, "nav.search")}</a>
             <a href="#updates">{t(locale, "nav.updates")}</a>
             <a href="#settings">{t(locale, "nav.settings")}</a>
           </div>
@@ -471,14 +518,16 @@ export function LibrariesPage() {
                 ) : null}
               </div>
               <div className="libraries-workbench-heading-actions">
-                <a
-                  className="workspace-home-secondary-action"
-                  href={settingsHref}
-                  title={t(locale, "settings.openWorkspaceSettings")}
-                >
-                  <Settings className="h-4 w-4" />
-                  <span>{t(locale, "settings.openWorkspaceSettings")}</span>
-                </a>
+                {librarySettingsHref ? (
+                  <a
+                    className="workspace-home-secondary-action"
+                    href={librarySettingsHref}
+                    title={t(locale, "library.spaceSettings")}
+                  >
+                    <Settings className="h-4 w-4" />
+                    <span>{t(locale, "library.spaceSettings")}</span>
+                  </a>
+                ) : null}
                 <button
                   className="workspace-home-primary-action"
                   disabled={newDocumentDisabled}
@@ -605,8 +654,11 @@ function LibraryToolbar({
   const { locale } = useDisplayLanguage();
   const disabled = !model;
   const selectedCollectionTitle = model?.activeCollectionTitle ?? t(locale, "library.collection");
-  const selectedCollectionDocumentCount =
-    model?.collections.find((collection) => collection.id === model.activeCollectionId)?.documentCount ?? 0;
+  const createCollectionDisabledReason = collectionBusy ? "A folder operation is already running." : getCreateCollectionDisabledReason(model);
+  const renameCollectionDisabledReason = collectionBusy ? "A folder operation is already running." : getRenameCollectionDisabledReason(model);
+  const deleteCollectionDisabledReason = collectionBusy ? "A folder operation is already running." : getDeleteCollectionDisabledReason(model);
+  const reorderUpDisabledReason = collectionBusy ? "A folder operation is already running." : getReorderCollectionDisabledReason(model, "up");
+  const reorderDownDisabledReason = collectionBusy ? "A folder operation is already running." : getReorderCollectionDisabledReason(model, "down");
 
   return (
     <div className="libraries-workbench-toolbar" aria-label="Library controls">
@@ -664,9 +716,9 @@ function LibraryToolbar({
         <button
           aria-label={t(locale, "library.newCollection")}
           className="libraries-workbench-icon-action"
-          disabled={disabled || !model?.canCreateCollection || collectionBusy}
+          disabled={Boolean(createCollectionDisabledReason)}
           onClick={onCreateCollection}
-          title={t(locale, "library.newCollection")}
+          title={createCollectionDisabledReason ?? t(locale, "library.newCollection")}
           type="button"
         >
           {collectionMutation?.operation === "create" ? <RefreshCw className="h-4 w-4" /> : <FolderPlus className="h-4 w-4" />}
@@ -674,9 +726,9 @@ function LibraryToolbar({
         <button
           aria-label={`${t(locale, "library.renameCollection")}: ${selectedCollectionTitle}`}
           className="libraries-workbench-icon-action"
-          disabled={disabled || !model?.canRenameActiveCollection || collectionBusy}
+          disabled={Boolean(renameCollectionDisabledReason)}
           onClick={onRenameCollection}
-          title={`${t(locale, "library.renameCollection")}: ${selectedCollectionTitle}`}
+          title={renameCollectionDisabledReason ?? `${t(locale, "library.renameCollection")}: ${selectedCollectionTitle}`}
           type="button"
         >
           {collectionMutation?.operation === "rename" ? <RefreshCw className="h-4 w-4" /> : <Edit3 className="h-4 w-4" />}
@@ -684,9 +736,9 @@ function LibraryToolbar({
         <button
           aria-label={t(locale, "library.moveCollectionUp", { title: selectedCollectionTitle })}
           className="libraries-workbench-icon-action"
-          disabled={disabled || !model?.canReorderActiveCollectionUp || collectionBusy}
+          disabled={Boolean(reorderUpDisabledReason)}
           onClick={() => onReorderCollection("up")}
-          title={t(locale, "library.moveCollectionUp", { title: selectedCollectionTitle })}
+          title={reorderUpDisabledReason ?? t(locale, "library.moveCollectionUp", { title: selectedCollectionTitle })}
           type="button"
         >
           <ChevronUp className="h-4 w-4" />
@@ -694,9 +746,9 @@ function LibraryToolbar({
         <button
           aria-label={t(locale, "library.moveCollectionDown", { title: selectedCollectionTitle })}
           className="libraries-workbench-icon-action"
-          disabled={disabled || !model?.canReorderActiveCollectionDown || collectionBusy}
+          disabled={Boolean(reorderDownDisabledReason)}
           onClick={() => onReorderCollection("down")}
-          title={t(locale, "library.moveCollectionDown", { title: selectedCollectionTitle })}
+          title={reorderDownDisabledReason ?? t(locale, "library.moveCollectionDown", { title: selectedCollectionTitle })}
           type="button"
         >
           <ChevronDown className="h-4 w-4" />
@@ -704,13 +756,9 @@ function LibraryToolbar({
         <button
           aria-label={`${t(locale, "library.deleteCollection")}: ${selectedCollectionTitle}`}
           className="libraries-workbench-icon-action is-danger"
-          disabled={disabled || !model.activeCollectionId || !model.canDeleteActiveCollection || collectionBusy}
+          disabled={Boolean(deleteCollectionDisabledReason)}
           onClick={onDeleteCollection}
-          title={
-            model?.activeCollectionId && !model.canDeleteActiveCollection
-              ? t(locale, "library.deleteNonEmptyCollectionDescription", { count: selectedCollectionDocumentCount })
-              : `${t(locale, "library.deleteCollection")}: ${selectedCollectionTitle}`
-          }
+          title={deleteCollectionDisabledReason ?? `${t(locale, "library.deleteCollection")}: ${selectedCollectionTitle}`}
           type="button"
         >
           {collectionMutation?.operation === "delete" ? <RefreshCw className="h-4 w-4" /> : <Trash2 className="h-4 w-4" />}
@@ -956,19 +1004,12 @@ function DocumentSurface({
   }
 
   if (!model.hasCollections) {
-    return (
-      <PanelMessage>
-        {t(locale, "library.noCollections")}
-      </PanelMessage>
-    );
+    return <PanelMessage>{t(locale, "library.noCollections")}</PanelMessage>;
   }
 
-  if (model.totalDocumentCount === 0) {
-    return <PanelMessage>{t(locale, "library.noDocuments")}</PanelMessage>;
-  }
-
-  if (model.documents.length === 0) {
-    return <PanelMessage>No documents match the current search and filters.</PanelMessage>;
+  const emptyReason = getLibraryDocumentEmptyReason(model);
+  if (emptyReason) {
+    return <PanelMessage>{getDocumentEmptyMessage(emptyReason, model.activeCollectionTitle, locale)}</PanelMessage>;
   }
 
   if (viewMode === "list") {
@@ -1216,6 +1257,47 @@ function PanelMessage({ children }: { children: ReactNode }) {
   return <div className="libraries-workbench-empty">{children}</div>;
 }
 
+function getDocumentEmptyMessage(
+  reason: NonNullable<ReturnType<typeof getLibraryDocumentEmptyReason>>,
+  folderTitle: string | null,
+  locale: DisplayLocale,
+) {
+  if (isChineseLocale(locale)) {
+    if (reason === "library-folders-empty") {
+      return t(locale, "library.noCollections");
+    }
+
+    if (reason === "library-documents-empty") {
+      return t(locale, "library.noDocuments");
+    }
+
+    if (reason === "folder-documents-empty") {
+      return `${folderTitle ?? "此文件夹"} 暂无文档。`;
+    }
+
+    return "当前搜索和筛选条件下没有匹配文档。";
+  }
+
+  if (reason === "library-folders-empty") {
+    return t(locale, "library.noCollections");
+  }
+
+  if (reason === "library-documents-empty") {
+    return t(locale, "library.noDocuments");
+  }
+
+  if (reason === "folder-documents-empty") {
+    const title = folderTitle ?? "this folder";
+    return locale === "zh-CN"
+      ? `${title} 文件夹暂无文档。`
+      : `${title} has no documents yet.`;
+  }
+
+  return locale === "zh-CN"
+    ? "当前搜索和筛选条件下没有匹配文档。"
+    : "No documents match the current search and filters.";
+}
+
 function useBootstrapData(retryKey: number) {
   const [data, setData] = useState<BootstrapResponse | null>(null);
   const [status, setStatus] = useState<DataStatus>(() => (getConfiguredApiBaseUrl() ? "loading" : "unconfigured"));
@@ -1308,6 +1390,30 @@ function librariesStatusLabel(
   model: LibrariesPageModel | null,
   locale: DisplayLocale,
 ) {
+  if (isChineseLocale(locale)) {
+    if (bootstrapStatus === "unconfigured") {
+      return "演示模式。配置 VITE_NORTHSTAR_API_BASE_URL 后加载实时资料库。";
+    }
+
+    if (bootstrapStatus === "loading" || mapStatus === "loading") {
+      return "正在加载工作区资料库。";
+    }
+
+    if (bootstrapStatus === "forbidden" || mapStatus === "forbidden") {
+      return "登录后加载工作区资料库。";
+    }
+
+    if (bootstrapStatus === "error" || mapStatus === "error") {
+      return "无法加载资料库数据。";
+    }
+
+    if (model) {
+      return `${model.workspaceName}: 当前显示 ${model.visibleDocumentCount} / ${model.totalDocumentCount} 个实时文档。`;
+    }
+
+    return "选择资料库以加载文件夹和文档。";
+  }
+
   if (bootstrapStatus === "unconfigured") {
     return locale === "zh-CN" ? "演示模式。配置 VITE_NORTHSTAR_API_BASE_URL 后加载实时资料库。" : "Demo mode. Configure VITE_NORTHSTAR_API_BASE_URL to load live libraries.";
   }
@@ -1334,6 +1440,22 @@ function librariesStatusLabel(
 }
 
 function getBlockedMessage(status: DataStatus, locale: DisplayLocale) {
+  if (isChineseLocale(locale)) {
+    if (status === "unconfigured") {
+      return "配置 API 后加载实时资料库。";
+    }
+
+    if (status === "forbidden") {
+      return "当前会话不可用。";
+    }
+
+    if (status === "error") {
+      return "无法加载实时资料库数据。";
+    }
+
+    return "暂无资料库数据。";
+  }
+
   if (status === "unconfigured") {
     return locale === "zh-CN" ? "配置 API 后加载实时资料库。" : "Configure the API to load live libraries.";
   }
@@ -1350,6 +1472,18 @@ function getBlockedMessage(status: DataStatus, locale: DisplayLocale) {
 }
 
 function getNewDocumentTitle(model: LibrariesPageModel | null, locale: DisplayLocale) {
+  if (isChineseLocale(locale)) {
+    if (!model) {
+      return "请先加载资料库，再创建文档。";
+    }
+
+    if (!model.hasCollections) {
+      return "当前资料库暂无文件夹。";
+    }
+
+    return model.activeCollectionId ? "在选中文件夹中创建文档" : "请先选择文件夹，再创建文档。";
+  }
+
   if (!model) {
     return locale === "zh-CN" ? "请先加载资料库，再创建文档。" : "Load a library before creating a document.";
   }
@@ -1361,6 +1495,19 @@ function getNewDocumentTitle(model: LibrariesPageModel | null, locale: DisplayLo
   return model.activeCollectionId
     ? (locale === "zh-CN" ? "在选中文件夹中创建文档" : "Create document in selected folder")
     : (locale === "zh-CN" ? "请先选择文件夹，再创建文档。" : "Select a folder before creating a document.");
+}
+
+function formatLibraryOperationError(error: unknown, fallbackMessage: string) {
+  return formatApiOperationError(error, fallbackMessage, {
+    forbidden: "You do not have permission to change this library.",
+    network: "Could not reach the Library API. Check the backend session and retry.",
+    unauthorized: "Sign in again before changing this library.",
+    unconfigured: "Library API is not configured for this environment.",
+  });
+}
+
+function isChineseLocale(locale: DisplayLocale): boolean {
+  return locale === "zh-CN";
 }
 
 function getOperationLabel(operation: DocumentOperation) {

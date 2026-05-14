@@ -1,19 +1,15 @@
 import {
   CalendarDays,
   CheckCircle2,
-  ChevronDown,
   ChevronRight,
-  Copy,
   Edit3,
   Eye,
   FileText,
   Link2,
   LockKeyhole,
-  MoreHorizontal,
   Plus,
   Save,
   ShieldCheck,
-  Tag,
   Trash2,
   UserPlus,
   UserRound,
@@ -46,20 +42,18 @@ import {
   getShareLinkCapability,
   resolveShareTarget,
   toAbsoluteShareUrl,
+  toDocumentAdvancedRoleRows,
   toSharePermissionMutationError,
+  type DocumentAdvancedRoleAccess,
   type ShareTargetResolution,
 } from "../lib/documentShareLinksModel";
-import { createEditorHash, createShareHash, getShareDocumentIdFromHash } from "../lib/hashRouting";
 import {
-  permissionRoleSummaries,
-  recentAccessEvents,
-  workspaceAccessMembers,
-  type EffectiveDocumentAccess,
-  type RecentAccessEvent,
-  type ShareDocumentContext,
-  type WorkspaceAccessMember,
-  type WorkspaceRole,
-} from "../data/sharePermissionsData";
+  createEditorHash,
+  createShareHash,
+  createWorkspaceMembersHash,
+  createWorkspacePermissionsHash,
+  getShareDocumentIdFromHash,
+} from "../lib/hashRouting";
 import compassMarkUrl from "../assets/svg/decorative/compass-mark-small.svg";
 import coordinatePatternUrl from "../assets/svg/patterns/coordinate-ticks.svg";
 import routePatternUrl from "../assets/svg/patterns/route-line.svg";
@@ -71,12 +65,28 @@ const sharePatternStyle = {
   "--share-topographic-pattern": `url(${topographicPatternUrl})`,
 } as CSSProperties;
 
-const shareTabs = ["People", "Groups", "Access Settings"];
+const shareTabs = ["User grants", "Group grants", "Access policy"] as const;
+type SharePermissionsTab = (typeof shareTabs)[number];
 
 type PermissionApiStatus = "unconfigured" | "loading" | "ready" | "forbidden" | "error";
 type PermissionGrantSubjectType = "user" | "group";
 type PermissionLinkMode = "disabled" | "internal" | "external";
 type PermissionInheritanceMode = "inherit" | "restricted";
+type AvatarTone = "blue" | "green" | "mauve" | "sand";
+
+type ShareDocumentContext = {
+  location: string;
+  owner: {
+    initials: string;
+    name: string;
+  };
+  readers: string;
+  status: "Draft" | "Published";
+  tags: string[];
+  title: string;
+  updatedAt: string;
+  version: string;
+};
 
 type PermissionPolicyDto = {
   inheritanceMode: string;
@@ -197,7 +207,7 @@ type PolicyDraft = {
 };
 
 export function DocumentSharePermissionsPage() {
-  const [activeTab, setActiveTab] = useState(shareTabs[0]);
+  const [activeTab, setActiveTab] = useState<SharePermissionsTab>(shareTabs[0]);
   const shareTarget = useSharePermissionTarget();
   const permissionApiDocumentId = shareTarget.documentId;
   const permissionApiWorkspaceId = shareTarget.workspaceId;
@@ -252,7 +262,7 @@ export function DocumentSharePermissionsPage() {
                       return;
                     }
 
-                    setActiveTab("People");
+                    setActiveTab("User grants");
                   }}
                   title={isForbidden ? "Request viewer access" : "Create a user or group document grant"}
                   type="button"
@@ -264,10 +274,11 @@ export function DocumentSharePermissionsPage() {
             </header>
 
             <section className="share-permissions-boundary-note">
-              <strong>Share drawer owns daily sharing.</strong>
+              <strong>Document-level advanced controls only.</strong>
               <span>
-                Link creation, email invites, password-protected public links, and quick copy flows stay in the editor
-                drawer. Public links are created only through the dedicated share-link API.
+                This page manages direct user grants, group grants, inheritance policy, authenticated link policy, and
+                document access requests. Daily invites, copy links, passwords, expiry, and public-link creation stay in
+                the editor Share drawer.
               </span>
             </section>
 
@@ -287,7 +298,7 @@ export function DocumentSharePermissionsPage() {
 
             <PermissionApiSummary permissions={permissions} status={status} />
 
-            {activeTab === "Groups" ? (
+            {activeTab === "Group grants" ? (
               <WorkspaceGroupsPanel
                 groups={groups}
                 groupStatus={groupStatus}
@@ -295,15 +306,16 @@ export function DocumentSharePermissionsPage() {
                 permissions={permissions}
                 permissionStatus={status}
               />
-            ) : activeTab === "Access Settings" ? (
+            ) : activeTab === "Access policy" ? (
               <AccessSettingsPanel mutations={permissionMutations} permissions={permissions} status={status} />
             ) : (
-              <PeoplePermissionsPanel mutations={permissionMutations} permissions={permissions} status={status} />
+              <UserGrantsPanel mutations={permissionMutations} permissions={permissions} status={status} />
             )}
           </div>
         </section>
         <ShareSettingsPanel
           accessRequests={accessRequests}
+          documentId={permissionApiDocumentId}
           permissions={permissions}
           requestAccess={requestAccess}
           requestStatus={requestStatus}
@@ -422,7 +434,7 @@ function getShareBreadcrumbs(context: ShareDocumentContext, resolution: ShareTar
     {
       href: createShareHash(resolution.documentId),
       isCurrent: true,
-      label: "Share",
+      label: "Advanced permissions",
     },
   ];
 }
@@ -468,7 +480,7 @@ function DocumentContextPanel({
           </div>
         </section>
 
-        <ContextMeta icon={<UserRound className="h-4 w-4" />} label="Owner">
+        <ContextMeta icon={<UserRound className="h-4 w-4" />} label="Permission source">
           <Avatar initials={context.owner.initials} tone="green" />
           {context.owner.name}
         </ContextMeta>
@@ -482,18 +494,13 @@ function DocumentContextPanel({
             <dd>{context.version}</dd>
           </div>
           <div>
-            <dt>Readers</dt>
+            <dt>Access model</dt>
             <dd>{context.readers}</dd>
           </div>
           <div>
-            <dt>Tags</dt>
+            <dt>Scope</dt>
             <dd>
-              {context.tags.length ? context.tags.map((tag) => (
-                <span key={tag}>{tag}</span>
-              )) : <span>{statusLabel(status)}</span>}
-              <button disabled title="Tag management is planned for a later phase" type="button">
-                <Plus className="h-3.5 w-3.5" />
-              </button>
+              <span>{resolution.documentId ? "Document only" : statusLabel(status)}</span>
             </dd>
           </div>
         </dl>
@@ -525,7 +532,7 @@ function ContextMeta({ children, icon, label }: { children: ReactNode; icon: Rea
   );
 }
 
-function PeoplePermissionsPanel({
+function UserGrantsPanel({
   mutations,
   permissions,
   status,
@@ -541,40 +548,13 @@ function PeoplePermissionsPanel({
       <CreateGrantPanel mutations={mutations} permissions={permissions} status={status} subjectType="user" />
       <section className="share-permissions-section">
         <div className="share-permissions-section-title">
-          <h2>Scoped Grants</h2>
+          <h2>Direct User Grants</h2>
           <span>{userGrants.length}</span>
         </div>
         <ScopedGrantTable grants={userGrants} mutations={mutations} permissions={permissions} status={status} />
       </section>
 
-      <section className="share-permissions-section">
-        <div className="share-permissions-section-title">
-          <h2>Workspace Members</h2>
-          <span>{workspaceAccessMembers.length}</span>
-        </div>
-        <WorkspaceAccessTable />
-      </section>
-
-      <section className="share-permissions-section">
-        <h2>Permission Roles</h2>
-        <div className="share-permissions-role-list">
-          {permissionRoleSummaries.map((role) => (
-            <article className="share-permissions-role-row" key={role.id}>
-              <span className={["share-permissions-role-icon", `is-${role.id}`].join(" ")}>
-                {getRoleIcon(role.id)}
-              </span>
-              <div className="min-w-0">
-                <h3>{role.label}</h3>
-                <p>{role.description}</p>
-              </div>
-              <span className={["share-permissions-access-badge", getAccessClass(role.access)].join(" ")}>
-                {role.access}
-              </span>
-              <ChevronDown className="h-4 w-4 text-[var(--ns-slate-700)]" />
-            </article>
-          ))}
-        </div>
-      </section>
+      <DocumentRoleReference permissions={permissions} status={status} />
     </>
   );
 }
@@ -629,14 +609,9 @@ function WorkspaceGroupsPanel({
                   {group.externalProvider ?? formatPermissionValue(group.type)}
                 </span>
                 <span>{group.membersCount} members</span>
-                <button
-                  className="share-permissions-icon-button"
-                  disabled
-                  title={isExternalGroup(group) ? "IAM-managed groups are read-only" : "Manage group membership in workspace member tools"}
-                  type="button"
-                >
-                  <MoreHorizontal className="h-4 w-4" />
-                </button>
+                <span className="share-permissions-inline-status is-muted">
+                  {isExternalGroup(group) ? "IAM managed" : "Managed in Settings"}
+                </span>
               </article>
             ))}
           </div>
@@ -670,49 +645,42 @@ function isExternalGroup(group: WorkspaceGroupDto) {
   return Boolean(group.externalProvider || group.externalGroupId);
 }
 
-function WorkspaceAccessTable() {
-  return (
-    <div className="share-permissions-table">
-      <div className="share-permissions-table-head">
-        <span>Name</span>
-        <span>Email</span>
-        <span>Workspace Role</span>
-        <span>Effective Access</span>
-        <span>Added</span>
-        <span>Actions</span>
-      </div>
-      {workspaceAccessMembers.map((member) => (
-        <WorkspaceAccessRow key={member.id} member={member} />
-      ))}
-    </div>
-  );
-}
+function DocumentRoleReference({
+  permissions,
+  status,
+}: {
+  permissions: ResourcePermissionsResponse | null;
+  status: PermissionApiStatus;
+}) {
+  const roleRows = toDocumentAdvancedRoleRows(permissions?.availableRoles);
 
-function WorkspaceAccessRow({ member }: { member: WorkspaceAccessMember }) {
   return (
-    <article className="share-permissions-table-row">
-      <span className="share-permissions-member-name">
-        <Avatar initials={member.initials} tone={member.avatarTone} />
-        <strong>{member.name}</strong>
-      </span>
-      <span className="min-w-0 truncate">{member.email}</span>
-      <button
-        className="share-permissions-role-select"
-        disabled
-        title="Workspace role mutation is deferred to the member management API"
-        type="button"
-      >
-        {formatRole(member.role)}
-        <ChevronDown className="h-3.5 w-3.5" />
-      </button>
-      <span className={["share-permissions-access-badge", getAccessClass(member.effectiveAccess)].join(" ")}>
-        {member.effectiveAccess}
-      </span>
-      <span>{member.addedAt}</span>
-      <button aria-label={`More actions for ${member.name}`} className="share-permissions-icon-button" type="button">
-        <MoreHorizontal className="h-4 w-4" />
-      </button>
-    </article>
+    <section className="share-permissions-section">
+      <div className="share-permissions-section-title">
+        <h2>Available Document Roles</h2>
+        <span>{permissions ? roleRows.length : "0"}</span>
+      </div>
+      {!permissions ? (
+        <div className="share-permissions-empty-state">{statusLabel(status)}</div>
+      ) : (
+        <div className="share-permissions-role-list">
+          {roleRows.map((role) => (
+            <article className="share-permissions-role-row" key={role.roleKey}>
+              <span className={["share-permissions-role-icon", `is-${role.roleKey}`].join(" ")}>
+                {getDocumentRoleIcon(role.roleKey)}
+              </span>
+              <div className="min-w-0">
+                <h3>{role.label}</h3>
+                <p>{role.description}</p>
+              </div>
+              <span className={["share-permissions-access-badge", getDocumentRoleAccessClass(role.access)].join(" ")}>
+                {role.access}
+              </span>
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -788,7 +756,7 @@ function AccessSettingsPanel({
     <>
       <section className="share-permissions-section">
         <div className="share-permissions-section-title">
-          <h2>Access Settings</h2>
+          <h2>Access Policy</h2>
           <span>{permissions ? "3" : "0"}</span>
         </div>
         <div className="share-permissions-form">
@@ -811,7 +779,7 @@ function AccessSettingsPanel({
               </select>
             </div>
             <div className="share-permissions-field-row">
-              <label htmlFor="permission-link-mode">Link Mode</label>
+              <label htmlFor="permission-link-mode">Authenticated link mode</label>
               <select
                 disabled={!canMutate}
                 id="permission-link-mode"
@@ -829,7 +797,7 @@ function AccessSettingsPanel({
               </select>
             </div>
             <div className="share-permissions-field-row">
-              <label htmlFor="permission-default-link-role">Default Link Role</label>
+              <label htmlFor="permission-default-link-role">Default authenticated role</label>
               <select
                 disabled={!canMutate || draft.linkMode === "disabled"}
                 id="permission-default-link-role"
@@ -870,8 +838,8 @@ function AccessSettingsPanel({
       <section className="share-permissions-section">
         <div className="share-permissions-api-summary">
           <PermissionMetric label="Current Policy" value={permissions?.policy.inheritanceMode ?? statusLabel(status)} />
-          <PermissionMetric label="Current Link Mode" value={permissions?.policy.linkMode ?? "unknown"} />
-          <PermissionMetric label="Default Link Role" value={permissions?.policy.defaultLinkRole ?? "none"} />
+          <PermissionMetric label="Authenticated Link Mode" value={permissions?.policy.linkMode ?? "unknown"} />
+          <PermissionMetric label="Default Authenticated Role" value={permissions?.policy.defaultLinkRole ?? "none"} />
           <PermissionMetric label="Effective Role" value={permissions?.effectiveAccess.effectiveRole ?? "unknown"} />
         </div>
       </section>
@@ -1206,6 +1174,7 @@ function ScopedGrantTable({
 
 function ShareSettingsPanel({
   accessRequests,
+  documentId,
   permissions,
   requestAccess,
   requestStatus,
@@ -1217,6 +1186,7 @@ function ShareSettingsPanel({
   status,
 }: {
   accessRequests: AccessRequestDto[] | null;
+  documentId: string | null;
   permissions: ResourcePermissionsResponse | null;
   requestAccess: ReturnType<typeof useRequestAccess>;
   requestStatus: PermissionApiStatus;
@@ -1234,7 +1204,7 @@ function ShareSettingsPanel({
   return (
     <aside className="share-permissions-settings editor-scrollbar overflow-y-auto">
       <div className="share-permissions-settings-inner">
-        <Panel title="Share drawer summary" icon={<Link2 className="h-5 w-5" />}>
+        <Panel title="Daily sharing status" icon={<Link2 className="h-5 w-5" />}>
           <div className="share-permissions-drawer-summary">
             <div>
               <span>Active links</span>
@@ -1246,8 +1216,15 @@ function ShareSettingsPanel({
             </div>
           </div>
           <p className="share-permissions-muted-copy">
-            Quick invite, copy link, password, expiry, and public-link creation are managed in the editor Share drawer.
+            Invite, copy link, password, expiry, and public-link creation are managed in the editor Share drawer, not on this advanced page.
           </p>
+          <a
+            className="share-permissions-text-link"
+            href={documentId ? createEditorHash(documentId) : "#editor"}
+            title="Return to the document editor to use the Share drawer"
+          >
+            Back to document
+          </a>
           <div className="share-permissions-policy-boundary">
             <LockKeyhole className="h-4 w-4" />
             <span title="Public links are created only through the dedicated share-link API">
@@ -1257,13 +1234,43 @@ function ShareSettingsPanel({
         </Panel>
 
         <Panel title="Inherited workspace access" icon={<UsersRound className="h-5 w-5" />}>
-          <div className="share-permissions-toggle-row">
-            <p>{permissions ? `Policy ${permissions.policy.inheritanceMode}; source ${permissions.effectiveAccess.source}.` : statusLabel(status)}</p>
-            <span aria-hidden="true" />
+          <div className="share-permissions-side-facts">
+            <div>
+              <span>Policy</span>
+              <strong>{permissions?.policy.inheritanceMode ?? statusLabel(status)}</strong>
+            </div>
+            <div>
+              <span>Source</span>
+              <strong>{permissions?.effectiveAccess.source ?? "Workspace"}</strong>
+            </div>
+            <div>
+              <span>Effective role</span>
+              <strong>{permissions?.effectiveAccess.effectiveRole ?? "Unknown"}</strong>
+            </div>
+            <div>
+              <span>Inherited from</span>
+              <strong>{permissions?.inheritedFrom ?? "Workspace"}</strong>
+            </div>
           </div>
-          <a className="share-permissions-text-link" href="#settings?scope=workspace&tab=members" title="Manage workspace members">
-            Manage workspace members
-          </a>
+          <p className="share-permissions-muted-copy">
+            Workspace members and workspace groups are managed in Settings. This page only changes this document's resource policy and direct grants.
+          </p>
+          <div className="share-permissions-panel-actions">
+            <a
+              className="share-permissions-text-link"
+              href={createWorkspaceMembersHash()}
+              title="Open Workspace Settings members to manage workspace-level access"
+            >
+              Workspace members
+            </a>
+            <a
+              className="share-permissions-text-link"
+              href={createWorkspacePermissionsHash()}
+              title="Open Workspace Settings permissions to manage workspace groups and permission boundaries"
+            >
+              Workspace permissions
+            </a>
+          </div>
         </Panel>
 
         <Panel title="Access Requests" icon={<UserPlus className="h-5 w-5" />}>
@@ -1317,11 +1324,9 @@ function ShareSettingsPanel({
           {reviewError ? <div className="share-permissions-inline-status is-error">{reviewError}</div> : null}
         </Panel>
 
-        <Panel action="View all" title="Recent Access" icon={<CalendarDays className="h-5 w-5" />}>
-          <div className="share-permissions-recent-list">
-            {recentAccessEvents.map((event) => (
-              <RecentAccessRow event={event} key={event.id} />
-            ))}
+        <Panel title="Permission audit context" icon={<CalendarDays className="h-5 w-5" />}>
+          <div className="share-permissions-empty-state">
+            Permission audit rows are not connected on this page yet. Access and sharing notifications stay in Updates; ordinary document activity stays in the editor Activity panel.
           </div>
         </Panel>
       </div>
@@ -1330,12 +1335,10 @@ function ShareSettingsPanel({
 }
 
 function Panel({
-  action,
   children,
   icon,
   title,
 }: {
-  action?: string;
   children: ReactNode;
   icon: ReactNode;
   title: string;
@@ -1347,32 +1350,14 @@ function Panel({
           {icon}
           <h2>{title}</h2>
         </div>
-        {action ? (
-          <button className="share-permissions-text-link" title={action} type="button">
-            {action}
-          </button>
-        ) : (
-          <ShieldCheck className="h-4 w-4 text-[var(--ns-slate-500)]" />
-        )}
+        <ShieldCheck className="h-4 w-4 text-[var(--ns-slate-500)]" />
       </header>
       {children}
     </section>
   );
 }
 
-function RecentAccessRow({ event }: { event: RecentAccessEvent }) {
-  return (
-    <div className="share-permissions-recent-row">
-      <Avatar initials={event.initials} tone={event.avatarTone} />
-      <span className="min-w-0 flex-1 truncate">
-        <strong>{event.actor}</strong> {event.action}
-      </span>
-      <span>{event.happenedAt}</span>
-    </div>
-  );
-}
-
-function Avatar({ initials, tone }: { initials: string; tone: WorkspaceAccessMember["avatarTone"] }) {
+function Avatar({ initials, tone }: { initials: string; tone: AvatarTone }) {
   return <span className={["share-permissions-avatar", `is-${tone}`].join(" ")}>{initials}</span>;
 }
 
@@ -1385,11 +1370,7 @@ function StatusBadge({ label }: { label: ShareDocumentContext["status"] }) {
   );
 }
 
-function formatRole(role: WorkspaceRole) {
-  return role.charAt(0).toUpperCase() + role.slice(1);
-}
-
-function getAccessClass(access: EffectiveDocumentAccess) {
+function getDocumentRoleAccessClass(access: DocumentAdvancedRoleAccess) {
   if (access === "Can manage") {
     return "is-manage";
   }
@@ -1398,16 +1379,24 @@ function getAccessClass(access: EffectiveDocumentAccess) {
     return "is-edit";
   }
 
+  if (access === "Can comment") {
+    return "is-comment";
+  }
+
   return "is-view";
 }
 
-function getRoleIcon(role: WorkspaceRole) {
-  if (role === "owner" || role === "admin") {
+function getDocumentRoleIcon(roleKey: string) {
+  if (roleKey === "owner" || roleKey === "admin") {
     return <ShieldCheck className="h-4 w-4" />;
   }
 
-  if (role === "editor") {
-    return <Tag className="h-4 w-4" />;
+  if (roleKey === "editor") {
+    return <Edit3 className="h-4 w-4" />;
+  }
+
+  if (roleKey === "commenter") {
+    return <UserRound className="h-4 w-4" />;
   }
 
   return <Eye className="h-4 w-4" />;

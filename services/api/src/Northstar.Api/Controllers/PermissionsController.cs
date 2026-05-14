@@ -186,6 +186,15 @@ public sealed class PermissionsController : ControllerBase
         return NoContent();
     }
 
+    [HttpPost("email-invites/{inviteId:guid}/retry")]
+    [ProducesResponseType(typeof(CreateEmailInviteResponse), StatusCodes.Status200OK)]
+    public async Task<ActionResult<CreateEmailInviteResponse>> RetryEmailInvite(
+        Guid inviteId,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await _emailInviteService.RetryInviteAsync(inviteId, cancellationToken));
+    }
+
     [HttpGet("email-invites/{token}/resolve")]
     [ProducesResponseType(typeof(ResolveEmailInviteResponse), StatusCodes.Status200OK)]
     public async Task<ActionResult<ResolveEmailInviteResponse>> ResolveEmailInvite(

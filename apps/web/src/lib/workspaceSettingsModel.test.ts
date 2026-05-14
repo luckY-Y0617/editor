@@ -1,4 +1,5 @@
 import { describe, expect, test } from "../test/harness";
+import { ApiClientError } from "./apiClient";
 import type { AuthSecurityStateResponse } from "./authClient";
 import type {
   BootstrapResponse,
@@ -164,7 +165,7 @@ describe("workspaceSettingsModel", () => {
   test("models PC Settings secondary navigation without Current Library as a top-level scope", () => {
     const groups = createSettingsNavGroups();
 
-    expect(groups.map((group) => group.id)).toEqual(["workspace", "deferred"]);
+    expect(groups.map((group) => group.id)).toEqual(["workspace"]);
     expect(groups.find((group) => group.id === "workspace")?.items.map((item) => item.id)).toEqual([
       "workspace-general",
       "workspace-notifications",
@@ -177,6 +178,8 @@ describe("workspaceSettingsModel", () => {
     expect(panelIds.includes("library-general")).toBe(false);
     expect(panelIds.includes("personal-preferences")).toBe(false);
     expect(panelIds.includes("organization-profile")).toBe(false);
+    expect(panelIds.includes("deferred-plan")).toBe(false);
+    expect(panelIds.includes("deferred-developer")).toBe(false);
 
     expect(createPersonalSettingsNavGroups().map((group) => group.id)).toEqual(["personal"]);
     expect(createOrganizationSettingsNavGroups().find((group) => group.id === "organization")?.items.map((item) => item.id)).toEqual([
@@ -207,6 +210,14 @@ describe("workspaceSettingsModel", () => {
       id: "workspace-permissions",
       section: "workspace",
     });
+    expect(normalizeSettingsPanel({ panel: "deferred-plan", scope: "workspace", tab: "general" })).toEqual({
+      id: "workspace-general",
+      section: "workspace",
+    });
+    expect(normalizeSettingsPanel({ scope: "workspace", tab: "developer" })).toEqual({
+      id: "workspace-general",
+      section: "workspace",
+    });
     expect(normalizeSettingsPanel({ scope: "organization", tab: "overview" })).toEqual({
       id: "workspace-general",
       section: "workspace",
@@ -219,6 +230,14 @@ describe("workspaceSettingsModel", () => {
 
   test("keeps workspace Settings primary tabs focused on management surfaces", () => {
     const rows = createWorkspaceSettingsTabRows("general");
+    const legacyHrefTargets = new Set([
+      "#members",
+      "#workspace-members",
+      "#permission-admin",
+      "#workspace-groups",
+      "#groups",
+      "#scim",
+    ]);
 
     expect(rows.map((row) => row.id)).toEqual([
       "general",
@@ -232,6 +251,7 @@ describe("workspaceSettingsModel", () => {
     expect(rows.find((row) => row.id === "members")?.href).toBe("#settings?scope=workspace&tab=members");
     expect(rows.find((row) => row.id === "permissions")?.href).toBe("#settings?scope=workspace&tab=permissions");
     expect(rows.find((row) => row.id === "integrations")?.href).toBe("#settings?scope=workspace&tab=integrations");
+    expect(rows.map((row) => row.href).some((href) => legacyHrefTargets.has(href))).toBe(false);
     expect(rows.some((row) => row.id === "plan")).toBe(false);
     expect(rows.some((row) => row.id === "developer")).toBe(false);
   });
@@ -302,6 +322,12 @@ describe("workspaceSettingsModel", () => {
       recommendation: "keep",
       scope: "workspace",
     });
+    expect(byId.get("workspace-members")).toMatchObject({
+      backendStatus: "live-mutation",
+      frontendStatus: "live",
+      recommendation: "keep",
+      scope: "workspace",
+    });
     expect(byId.get("resource-share")).toMatchObject({
       recommendation: "move",
       scope: "resource",
@@ -312,17 +338,17 @@ describe("workspaceSettingsModel", () => {
     });
   });
 
-  test("recommends IA cleanup when workspace profile update contract is missing", () => {
+  test("recommends final trust pass after workspace members move into Settings", () => {
     const slice = getRecommendedSettingsClosureSlice();
 
-    expect(slice.title).toBe("Settings IA cleanup");
+    expect(slice.title).toBe("Settings final trust pass");
     expect(slice.capabilityIds).toEqual([
       "workspace-profile-update",
       "workspace-members",
       "resource-share",
       "library-collections-documents",
     ]);
-    expect(slice.reason).toContain("no inspected backend mutation contract");
+    expect(slice.reason).toContain("Workspace members now live in Workspace Settings");
     expect(slice.reason).toContain("task surfaces");
   });
 
@@ -360,6 +386,11 @@ describe("workspaceSettingsModel", () => {
     expect(toWorkspaceNotificationPreferenceMutationError(new Error("Backend validation failed."))).toBe(
       "Backend validation failed.",
     );
+    expect(
+      toWorkspaceNotificationPreferenceMutationError(
+        new ApiClientError(0, "Could not reach API endpoint https://northstar.test/api/v1/notifications/preferences. Failed to fetch"),
+      ),
+    ).toBe("Could not reach the notification preference API. Check the backend session and retry.");
   });
 
   test("models organization contract readiness without enabling management", () => {

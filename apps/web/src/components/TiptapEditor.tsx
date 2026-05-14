@@ -370,6 +370,16 @@ export function TiptapEditor({
     },
   }) ?? { hasTextSelection: false, isImageBlockSelected: false };
 
+  useEffect(() => {
+    const imageBlockStorage = (editor?.storage as unknown as { imageBlock?: { documentId?: string | null } } | undefined)
+      ?.imageBlock;
+    if (!imageBlockStorage) {
+      return;
+    }
+
+    imageBlockStorage.documentId = documentId;
+  }, [documentId, editor]);
+
   const emitCommentRuntimeState = useCallback((currentEditor: Editor) => {
     onCommentRuntimeStateChangeRef.current?.(getCommentRuntimeAnchorState(currentEditor.state));
   }, []);

@@ -52,7 +52,7 @@ import {
   type WorkspaceHomeModel,
   type WorkspaceHomeSupplementalData,
 } from "../lib/workspaceHomeModel";
-import { createEditorHash, normalizeInternalActionHash } from "../lib/hashRouting";
+import { createEditorHash, createWorkspaceUpdatesHash, normalizeInternalActionHash } from "../lib/hashRouting";
 import { getQuickActionLabel, t, type DisplayLocale, useDisplayLanguage } from "../lib/i18n";
 import coordinatePatternUrl from "../assets/svg/patterns/coordinate-ticks.svg";
 import routePatternUrl from "../assets/svg/patterns/route-line.svg";
@@ -167,12 +167,12 @@ export function WorkspaceHomePage() {
 
                 <HomePanel badge={homeModel.waitingRows.length} icon={ListChecks} title={t(locale, "home.waitingOnYou")}>
                   <AttentionList items={homeModel.waitingRows} status={supplemental.updates} />
-                  <PanelLink href="#updates">View all</PanelLink>
+                  <PanelLink href={createWorkspaceUpdatesHash({ tab: "access" })}>View access updates</PanelLink>
                 </HomePanel>
 
                 <HomePanel badge={homeModel.conversationRows.length} icon={MessageSquare} title={t(locale, "home.activeConversations")}>
-                  <ConversationList emptyLabel="No active conversation data." items={homeModel.conversationRows} />
-                  <PanelLink href="#updates">View all</PanelLink>
+                  <ConversationList emptyLabel="No access or sharing updates." items={homeModel.conversationRows} />
+                  <PanelLink href={createWorkspaceUpdatesHash()}>View notifications</PanelLink>
                 </HomePanel>
 
                 <HomePanel icon={Clock3} title={t(locale, "home.recentlyTouched")}>
@@ -193,7 +193,7 @@ export function WorkspaceHomePage() {
                 </HomePanel>
 
                 <HomePanel icon={MessageSquare} title={t(locale, "home.recentConversationsAndDecisions")}>
-                  <ConversationList emptyLabel="No recent conversation or decision data." items={homeModel.recentDecisionRows} variant="stacked" />
+                  <ConversationList emptyLabel="No recent access or sharing context." items={homeModel.recentDecisionRows} variant="stacked" />
                 </HomePanel>
               </div>
             </div>
@@ -201,18 +201,18 @@ export function WorkspaceHomePage() {
             <aside className="workspace-home-signal-rail" aria-label={t(locale, "home.workspaceSignals")}>
               <HomePanel icon={Bell} title={t(locale, "home.workspaceSignals")}>
                 <SignalList items={homeModel.signalRows} />
-                <PanelLink href="#updates">View all signals</PanelLink>
+                <PanelLink href={createWorkspaceUpdatesHash()}>View notification signals</PanelLink>
               </HomePanel>
 
-              <HomePanel icon={Users} title={t(locale, "home.topContributors")}>
+              <HomePanel icon={Users} title={homeModel.mode === "live" ? t(locale, "home.workspaceMembers") : t(locale, "home.topContributors")}>
                 <p className="workspace-home-panel-kicker">{homeModel.mode === "live" ? t(locale, "home.workspaceMembers") : "30 days"}</p>
                 <ContributorList items={homeModel.contributorRows} status={supplemental.contributors} />
-                <PanelLink href="#settings?scope=workspace&tab=members">View leaderboard</PanelLink>
+                <PanelLink href="#settings?scope=workspace&tab=members">Open members</PanelLink>
               </HomePanel>
 
               <HomePanel icon={AtSign} title={t(locale, "home.notificationDigest")}>
                 <SignalList items={homeModel.digestRows} />
-                <PanelLink href="#updates">View all notifications</PanelLink>
+                <PanelLink href={createWorkspaceUpdatesHash()}>View all notifications</PanelLink>
               </HomePanel>
             </aside>
           </div>
@@ -243,7 +243,6 @@ function MobileHomeNav({ locale }: { locale: DisplayLocale }) {
         {t(locale, "nav.home")}
       </a>
       <a href="#libraries">{t(locale, "nav.libraries")}</a>
-      <a href="#search">{t(locale, "nav.search")}</a>
       <a href="#updates">{t(locale, "nav.updates")}</a>
       <a href="#settings">{t(locale, "nav.settings")}</a>
     </div>
@@ -458,7 +457,7 @@ function TeamActivityList({
   if (items.length === 0) {
     return (
       <PanelMessage onRetry={mode === "live" && isRetryableStatus(status) ? onRetry : undefined}>
-        {getSupplementalMessage(status, "No active-document activity available.")}
+        {getSupplementalMessage(status, "No recent document activity available.")}
       </PanelMessage>
     );
   }
@@ -827,19 +826,23 @@ function useHomeSupplementalData(
 
 function bootstrapStatusLabel(status: ReturnType<typeof useBootstrapData>["status"], locale: DisplayLocale) {
   if (status === "ready" || status === "unconfigured") {
-    return locale === "zh-CN" ? "这是今天工作区的最新情况。" : "Here's what's happening across your workspace today.";
+    return locale === "zh-CN"
+      ? "\u8fd9\u662f\u4eca\u5929\u5de5\u4f5c\u533a\u7684\u6700\u65b0\u60c5\u51b5\u3002"
+      : "Here's what's happening across your workspace today.";
   }
 
   if (status === "loading") {
-    return locale === "zh-CN" ? "正在加载工作区信号。" : "Loading workspace signals.";
+    return locale === "zh-CN" ? "\u6b63\u5728\u52a0\u8f7d\u5de5\u4f5c\u533a\u4fe1\u53f7\u3002" : "Loading workspace signals.";
   }
 
   if (status === "forbidden") {
-    return locale === "zh-CN" ? "登录后加载实时工作区数据。" : "Sign in to load live workspace data.";
+    return locale === "zh-CN"
+      ? "\u767b\u5f55\u540e\u52a0\u8f7d\u5b9e\u65f6\u5de5\u4f5c\u533a\u6570\u636e\u3002"
+      : "Sign in to load live workspace data.";
   }
 
   return locale === "zh-CN"
-    ? "工作区 API 不可用；主页显示可用的本地状态。"
+    ? "\u5de5\u4f5c\u533a API \u4e0d\u53ef\u7528\uff1b\u4e3b\u9875\u663e\u793a\u53ef\u7528\u7684\u672c\u5730\u72b6\u6001\u3002"
     : "Workspace API unavailable; Home is showing available local state.";
 }
 
@@ -904,17 +907,17 @@ function createAgendaItemHref(item: WorkspaceAgendaItemDto) {
 function getAgendaDrawerText(locale: DisplayLocale) {
   if (locale === "zh-CN") {
     return {
-      add: "添加事项",
-      addDisabled: "当前日程来自工作区读模型，写入事项需要真实日历集成。",
-      calendarDisabled: "当前没有外部日历链接。",
-      close: "关闭今日日程",
-      empty: "暂无日程事项。",
-      later: "稍后安排",
-      tabsLabel: "日程范围",
-      title: "今日日程",
-      today: "今天",
-      viewCalendar: "在日历中查看",
-      week: "本周",
+      add: "\u6dfb\u52a0\u4e8b\u9879",
+      addDisabled: "\u5f53\u524d\u65e5\u7a0b\u6765\u81ea\u5de5\u4f5c\u533a\u8bfb\u6a21\u578b\uff1b\u5199\u5165\u4e8b\u9879\u9700\u8981\u771f\u5b9e\u65e5\u5386\u96c6\u6210\u3002",
+      calendarDisabled: "\u5f53\u524d\u6ca1\u6709\u5916\u90e8\u65e5\u5386\u94fe\u63a5\u3002",
+      close: "\u5173\u95ed\u4eca\u65e5\u65e5\u7a0b",
+      empty: "\u6682\u65e0\u65e5\u7a0b\u4e8b\u9879\u3002",
+      later: "\u7a0d\u540e\u5b89\u6392",
+      tabsLabel: "\u65e5\u7a0b\u8303\u56f4",
+      title: "\u4eca\u65e5\u65e5\u7a0b",
+      today: "\u4eca\u5929",
+      viewCalendar: "\u5728\u65e5\u5386\u4e2d\u67e5\u770b",
+      week: "\u672c\u5468",
     };
   }
 
@@ -935,26 +938,26 @@ function getAgendaDrawerText(locale: DisplayLocale) {
 
 function getCalendarStatusLabel(calendarStatus: string | undefined, status: HomeDataStatus, locale: DisplayLocale) {
   if (status === "loading") {
-    return locale === "zh-CN" ? "加载中" : "Loading";
+    return locale === "zh-CN" ? "\u52a0\u8f7d\u4e2d" : "Loading";
   }
 
   if (status === "error" || status === "forbidden") {
-    return locale === "zh-CN" ? "未连接" : "Unavailable";
+    return locale === "zh-CN" ? "\u4e0d\u53ef\u7528" : "Unavailable";
   }
 
   if (calendarStatus === "connected") {
-    return locale === "zh-CN" ? "已连接到日历" : "Connected to calendar";
+    return locale === "zh-CN" ? "\u5df2\u8fde\u63a5\u5230\u65e5\u5386" : "Connected to calendar";
   }
 
-  return locale === "zh-CN" ? "工作区日程" : "Workspace agenda";
+  return locale === "zh-CN" ? "\u5de5\u4f5c\u533a\u65e5\u7a0b" : "Workspace agenda";
 }
 
 function getAgendaItemStatusLabel(item: AgendaDisplayItem, locale: DisplayLocale) {
   if (item.connectedToCalendar || item.calendarStatus === "connected") {
-    return locale === "zh-CN" ? "已连接到日历" : "Connected";
+    return locale === "zh-CN" ? "\u5df2\u8fde\u63a5\u5230\u65e5\u5386" : "Connected";
   }
 
-  return locale === "zh-CN" ? "工作区日程" : "Workspace";
+  return locale === "zh-CN" ? "\u5de5\u4f5c\u533a\u65e5\u7a0b" : "Workspace";
 }
 
 function formatAgendaDate(value: string | undefined, locale: DisplayLocale) {
@@ -982,12 +985,12 @@ function formatAgendaItemDate(value: string | undefined, startTime: string, loca
 function formatAgendaItemMeta(item: AgendaDisplayItem, locale: DisplayLocale) {
   if (!item.endTime) {
     return item.kind === "task"
-      ? locale === "zh-CN" ? `截止 ${item.startTime}` : `Due ${item.startTime}`
+      ? locale === "zh-CN" ? `\u622a\u6b62 ${item.startTime}` : `Due ${item.startTime}`
       : item.detail;
   }
 
   const duration = item.durationMinutes && item.durationMinutes > 0 ? item.durationMinutes : null;
-  const durationLabel = duration ? ` (${duration} ${locale === "zh-CN" ? "分钟" : "min"})` : "";
+  const durationLabel = duration ? ` (${duration} ${locale === "zh-CN" ? "\u5206\u949f" : "min"})` : "";
   return `${item.startTime} - ${item.endTime}${durationLabel}`;
 }
 

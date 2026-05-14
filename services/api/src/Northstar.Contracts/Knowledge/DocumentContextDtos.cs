@@ -26,10 +26,20 @@ public sealed record ActivityTimelineItemDto(
     DateTimeOffset Date,
     string Detail,
     ActivityActorDto? Actor = null,
-    ActivityDocumentDto? Document = null);
+    ActivityDocumentDto? Document = null,
+    ActivityClassificationDto? Classification = null);
 
 public sealed record ActivityActorDto(string Id, string Name);
 
 public sealed record ActivityDocumentDto(string Id, string Title);
+
+public sealed record ActivityClassificationDto(
+    string Category,
+    string Signal,
+    IReadOnlyList<string> Surfaces,
+    bool IsNotificationCandidate,
+    bool IsAuditCandidate,
+    bool IsCoalescible,
+    string? CoalescingKey);
 
 public sealed record DocumentActivityResponse(IReadOnlyList<ActivityTimelineItemDto> Items);

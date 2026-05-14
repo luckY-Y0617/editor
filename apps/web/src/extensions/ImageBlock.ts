@@ -9,6 +9,7 @@ export const IMAGE_BLOCK_MAX_WIDTH = 100;
 
 export type ImageBlockAttributes = {
   src: string | null;
+  fileId: string | null;
   alt: string | null;
   title: string | null;
   width: number;
@@ -34,11 +35,27 @@ export const ImageBlock = Node.create({
 
   draggable: true,
 
+  addStorage() {
+    return {
+      documentId: null as string | null,
+    };
+  },
+
   addAttributes() {
     return {
       src: {
         default: null,
         parseHTML: (element) => getImageElement(element)?.getAttribute("src") ?? null,
+      },
+      fileId: {
+        default: null,
+        parseHTML: (element) =>
+          element.getAttribute("data-file-id") ?? getImageElement(element)?.getAttribute("data-file-id") ?? null,
+        renderHTML: (attributes) => (
+          typeof attributes.fileId === "string" && attributes.fileId.trim().length > 0
+            ? { "data-file-id": attributes.fileId }
+            : {}
+        ),
       },
       alt: {
         default: null,
@@ -70,6 +87,7 @@ export const ImageBlock = Node.create({
 
   renderHTML({ HTMLAttributes, node }) {
     const src = typeof node.attrs.src === "string" ? node.attrs.src : null;
+    const fileId = typeof node.attrs.fileId === "string" ? node.attrs.fileId : null;
     const alt = typeof node.attrs.alt === "string" ? node.attrs.alt : null;
     const width = clampImageBlockWidth(Number(node.attrs.width ?? DEFAULT_IMAGE_BLOCK_WIDTH));
     const align = normalizeImageBlockAlign(node.attrs.align);
@@ -93,6 +111,7 @@ export const ImageBlock = Node.create({
         {
           src,
           alt: alt ?? undefined,
+          "data-file-id": fileId ?? undefined,
           style: `width: ${width}%;`,
         },
       ],
@@ -121,6 +140,7 @@ export function normalizeImageBlockAttributes(
 ): ImageBlockAttributes {
   return {
     src: typeof attrs.src === "string" && attrs.src.trim().length > 0 ? attrs.src : null,
+    fileId: typeof attrs.fileId === "string" && attrs.fileId.trim().length > 0 ? attrs.fileId : null,
     alt: typeof attrs.alt === "string" && attrs.alt.trim().length > 0 ? attrs.alt : null,
     title: typeof attrs.title === "string" && attrs.title.trim().length > 0 ? attrs.title : null,
     width: clampImageBlockWidth(Number(attrs.width ?? DEFAULT_IMAGE_BLOCK_WIDTH)),

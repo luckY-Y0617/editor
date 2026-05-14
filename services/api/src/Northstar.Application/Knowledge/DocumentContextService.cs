@@ -10,13 +10,16 @@ public sealed class DocumentContextService : IDocumentContextService
 {
     private readonly IDocumentContextQueryService _queryService;
     private readonly IScopedResourceAccessService _scopedAccessService;
+    private readonly IDocumentPermissionFilterService _permissionFilterService;
 
     public DocumentContextService(
         IDocumentContextQueryService queryService,
-        IScopedResourceAccessService scopedAccessService)
+        IScopedResourceAccessService scopedAccessService,
+        IDocumentPermissionFilterService permissionFilterService)
     {
         _queryService = queryService;
         _scopedAccessService = scopedAccessService;
+        _permissionFilterService = permissionFilterService;
     }
 
     public async Task<DocumentContextResponse> GetAsync(
@@ -30,7 +33,8 @@ public sealed class DocumentContextService : IDocumentContextService
             cancellationToken,
             shareToken);
 
-        return await _queryService.GetContextAsync(documentId, cancellationToken)
+        var response = await _queryService.GetContextAsync(documentId, cancellationToken)
             ?? throw new ApplicationErrorException(ErrorCodes.NotFound, "Document was not found.");
+        return await _permissionFilterService.FilterContextAsync(response, cancellationToken);
     }
 }

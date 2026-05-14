@@ -49,6 +49,34 @@ public sealed class FileOutboxEvent
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset UpdatedAt { get; private set; }
 
+    public void MarkPublished(DateTimeOffset now)
+    {
+        if (Status == FileOutboxEventStatus.Published)
+        {
+            return;
+        }
+
+        Status = FileOutboxEventStatus.Published;
+        LastError = null;
+        UpdatedAt = now;
+    }
+
+    public void MarkFailure(DateTimeOffset now, string error, DateTimeOffset nextRetryAt, int maxAttempts)
+    {
+        if (Status == FileOutboxEventStatus.Published)
+        {
+            return;
+        }
+
+        RetryCount++;
+        LastError = string.IsNullOrWhiteSpace(error) ? "file_outbox_processing_failed" : error.Trim();
+        Status = RetryCount >= Math.Max(1, maxAttempts)
+            ? FileOutboxEventStatus.Failed
+            : FileOutboxEventStatus.Pending;
+        NextRetryAt = Status == FileOutboxEventStatus.Pending ? nextRetryAt : now;
+        UpdatedAt = now;
+    }
+
     private static string Required(string value, string parameterName)
     {
         if (string.IsNullOrWhiteSpace(value))

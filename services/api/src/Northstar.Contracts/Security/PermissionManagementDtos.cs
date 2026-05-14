@@ -81,6 +81,29 @@ public sealed record PermissionAuditEventDto(
 
 public sealed record PermissionAuditResponse(IReadOnlyList<PermissionAuditEventDto> Events);
 
+public sealed record WorkspaceAuditEventDto(
+    string Id,
+    string WorkspaceId,
+    string? ActorId,
+    string? ActorName,
+    string? ActorEmail,
+    string Action,
+    string ResourceType,
+    string ResourceId,
+    string? SubjectType,
+    string? SubjectId,
+    string? BeforeJson,
+    string? AfterJson,
+    string Metadata,
+    DateTimeOffset CreatedAt);
+
+public sealed record WorkspaceAuditLogResponse(
+    IReadOnlyList<WorkspaceAuditEventDto> Events,
+    int Offset,
+    int Limit,
+    int TotalCount,
+    bool HasMore);
+
 public sealed record ShareLinkDto(
     string Id,
     string WorkspaceId,

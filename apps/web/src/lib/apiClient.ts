@@ -17,6 +17,13 @@ export class ApiClientError extends Error {
   }
 }
 
+export type ApiOperationErrorMessages = {
+  forbidden?: string;
+  network?: string;
+  unauthorized?: string;
+  unconfigured?: string;
+};
+
 const apiVersionPrefix = "/api/v1";
 const authStateEventName = "northstar:auth-state-changed";
 const accessTokenKeys = ["northstar.accessToken", "northstar:accessToken", "accessToken"];
@@ -165,7 +172,8 @@ async function sendApiRequest(
   },
 ) {
   const isFormDataBody = typeof FormData !== "undefined" && options.body instanceof FormData;
-  const hasJsonBody = options.body !== undefined && !isFormDataBody && typeof options.body !== "string";
+  const isBlobBody = typeof Blob !== "undefined" && options.body instanceof Blob;
+  const hasJsonBody = options.body !== undefined && !isFormDataBody && !isBlobBody && typeof options.body !== "string";
   const requestHeaders = createApiHeaders(hasJsonBody ? "application/json" : undefined, options.auth, options.headers);
   const url = buildApiUrl(path, options.apiBaseUrl);
 
@@ -241,6 +249,44 @@ export function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 }
 
+export function formatApiOperationError(
+  error: unknown,
+  fallback: string,
+  messages: ApiOperationErrorMessages = {},
+) {
+  if (error instanceof ApiClientError) {
+    if (error.status === 0 && error.message === "API base URL is not configured.") {
+      return messages.unconfigured ?? "API is not configured for this environment.";
+    }
+
+    if (error.status === 0) {
+      return messages.network ?? "Could not reach the configured API. Check the backend session and retry.";
+    }
+
+    if (error.status === 401) {
+      return messages.unauthorized ?? "Sign in again and retry this action.";
+    }
+
+    if (error.status === 403) {
+      return messages.forbidden ?? "You do not have permission to perform this action.";
+    }
+
+    if (error.message.trim() && !error.message.startsWith("API returned ")) {
+      return error.message;
+    }
+  }
+
+  if (error instanceof Error && error.message.trim()) {
+    return error.message;
+  }
+
+  if (typeof error === "string" && error.trim()) {
+    return error;
+  }
+
+  return fallback;
+}
+
 async function toApiError(response: Response) {
   const fallback = `API returned ${response.status}`;
 
@@ -294,7 +340,7 @@ function notifyAuthStateChanged() {
 
 function callFetch(fetchFn: typeof fetch | undefined, input: RequestInfo | URL, init?: RequestInit) {
   if (fetchFn) {
-    return fetchFn(input, init);
+    return fetchFn.call(globalThis, input, init);
   }
 
   if (typeof globalThis.fetch !== "function") {
