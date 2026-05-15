@@ -1,9 +1,9 @@
 import {
-  Bell,
   Home,
   Layers3,
   Library,
   Settings,
+  Share2,
 } from "lucide-react";
 import { AtlasIcon } from "./AtlasIcon";
 import { t, useDisplayLanguage } from "../lib/i18n";
@@ -16,7 +16,7 @@ type WorkspaceHomeSidebarProps = {
   showCollections?: boolean;
 };
 
-type WorkspaceNavItemId = "home" | "libraries" | "settings" | "updates";
+type WorkspaceNavItemId = "home" | "libraries" | "settings" | "sharing" | "updates";
 
 type WorkspaceSidebarCollection = {
   displayTitle: string;
@@ -28,7 +28,7 @@ type WorkspaceSidebarCollection = {
 const workspaceNavItems = [
   { id: "home" as const, labelKey: "nav.home" as const, icon: Home, href: "#home" },
   { id: "libraries" as const, labelKey: "nav.libraries" as const, icon: Library, href: "#libraries" },
-  { id: "updates" as const, labelKey: "nav.updates" as const, icon: Bell, href: "#updates" },
+  { id: "sharing" as const, labelKey: "nav.updates" as const, icon: Share2, href: "#access-sharing" },
   { id: "settings" as const, labelKey: "nav.settings" as const, icon: Settings, href: "#settings" },
 ];
 

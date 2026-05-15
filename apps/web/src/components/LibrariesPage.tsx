@@ -502,7 +502,7 @@ export function LibrariesPage() {
           <div className="workspace-home-mobile-nav md:hidden" aria-label="Workspace navigation">
             <a href="#home">{t(locale, "nav.home")}</a>
             <a aria-current="page" href="#libraries">{t(locale, "nav.libraries")}</a>
-            <a href="#updates">{t(locale, "nav.updates")}</a>
+            <a href="#access-sharing">{t(locale, "nav.updates")}</a>
             <a href="#settings">{t(locale, "nav.settings")}</a>
           </div>
 

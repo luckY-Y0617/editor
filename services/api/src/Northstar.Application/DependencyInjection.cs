@@ -40,6 +40,7 @@ public static class DependencyInjection
         services.AddScoped<IResourcePermissionManagementService, ResourcePermissionManagementService>();
         services.AddSingleton<IShareLinkTokenService, ShareLinkTokenService>();
         services.AddScoped<IShareLinkService, ShareLinkService>();
+        services.AddScoped<IShareLinkAccessAuditService, ShareLinkAccessAuditService>();
         services.AddScoped<IEmailInviteService, EmailInviteService>();
         services.AddScoped<IEmailInviteDeliveryOutboxProcessor, EmailInviteDeliveryOutboxProcessor>();
         services.AddScoped<IDocumentPermissionFilterService, DocumentPermissionFilterService>();

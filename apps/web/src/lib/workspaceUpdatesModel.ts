@@ -400,19 +400,11 @@ function formatNotificationDetail(
 }
 
 function formatNotificationMessageSuffix(
-  target?: string | null,
-  resourcePath?: string | null,
-  locale: WorkspaceNotificationLocale = "en-US",
+  _target?: string | null,
+  _resourcePath?: string | null,
+  _locale: WorkspaceNotificationLocale = "en-US",
 ) {
-  if (!target) {
-    return undefined;
-  }
-
-  if (resourcePath && resourcePath !== target) {
-    return localText(locale, `in ${resourcePath}`, `位于 ${resourcePath}`);
-  }
-
-  return localText(locale, `on ${target}`, `在 ${target}`);
+  return undefined;
 }
 
 function isFailedNotification(notification: PermissionNotificationDto) {

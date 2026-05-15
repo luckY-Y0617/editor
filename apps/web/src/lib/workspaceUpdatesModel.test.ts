@@ -101,8 +101,9 @@ describe("workspaceUpdatesModel", () => {
     expect(resourceRow).toMatchObject({
       actionHref: `#share?documentId=${documentId}`,
       actionLabel: "Manage",
+      detail: "Location: Atlas Library / 01. Foundations.",
       kind: "sharing",
-      messageSuffix: "in Atlas Library / 01. Foundations",
+      messageSuffix: undefined,
       subject: "Mission & Vision",
     });
   });

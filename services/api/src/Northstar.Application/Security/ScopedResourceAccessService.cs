@@ -7,13 +7,16 @@ public sealed class ScopedResourceAccessService : IScopedResourceAccessService
 {
     private readonly ICurrentUser _currentUser;
     private readonly IEffectivePermissionService _effectivePermissionService;
+    private readonly IShareLinkAccessAuditService _shareLinkAccessAuditService;
 
     public ScopedResourceAccessService(
         ICurrentUser currentUser,
-        IEffectivePermissionService effectivePermissionService)
+        IEffectivePermissionService effectivePermissionService,
+        IShareLinkAccessAuditService shareLinkAccessAuditService)
     {
         _currentUser = currentUser;
         _effectivePermissionService = effectivePermissionService;
+        _shareLinkAccessAuditService = shareLinkAccessAuditService;
     }
 
     public Task<Guid> GetRequiredUserIdAsync(CancellationToken cancellationToken = default)
@@ -40,6 +43,11 @@ public sealed class ScopedResourceAccessService : IScopedResourceAccessService
             cancellationToken,
             shareToken);
 
+        await _shareLinkAccessAuditService.RecordProtectedResourceAccessAsync(
+            shareToken,
+            documentId,
+            result,
+            cancellationToken);
         EnsureAllowed(result, "Document was not found.");
         return result;
     }
@@ -58,6 +66,11 @@ public sealed class ScopedResourceAccessService : IScopedResourceAccessService
             cancellationToken,
             shareToken);
 
+        await _shareLinkAccessAuditService.RecordProtectedResourceAccessAsync(
+            shareToken,
+            documentId,
+            result,
+            cancellationToken);
         EnsureAllowed(result, "Document was not found.");
         return result;
     }
@@ -99,6 +112,11 @@ public sealed class ScopedResourceAccessService : IScopedResourceAccessService
                 actionKey,
                 cancellationToken,
                 shareToken);
+            await _shareLinkAccessAuditService.RecordProtectedResourceAccessAsync(
+                shareToken,
+                documentId,
+                result,
+                cancellationToken);
             if (result.Allowed)
             {
                 return result;

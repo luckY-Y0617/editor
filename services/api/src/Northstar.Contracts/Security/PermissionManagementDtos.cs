@@ -120,6 +120,121 @@ public sealed record ShareLinkDto(
 
 public sealed record ShareLinksResponse(IReadOnlyList<ShareLinkDto> Links);
 
+public sealed record LinkManagementDto(
+    string Id,
+    string WorkspaceId,
+    string ResourceType,
+    string ResourceId,
+    string? ResourceTitle,
+    string RoleKey,
+    string Audience,
+    string? SubjectEmail,
+    string? CreatedBy,
+    string? CreatedByDisplayName,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset? ExpiresAt,
+    DateTimeOffset? RevokedAt,
+    DateTimeOffset? PausedAt,
+    string? PausedBy,
+    string? PauseReason,
+    bool HasPassword,
+    string Status,
+    string? LinkMode,
+    string? PolicyState,
+    DateTimeOffset? LastAccessedAt,
+    long AccessCount,
+    long UniqueVisitorCount,
+    long RecentFailCount,
+    long ExternalOrPublicAccessCount,
+    bool CanManage,
+    bool CanUpdate,
+    bool CanPause,
+    bool CanRevoke);
+
+public sealed record LinkManagementListResponse(
+    IReadOnlyList<LinkManagementDto> Links,
+    int Offset,
+    int Limit,
+    int TotalCount,
+    bool HasMore);
+
+public sealed record ShareLinkAccessTrendPointDto(
+    DateOnly Date,
+    long SuccessCount,
+    long FailCount);
+
+public sealed record ShareLinkSourceBreakdownDto(
+    string Source,
+    long Count,
+    decimal Percentage);
+
+public sealed record ShareLinkAccessStatsResponse(
+    string ShareLinkId,
+    DateTimeOffset? LastAccessedAt,
+    long AccessCount,
+    long UniqueVisitorCount,
+    string? LastAccessIp,
+    int RecentWindowDays,
+    IReadOnlyList<ShareLinkAccessTrendPointDto> Trend,
+    IReadOnlyList<ShareLinkSourceBreakdownDto> SourceBreakdown);
+
+public sealed record ShareLinkAccessEventDto(
+    string Id,
+    string ShareLinkId,
+    string? AccessedBy,
+    string? ActorUserId,
+    string? ActorDisplayName,
+    string ActorType,
+    DateTimeOffset AccessedAt,
+    DateTimeOffset OccurredAt,
+    string? Ip,
+    string? UserAgent,
+    string? DeviceSummary,
+    string EventType,
+    string Result,
+    string? FailureCategory);
+
+public sealed record ShareLinkAccessEventsResponse(
+    IReadOnlyList<ShareLinkAccessEventDto> Events,
+    int Offset,
+    int Limit,
+    int TotalCount,
+    bool HasMore);
+
+public sealed class UpdateShareLinkRequest
+{
+    public UpdateShareLinkRequest()
+    {
+    }
+
+    public UpdateShareLinkRequest(string? roleKey, DateTimeOffset? expiresAt, string? reason)
+    {
+        RoleKey = roleKey;
+        ExpiresAt = ToJsonElement(expiresAt);
+        Reason = reason;
+    }
+
+    public string? RoleKey { get; init; }
+    public JsonElement ExpiresAt { get; init; }
+    public string? Reason { get; init; }
+
+    private static JsonElement ToJsonElement(DateTimeOffset? value)
+    {
+        return value.HasValue
+            ? JsonSerializer.Deserialize<JsonElement>(JsonSerializer.Serialize(value.Value))
+            : JsonSerializer.Deserialize<JsonElement>("null");
+    }
+}
+
+public sealed record ShareLinkCopyEventRequest(string? CopiedValueType, string? Reason);
+
+public sealed record CopyShareLinkResponse(
+    string LinkId,
+    string Url,
+    bool Reissued);
+
+public sealed record ShareLinkPauseRequest(string? Reason);
+
 public sealed record CreateShareLinkRequest(
     string RoleKey,
     string? Audience,

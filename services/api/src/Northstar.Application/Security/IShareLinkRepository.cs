@@ -15,9 +15,24 @@ public interface IShareLinkRepository
         string tokenHash,
         CancellationToken cancellationToken = default);
 
+    Task<ShareLink?> GetByIdAsync(
+        Guid shareLinkId,
+        CancellationToken cancellationToken = default);
+
     Task<ShareLink?> GetForUpdateAsync(
         Guid shareLinkId,
         CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<ShareLink>> SearchAsync(
+        ShareLinkSearchQuery query,
+        CancellationToken cancellationToken = default);
+
     Task AddAsync(ShareLink link, CancellationToken cancellationToken = default);
 }
+
+public sealed record ShareLinkSearchQuery(
+    Guid WorkspaceId,
+    string? ResourceType,
+    Guid? ResourceId,
+    string? Audience,
+    string? RoleKey);

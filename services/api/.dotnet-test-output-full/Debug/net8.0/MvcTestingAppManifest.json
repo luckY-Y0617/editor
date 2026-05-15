@@ -1,0 +1,7 @@
+{
+  "Northstar.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null": "D:\\editor\\services\\api\\src\\Northstar.Api",
+  "Northstar.Application, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null": "D:\\editor\\services\\api\\src\\Northstar.Application",
+  "Northstar.Contracts, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null": "D:\\editor\\services\\api\\src\\Northstar.Contracts",
+  "Northstar.Domain, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null": "D:\\editor\\services\\api\\src\\Northstar.Domain",
+  "Northstar.Infrastructure, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null": "D:\\editor\\services\\api\\src\\Northstar.Infrastructure"
+}

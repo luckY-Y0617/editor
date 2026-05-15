@@ -71,6 +71,7 @@ Higher-priority rules override lower-priority rules.
 - Do not silently resolve conflict-marked behavior.
 - Use the smallest safe diff only.
 - No drive-by refactors.
+- During browser QA, do not use in-browser / in-app Browser automation; use an allowed local headless browser, CDP, or Playwright-style workflow only when browser QA is requested or allowed, and report the tool used.
 
 ## Implementation Boundary
 

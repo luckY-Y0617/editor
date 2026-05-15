@@ -66,6 +66,7 @@ const postLoginRoutes = new Set([
   "#home",
   "#dashboard",
   "#libraries",
+  "#access-sharing",
   "#editor",
   "#search",
   "#discovery",
@@ -85,17 +86,32 @@ const postLoginRoutes = new Set([
   "#scim",
   "#updates",
   "#notifications",
+  "#links",
+  "#sharing",
 ]);
 
+const publicSharePathPrefix = "/public/share-links/";
+
 export function parseHashRoute(hash: string): ParsedHashRoute {
-  const normalizedHash = hash.startsWith("#") ? hash : `#${hash}`;
+  const routeInput = normalizeRouteInput(hash);
+  const normalizedHash = routeInput.startsWith("#") ? routeInput : `#${routeInput}`;
   const queryStart = normalizedHash.indexOf("?");
-  const route = queryStart >= 0 ? normalizedHash.slice(0, queryStart) : normalizedHash;
+  const rawRoute = queryStart >= 0 ? normalizedHash.slice(0, queryStart) : normalizedHash;
   const query = queryStart >= 0 ? normalizedHash.slice(queryStart + 1) : "";
+  const params = new URLSearchParams(query);
+  const publicShareToken = getPublicShareTokenFromRoute(rawRoute);
+
+  if (publicShareToken) {
+    params.set("token", publicShareToken);
+    return {
+      params,
+      route: "#public/share-links",
+    };
+  }
 
   return {
-    params: new URLSearchParams(query),
-    route: route || "#",
+    params,
+    route: rawRoute || "#",
   };
 }
 
@@ -163,9 +179,28 @@ export function createWorkspaceIntegrationsHash() {
   return createSettingsHash({ scope: "workspace", tab: "integrations" });
 }
 
+export function createWorkspaceLinkManagementHash() {
+  return "#access-sharing";
+}
+
 export function createWorkspaceUpdatesHash(options: { tab?: string | null } = {}) {
   const tab = options.tab?.trim();
   return tab ? `#updates?tab=${encodeURIComponent(tab)}` : "#updates";
+}
+
+export function createPublicShareHash(token?: string | null) {
+  const normalizedToken = normalizePublicShareToken(token);
+  return normalizedToken ? `#public/share-links/${encodeURIComponent(normalizedToken)}` : "#public/share-links";
+}
+
+export function getPublicShareTokenFromHash(hash: string) {
+  const { params, route } = parseHashRoute(hash);
+
+  if (route !== "#public/share-links") {
+    return null;
+  }
+
+  return normalizePublicShareToken(params.get("token"));
 }
 
 export function createLibrariesHash(options: { collectionId?: string | null; libraryId?: string | null } = {}) {
@@ -441,6 +476,10 @@ export function getCanonicalHashRedirect(hash: string) {
     return createWorkspaceIntegrationsHash();
   }
 
+  if (route === "#links" || route === "#sharing") {
+    return createWorkspaceLinkManagementHash();
+  }
+
   if ((route === "#permissions" || route === "#share") && !getShareDocumentIdFromHash(normalizedHash)) {
     return createWorkspacePermissionsHash();
   }
@@ -449,6 +488,10 @@ export function getCanonicalHashRedirect(hash: string) {
     const panel = params.get("panel");
     if (panel === "workspace-access-identity") {
       return createWorkspacePermissionsHash();
+    }
+
+    if (params.get("scope") === "workspace" && params.get("tab") === "links") {
+      return createWorkspaceLinkManagementHash();
     }
 
     if (panel === "deferred-plan" || panel === "deferred-developer") {
@@ -484,6 +527,7 @@ export function normalizeInternalActionHash(value?: string | null) {
     "#home",
     "#dashboard",
     "#libraries",
+    "#access-sharing",
     "#editor",
     "#search",
     "#discovery",
@@ -499,7 +543,70 @@ export function normalizeInternalActionHash(value?: string | null) {
     "#scim",
     "#updates",
     "#notifications",
+    "#links",
+    "#sharing",
   ]);
 
   return allowedRoutes.has(route) ? trimmed : "#updates";
+}
+
+export function createRouteHashFromLocation(location: Pick<Location, "hash" | "pathname" | "search">) {
+  if (location.hash) {
+    return location.hash;
+  }
+
+  if (location.pathname.startsWith(publicSharePathPrefix)) {
+    return `${location.pathname}${location.search}`;
+  }
+
+  return "";
+}
+
+function getPublicShareTokenFromRoute(route: string) {
+  const routeWithoutHash = route.startsWith("#") ? route.slice(1) : route;
+  const normalizedRoute = routeWithoutHash.startsWith("/") ? routeWithoutHash : `/${routeWithoutHash}`;
+
+  if (!normalizedRoute.startsWith(publicSharePathPrefix)) {
+    return null;
+  }
+
+  const encodedToken = normalizedRoute.slice(publicSharePathPrefix.length).split("/")[0];
+  return normalizePublicShareToken(safeDecodeURIComponent(encodedToken));
+}
+
+function normalizeRouteInput(value: string) {
+  const trimmed = value?.trim() ?? "";
+  if (/^https?:\/\//i.test(trimmed)) {
+    try {
+      const url = new URL(trimmed);
+      if (url.hash) {
+        return url.hash;
+      }
+
+      if (url.pathname.startsWith(publicSharePathPrefix)) {
+        return `${url.pathname}${url.search}`;
+      }
+    } catch {
+      return trimmed;
+    }
+  }
+
+  return trimmed;
+}
+
+function normalizePublicShareToken(token?: string | null) {
+  const trimmed = token?.trim();
+  if (!trimmed || trimmed.length > 512 || /[\s?#/\\]/.test(trimmed)) {
+    return null;
+  }
+
+  return trimmed;
+}
+
+function safeDecodeURIComponent(value: string) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return "";
+  }
 }

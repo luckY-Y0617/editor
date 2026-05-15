@@ -100,8 +100,9 @@ public sealed class PermissionNotificationFanoutService : IPermissionNotificatio
             RecipientPermissionMode.ShareOrManage,
             accessRequestId: null,
             permissionGrantId: null,
-            extraRecipientIds: [],
+            extraRecipientIds: [actorId],
             dedupeSeed: $"share-link:{shareLinkId}:created",
+            includeActor: true,
             cancellationToken: cancellationToken);
     }
 
@@ -124,8 +125,9 @@ public sealed class PermissionNotificationFanoutService : IPermissionNotificatio
             RecipientPermissionMode.ShareOrManage,
             accessRequestId: null,
             permissionGrantId: null,
-            extraRecipientIds: [],
+            extraRecipientIds: [actorId],
             dedupeSeed: $"share-link:{shareLinkId}:revoked",
+            includeActor: true,
             cancellationToken: cancellationToken);
     }
 
@@ -241,7 +243,8 @@ public sealed class PermissionNotificationFanoutService : IPermissionNotificatio
         Guid? permissionGrantId,
         IReadOnlyCollection<Guid> extraRecipientIds,
         string? dedupeSeed,
-        CancellationToken cancellationToken)
+        bool includeActor = false,
+        CancellationToken cancellationToken = default)
     {
         var recipients = await GetRecipientIdsAsync(
             workspaceId,
@@ -250,6 +253,7 @@ public sealed class PermissionNotificationFanoutService : IPermissionNotificatio
             actorId,
             permissionMode,
             extraRecipientIds,
+            includeActor,
             cancellationToken);
         if (recipients.Count == 0)
         {
@@ -280,6 +284,7 @@ public sealed class PermissionNotificationFanoutService : IPermissionNotificatio
         Guid actorId,
         RecipientPermissionMode permissionMode,
         IReadOnlyCollection<Guid> extraRecipientIds,
+        bool includeActor,
         CancellationToken cancellationToken)
     {
         var recipients = new HashSet<Guid>(await _accessRequestRepository.GetWorkspaceManagerUserIdsAsync(
@@ -336,7 +341,7 @@ public sealed class PermissionNotificationFanoutService : IPermissionNotificatio
         }
 
         var filtered = new List<Guid>();
-        foreach (var recipientId in recipients.Where(recipientId => recipientId != actorId))
+        foreach (var recipientId in recipients.Where(recipientId => includeActor || recipientId != actorId))
         {
             if (!await IsMutedAsync(recipientId, workspaceId, resourceType, resourceId, cancellationToken))
             {

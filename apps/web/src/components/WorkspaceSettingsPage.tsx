@@ -686,7 +686,7 @@ function SettingsPageFrame({
           <div className="workspace-home-mobile-nav md:hidden" aria-label="Workspace navigation">
             <a href="#home">{t(locale, "nav.home")}</a>
             <a href="#libraries">{t(locale, "nav.libraries")}</a>
-            <a href="#updates">{t(locale, "nav.updates")}</a>
+            <a href="#access-sharing">{t(locale, "nav.updates")}</a>
             <a aria-current={activeSidebarItem === "settings" ? "page" : undefined} href="#settings">{t(locale, "nav.settings")}</a>
           </div>
           <div className="permission-admin-feed-inner workspace-settings-inner">

@@ -75,6 +75,7 @@ public static class DependencyInjection
         services.AddSingleton<IIdpLoginPolicy, ConfiguredIdpLoginPolicy>();
         services.AddScoped<IPasswordHashService, PasswordHashService>();
         services.AddScoped<IMfaSecretProtector, AesGcmMfaSecretProtector>();
+        services.AddScoped<IShareLinkTokenProtector, AesGcmShareLinkTokenProtector>();
         services.AddScoped<ITokenService, TokenService>();
         services.AddScoped<IWorkspaceMembershipQueryService, EfWorkspaceMembershipQueryService>();
         services.AddScoped<IWorkspaceAgendaQueryService, EfWorkspaceAgendaQueryService>();
@@ -87,6 +88,7 @@ public static class DependencyInjection
         services.AddScoped<IPermissionNotificationRepository, EfPermissionNotificationRepository>();
         services.AddScoped<IPermissionNotificationPreferenceRepository, EfPermissionNotificationPreferenceRepository>();
         services.AddScoped<IShareLinkRepository, EfShareLinkRepository>();
+        services.AddScoped<IShareLinkAccessRepository, EfShareLinkAccessRepository>();
         services.AddScoped<IPublicShareCollectionQueryService, EfPublicShareCollectionQueryService>();
         services.AddScoped<IEmailInviteRepository, EfEmailInviteRepository>();
         services.AddScoped<IEmailInviteDeliveryOutboxRepository, EfEmailInviteDeliveryOutboxRepository>();

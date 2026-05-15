@@ -42,12 +42,54 @@ public sealed class EfShareLinkRepository : IShareLinkRepository
             .FirstOrDefaultAsync(link => link.TokenHash == tokenHash, cancellationToken);
     }
 
+    public Task<ShareLink?> GetByIdAsync(
+        Guid shareLinkId,
+        CancellationToken cancellationToken = default)
+    {
+        return _dbContext.ShareLinks
+            .AsNoTracking()
+            .FirstOrDefaultAsync(link => link.Id == shareLinkId, cancellationToken);
+    }
+
     public Task<ShareLink?> GetForUpdateAsync(
         Guid shareLinkId,
         CancellationToken cancellationToken = default)
     {
         return _dbContext.ShareLinks
             .FirstOrDefaultAsync(link => link.Id == shareLinkId, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<ShareLink>> SearchAsync(
+        ShareLinkSearchQuery query,
+        CancellationToken cancellationToken = default)
+    {
+        var links = _dbContext.ShareLinks
+            .AsNoTracking()
+            .Where(link => link.WorkspaceId == query.WorkspaceId);
+
+        if (!string.IsNullOrWhiteSpace(query.ResourceType))
+        {
+            links = links.Where(link => link.ResourceType == query.ResourceType);
+        }
+
+        if (query.ResourceId.HasValue)
+        {
+            links = links.Where(link => link.ResourceId == query.ResourceId.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.Audience))
+        {
+            links = links.Where(link => link.Audience == query.Audience);
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.RoleKey))
+        {
+            links = links.Where(link => link.RoleKey == query.RoleKey);
+        }
+
+        return await links
+            .OrderByDescending(link => link.CreatedAt)
+            .ToListAsync(cancellationToken);
     }
 
     public Task AddAsync(ShareLink link, CancellationToken cancellationToken = default)

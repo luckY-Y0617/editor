@@ -816,6 +816,7 @@ Endpoints:
 
 ```text
 GET    /permissions/resources/:resourceType/:resourceId/share-links
+GET    /permissions/share-links/:shareLinkId
 POST   /permissions/resources/:resourceType/:resourceId/share-links
 DELETE /permissions/share-links/:shareLinkId
 GET    /share-links/:token/resolve
@@ -823,8 +824,10 @@ GET    /share-links/:token/resolve
 
 Create returns the raw token and URL once. The frontend may display them
 immediately after creation, but list responses must be treated as metadata only:
-they never contain a raw token or token hash. Revoke removes the link from the
-active list after refresh.
+they never contain a raw token or token hash. The single-link metadata read
+returns the same token-free `ShareLinkDto`, including revoked links when the
+caller can manage sharing for the linked resource. Revoke removes the link from
+the active list after refresh.
 
 Active link metadata and authorization are separate. The list endpoint may still
 return an unexpired, non-revoked link when the resource's `linkMode` is
@@ -925,6 +928,123 @@ Still deferred:
 - watched/muted persistence;
 - group grant fan-out notifications;
 - full IAM management UI.
+
+### Document Share drawer enterprise semantics
+
+The editor Share drawer is the normal surface for daily document sharing. It is
+not the global permission administration page and it is not a live presence
+panel.
+
+Required sections:
+
+- Invite people: create direct user grants for known workspace users and email
+  invites for external recipients.
+- Share link: create or configure link access using the dedicated share-link
+  APIs only.
+- Who can access: summarize access entries grouped by source.
+
+"Who can access" rows must be source-aware:
+
+- Owner: the document owner or effective owner/manager source, when available.
+- People: direct user grants and pending/accepted email invites.
+- Groups: direct group grants, including IAM-managed groups as read-only where
+  appropriate.
+- Links: active, paused, expired, or revoked share-link metadata, displayed as
+  links, not as libraries or folders.
+- Inherited access: workspace or collection inheritance shown once per source,
+  with the effective inherited role and inheritance mode.
+
+The UI must not use "Current access" as the primary label for this list unless
+copy clearly explains that it is a permissions summary. "Current access" can be
+confused with live viewers. Live viewers/presence is a separate collaboration
+feature and must not be inferred from permission rows.
+
+Share modes map to API behavior:
+
+- Invitation only: do not create a link; rely on direct grants, invites, and
+  inherited access allowed by policy.
+- Internal: create `audience = "workspace"` links. These require active
+  workspace membership and backend `linkMode = internal`.
+- External authenticated: create `audience = "external"` links with
+  `subjectEmail`; they require authenticated email match and
+  `linkMode = external`.
+- Public: create `audience = "public"` links only when the app knows the
+  backend feature is enabled. Public links are viewer-only, require future
+  bounded expiry, may carry a create-time password, and use only
+  `/public/share-links/...` anonymous routes for reads.
+
+Role controls must distinguish resource grants from link roles:
+
+- Direct user/group grants may show the resource roles returned by
+  `availableRoles`.
+- Share-link role controls may show only `viewer` and `commenter`.
+- Public-link controls must force `viewer`.
+- Editor/admin/owner link options must not appear enabled unless a future
+  contract explicitly adds editable or administrative links.
+
+Copy behavior must follow the backend token-handling design:
+
+- Create responses may show and copy the raw token-bearing URL.
+- Token-free list/detail rows may show metadata and link IDs.
+- Existing-link "copy full URL" is allowed only if the backend exposes an
+  approved audited copy endpoint that can return a usable URL without exposing
+  token hashes, passwords, or other secrets.
+- If that endpoint is absent or disabled, existing-link rows must show a
+  disabled reason instead of reconstructing URLs client-side.
+
+### Link Management UI contract
+
+Status: implemented contract for the current workspace Access & Sharing link
+inventory, including audited full-URL copy, pause/resume, and access analytics.
+
+Placement rules:
+
+- normal document sharing remains in the document Share drawer.
+- resource-scoped advanced permission work remains in Share & Permissions.
+- centralized link inventory belongs on a workspace access/security management
+  surface, not as the only way to create daily document links.
+- visible product copy may say Folder, but API and persistence continue to use
+  `collection`.
+
+Centralized link inventory target:
+
+- filters: status, audience, role, expiry window, risk state, resource type,
+  creator, and search text.
+- columns: resource, token-free link id, audience, role, creator, status,
+  expiry, last access, access count, risk state, and actions.
+- detail drawer: token-free link id, resource, creator, created time, expiry,
+  role, audience, status, last access, access count, access trend, source
+  distribution, and recent access events.
+- actions: revoke where authorized; pause/resume per-link state; update
+  role/expiry only inside backend constraints; audited full-URL copy only
+  through the protected copy endpoint.
+
+Copy and reveal rules:
+
+- token-bearing URLs are copyable immediately after create while the create
+  response exists in client state.
+- existing-link full URL copy is allowed only through the authenticated audited
+  `POST /permissions/share-links/:shareLinkId/copy` endpoint. The frontend must
+  convert public API URLs from that response into the frontend public reader
+  route before showing or copying them.
+- list/detail responses never contain raw tokens or token hashes and must not
+  be used to reconstruct token-bearing URLs.
+- existing link rows may still copy the token-free link id for support/audit
+  workflows when a full URL copy is not requested.
+- `copy-events` records copy actions for values already held by the client; it
+  must not return token material.
+- reveal-link UI is not supported as a persistent token display. Existing-link
+  URL access is a deliberate audited copy action only.
+
+Risk and audit display target:
+
+- risk indicators may use access count spikes, unexpected IP/source patterns,
+  frequent external/public access, expired/revoked access attempts, and failed
+  known-link access events.
+- unknown-token failures must not reveal token existence and may be summarized
+  from rate-limit/security logs rather than application tables.
+- access event tables are analytics/security data and do not replace immutable
+  permission audit events.
 
 ## Permission System Phase 9 Frontend Contract Update
 
@@ -1142,6 +1262,10 @@ Frontend interaction remains minimal in Phase 11: controls may stay disabled or
 read-only unless the app can confirm the public-link feature flag and implement
 the password prompt flow. Collection public views must treat the listing as
 metadata only and fetch no child document content through protected APIs.
+The public reader route remains `#public/share-links/:token`; document reads
+reuse the shared document reader surface and readonly Tiptap renderer used by
+the internal document reading layout, while the public page keeps token,
+password, and anonymous endpoint handling outside the internal editor shell.
 
 ## Permission System Phase 8 Frontend Contract Update
 

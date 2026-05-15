@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
+  copyShareLinkManagementUrl,
   createDocumentEmailInvite,
   createDocumentPermissionGrant,
   createDocumentShareLink,
@@ -34,14 +35,22 @@ import {
 } from "../lib/appApi";
 import { ApiClientError, getConfiguredApiBaseUrl, isUuid } from "../lib/apiClient";
 import {
+  getWorkspaceGroups as getPermissionWorkspaceGroups,
+  type WorkspaceGroupDto,
+} from "../lib/permissionAdminApi";
+import {
   createShareLinkRequest,
+  getDocumentShareLinkStatus,
+  getExistingShareLinkCopyCapability,
   getShareDrawerInviteDisabledReason,
   getShareDrawerLinkDisabledReason,
   toAbsoluteShareUrl,
   toSharePermissionMutationError,
+  type DocumentShareLinkStatus,
   type ShareDrawerApiStatus,
 } from "../lib/documentShareLinksModel";
 import { createShareHash } from "../lib/hashRouting";
+import { toUserFacingShareUrl } from "../lib/publicShareModel";
 import type { KnowledgeDocument } from "../types/editor";
 
 type ShareDrawerStatus = ShareDrawerApiStatus;
@@ -56,20 +65,21 @@ type DocumentShareDrawerProps = {
 };
 
 const inviteRoles: Array<{ label: string; value: InviteRole }> = [
-  { label: "可查看", value: "viewer" },
-  { label: "可评论", value: "commenter" },
-  { label: "可编辑", value: "editor" },
+  { label: "Can view", value: "viewer" },
+  { label: "Can comment", value: "commenter" },
+  { label: "Can edit", value: "editor" },
 ];
 
 const linkRoles: Array<{ label: string; value: ShareLinkRole }> = [
-  { label: "可查看", value: "viewer" },
-  { label: "可评论", value: "commenter" },
+  { label: "Viewer", value: "viewer" },
+  { label: "Commenter", value: "commenter" },
 ];
 
 export function DocumentShareDrawer({ document, isOpen, onClose, workspaceId }: DocumentShareDrawerProps) {
   const apiBaseUrl = useMemo(() => getConfiguredApiBaseUrl(), []);
   const [permissions, setPermissions] = useState<ResourcePermissionsResponse | null>(null);
   const [members, setMembers] = useState<WorkspaceMemberDto[] | null>(null);
+  const [groups, setGroups] = useState<WorkspaceGroupDto[] | null>(null);
   const [links, setLinks] = useState<ShareLinkDto[] | null>(null);
   const [invites, setInvites] = useState<EmailInviteDto[] | null>(null);
   const [status, setStatus] = useState<ShareDrawerStatus>("idle");
@@ -87,9 +97,11 @@ export function DocumentShareDrawer({ document, isOpen, onClose, workspaceId }: 
   const [createdLink, setCreatedLink] = useState<CreateShareLinkResponse | null>(null);
   const [createdInvite, setCreatedInvite] = useState<CreateEmailInviteResponse | null>(null);
 
-  const activeLinks = links?.filter((link) => !link.revokedAt) ?? [];
-  const pendingInvites = invites?.filter((invite) => invite.status === "pending") ?? [];
+  const peopleGrants = permissions?.grants.filter((grant) => grant.subjectType === "user") ?? [];
+  const groupGrants = permissions?.grants.filter((grant) => grant.subjectType === "group") ?? [];
+  const visibleInvites = invites?.filter((invite) => invite.status === "pending" || invite.status === "accepted") ?? [];
   const memberById = useMemo(() => new Map((members ?? []).map((member) => [member.userId, member])), [members]);
+  const groupById = useMemo(() => new Map((groups ?? []).map((group) => [group.id, group])), [groups]);
   const canUse = status === "ready" && Boolean(apiBaseUrl);
   const canMutate = canUse && !operation;
   const normalizedInvite = inviteValue.trim();
@@ -129,7 +141,10 @@ export function DocumentShareDrawer({ document, isOpen, onClose, workspaceId }: 
   });
   const canSendInvite = !inviteDisabledReason && inviteRoleOptions.length > 0;
   const canCreateLink = !linkDisabledReason;
-  const generatedUrl = createdLink ? toAbsoluteShareUrl(createdLink.url, apiBaseUrl) : "";
+  const appOrigin = typeof window !== "undefined" ? window.location.origin : "";
+  const generatedUrl = createdLink
+    ? toUserFacingShareUrl(createdLink.url, createdLink.token, createdLink.link.audience, apiBaseUrl, appOrigin)
+    : "";
 
   useEffect(() => {
     if (!isOpen) {
@@ -165,7 +180,7 @@ export function DocumentShareDrawer({ document, isOpen, onClose, workspaceId }: 
         }
 
         setStatus(isForbiddenError(value) ? "forbidden" : "error");
-        setError(toDrawerError(value, "无法加载分享设置。"));
+        setError(toDrawerError(value, "Unable to load share settings."));
       });
 
     if (workspaceId) {
@@ -181,6 +196,18 @@ export function DocumentShareDrawer({ document, isOpen, onClose, workspaceId }: 
 
           setMembers(null);
           setMemberStatus(isForbiddenError(value) ? "forbidden" : "error");
+        });
+
+      void getPermissionWorkspaceGroups(apiBaseUrl, workspaceId, controller.signal)
+        .then((body) => {
+          setGroups(body.groups);
+        })
+        .catch((value: unknown) => {
+          if (value instanceof DOMException && value.name === "AbortError") {
+            return;
+          }
+
+          setGroups(null);
         });
     }
 
@@ -222,7 +249,7 @@ export function DocumentShareDrawer({ document, isOpen, onClose, workspaceId }: 
     try {
       await callback();
     } catch (value) {
-      setError(toDrawerError(value, "操作失败，请稍后重试。"));
+      setError(toDrawerError(value, "Operation failed. Retry after the backend session is healthy."));
     } finally {
       setOperation(null);
     }
@@ -254,18 +281,18 @@ export function DocumentShareDrawer({ document, isOpen, onClose, workspaceId }: 
           subjectType: "user",
         });
         setInviteValue("");
-        setMessage("成员权限已更新。");
+        setMessage("Member access updated.");
         await reloadShareState();
         return;
       }
 
       if (!inviteIsEmail) {
-        setError(memberStatus === "ready" ? "未找到匹配成员，请输入成员姓名、邮箱或用户 UUID。" : "成员搜索不可用，请输入 email invite。");
+        setError(memberStatus === "ready" ? "No matching workspace member found. Enter an email address or user UUID." : "Member search is unavailable. Enter an email invite.");
         return;
       }
 
       if (inviteRole === "editor") {
-        setError("当前后端 email invite 不支持可编辑权限，请改用可查看或可评论。");
+        setError("Email invites support viewer or commenter access only.");
         return;
       }
 
@@ -276,7 +303,7 @@ export function DocumentShareDrawer({ document, isOpen, onClose, workspaceId }: 
       });
       setCreatedInvite({ ...created, url: toAbsoluteShareUrl(created.url, apiBaseUrl) });
       setInviteValue("");
-      setMessage("邀请已发送。");
+      setMessage("Invite created. The invite URL is shown once.");
       await reloadShareState();
     });
   };
@@ -289,7 +316,7 @@ export function DocumentShareDrawer({ document, isOpen, onClose, workspaceId }: 
       }
 
       if (linkScope === "invited") {
-        setMessage("当前为仅受邀访问，不需要创建分享链接。");
+        setMessage("Invitation only mode does not create a share link.");
         return;
       }
 
@@ -304,9 +331,9 @@ export function DocumentShareDrawer({ document, isOpen, onClose, workspaceId }: 
           subjectEmail: null,
         }),
       );
-      setCreatedLink({ ...created, url: toAbsoluteShareUrl(created.url, apiBaseUrl) });
+      setCreatedLink(created);
       setPublicPassword("");
-      setMessage("分享链接已创建，请复制链接。");
+      setMessage("Share link created. The token-bearing URL is shown once.");
       await reloadShareState();
     });
   };
@@ -315,7 +342,37 @@ export function DocumentShareDrawer({ document, isOpen, onClose, workspaceId }: 
     void copyValue(generatedUrl, setMessage, setError);
   };
 
+  const copyExistingLink = (link: ShareLinkDto) => {
+    const linkStatus = getDocumentShareLinkStatus(link, permissions?.policy.linkMode);
+    const disabledReason = getExistingShareLinkCopyCapability({
+      apiConfigured: Boolean(apiBaseUrl),
+      canManage: canMutate,
+      copyEndpointAvailable: true,
+      operation,
+      status: linkStatus,
+    });
+
+    void runOperation(`copy:${link.id}`, async () => {
+      if (disabledReason) {
+        setError(disabledReason);
+        return;
+      }
+
+      const response = await copyShareLinkManagementUrl(link.id, {
+        copiedValueType: "share_url",
+        reason: "Audited copy from document share drawer.",
+      });
+      await copyValue(
+        toUserFacingShareUrl(response.url, null, link.audience, apiBaseUrl, appOrigin),
+        setMessage,
+        setError,
+      );
+      setMessage(response.reissued ? "Audited copy complete. A new URL was issued by the backend." : "Audited copy complete.");
+    });
+  };
+
   const advancedHref = createShareHash(document.id);
+  const inheritedSource = getInheritedAccessSource(permissions);
 
   return (
     <div className="document-share-drawer-overlay" role="presentation">
@@ -331,13 +388,13 @@ export function DocumentShareDrawer({ document, isOpen, onClose, workspaceId }: 
         </header>
 
         <div className="document-share-drawer-body editor-scrollbar">
-          {status === "loading" ? <DrawerStatus icon={<Loader2 className="h-4 w-4 animate-spin" />} label="正在加载分享设置..." /> : null}
-          {status === "unconfigured" ? <DrawerStatus icon={<ShieldCheck className="h-4 w-4" />} label="Share API 未配置。" /> : null}
-          {status === "forbidden" ? <DrawerStatus icon={<ShieldCheck className="h-4 w-4" />} label="你没有管理此文档分享的权限。" /> : null}
-          {status === "error" ? <DrawerStatus icon={<ShieldCheck className="h-4 w-4" />} label={error ?? "分享设置加载失败。"} /> : null}
+          {status === "loading" ? <DrawerStatus icon={<Loader2 className="h-4 w-4 animate-spin" />} label="Loading share settings..." /> : null}
+          {status === "unconfigured" ? <DrawerStatus icon={<ShieldCheck className="h-4 w-4" />} label="Share API is not configured." /> : null}
+          {status === "forbidden" ? <DrawerStatus icon={<ShieldCheck className="h-4 w-4" />} label="You do not have permission to manage this document's sharing." /> : null}
+          {status === "error" ? <DrawerStatus icon={<ShieldCheck className="h-4 w-4" />} label={error ?? "Share settings failed to load."} /> : null}
 
           <section className="document-share-section">
-            <h3>1. 邀请成员</h3>
+            <h3>Invite people</h3>
             <div className="document-share-invite-row">
               <input
                 disabled={!canMutate}
@@ -347,7 +404,7 @@ export function DocumentShareDrawer({ document, isOpen, onClose, workspaceId }: 
                     sendInvite();
                   }
                 }}
-                placeholder="@用户或邮箱"
+                placeholder="@member, email, or user UUID"
                 title={!canMutate ? inviteDisabledReason ?? undefined : "Search workspace members or enter an email invite."}
                 type="text"
                 value={inviteValue}
@@ -365,7 +422,7 @@ export function DocumentShareDrawer({ document, isOpen, onClose, workspaceId }: 
                 ))}
               </select>
               <button className="document-share-primary" disabled={!canSendInvite} onClick={sendInvite} title={inviteDisabledReason ?? "Send invite or grant access"} type="button">
-                {operation === "invite" ? "发送中" : "发送邀请"}
+                {operation === "invite" ? "Sending" : "Send"}
               </button>
             </div>
             {members?.length ? (
@@ -384,13 +441,13 @@ export function DocumentShareDrawer({ document, isOpen, onClose, workspaceId }: 
               </div>
             ) : null}
             <p className="document-share-help">
-              通过输入 @ 搜索成员或输入邮箱邀请。这里的 @ 只用于邀请输入，文档评论 mention notification 不在当前能力范围内。
+              Workspace users become direct grants. Email addresses create email invites. This does not create live presence, comments mentions, or workspace membership.
             </p>
             {memberStatus === "loading" ? (
-              <p className="document-share-help">正在加载 workspace 成员。你仍可以直接输入邮箱准备邀请。</p>
+              <p className="document-share-help">Loading workspace members. You can still prepare an email invite.</p>
             ) : null}
             {memberStatus === "forbidden" || memberStatus === "error" || memberStatus === "unconfigured" ? (
-              <p className="document-share-help is-warning">成员搜索不可用或权限不足，仍可使用 email invite；不会伪造用户搜索结果。</p>
+              <p className="document-share-help is-warning">Member search is unavailable or forbidden. Email invites remain available when the share API is ready.</p>
             ) : null}
             {createdInvite ? (
               <GeneratedSecret
@@ -402,35 +459,38 @@ export function DocumentShareDrawer({ document, isOpen, onClose, workspaceId }: 
           </section>
 
           <section className="document-share-section">
-            <h3>2. 分享链接</h3>
+            <h3>Share link</h3>
             <div className="document-share-copy-row">
-              <input readOnly value={generatedUrl || "创建链接后会显示一次性 URL"} />
+              <input readOnly value={generatedUrl || "Create a link to show its URL once"} />
               <button disabled={!generatedUrl} onClick={copyGeneratedLink} type="button">
                 <Copy className="h-4 w-4" />
-                复制
+                Copy
               </button>
             </div>
-            <div className="document-share-segmented" role="group" aria-label="Share link scope">
+            <div className="document-share-segmented" role="group" aria-label="Share mode">
               <button className={linkScope === "invited" ? "is-active" : ""} onClick={() => setLinkScope("invited")} type="button">
-                仅受邀
+                Invitation only
               </button>
               <button className={linkScope === "workspace" ? "is-active" : ""} onClick={() => setLinkScope("workspace")} type="button">
-                内部可见
+                Internal
               </button>
               <button className={linkScope === "public" ? "is-active" : ""} onClick={() => setLinkScope("public")} type="button">
-                公开访问
+                Public
               </button>
             </div>
+            <p className="document-share-help">
+              Invitation only creates no link. Internal creates a workspace link. Public creates a viewer-only public link through the dedicated share-link API and requires a future expiry.
+            </p>
             <label className="document-share-select-row">
               <span>
                 <Eye className="h-4 w-4" />
-                链接权限
+                Link role
               </span>
               <select
-                disabled={!canMutate || linkScope === "invited"}
+                disabled={!canMutate || linkScope === "invited" || linkScope === "public"}
                 onChange={(event) => setLinkRole(event.target.value as ShareLinkRole)}
-                title={linkScope === "invited" ? linkDisabledReason ?? "No link role is needed." : "Share links support viewer or commenter only."}
-                value={linkRole}
+                title={linkScope === "public" ? "Public links are viewer-only." : linkScope === "invited" ? "No link role is needed." : "Share links support viewer or commenter only."}
+                value={linkScope === "public" ? "viewer" : linkRole}
               >
                 {linkRoles.map((role) => (
                   <option key={role.value} value={role.value}>
@@ -442,7 +502,7 @@ export function DocumentShareDrawer({ document, isOpen, onClose, workspaceId }: 
             <label className="document-share-select-row">
               <span>
                 <Globe2 className="h-4 w-4" />
-                有效期
+                Expiry
               </span>
               <input
                 disabled={!canMutate || linkScope === "invited"}
@@ -456,7 +516,7 @@ export function DocumentShareDrawer({ document, isOpen, onClose, workspaceId }: 
             <label className="document-share-select-row">
               <span>
                 <LockKeyhole className="h-4 w-4" />
-                访问密码
+                Password
               </span>
               <span className="document-share-password-control">
                 <button
@@ -470,111 +530,133 @@ export function DocumentShareDrawer({ document, isOpen, onClose, workspaceId }: 
                   autoComplete="new-password"
                   disabled={!canMutate || linkScope !== "public" || !passwordEnabled}
                   onChange={(event) => setPublicPassword(event.target.value)}
-                  placeholder="仅公开链接可用"
+                  placeholder="Public links only"
                   type="password"
                   value={publicPassword}
                 />
               </span>
             </label>
-            <button className="document-share-link-action" disabled={!canCreateLink} onClick={createLink} title={linkDisabledReason ?? "Create or update the share link"} type="button">
+            <button className="document-share-link-action" disabled={!canCreateLink} onClick={createLink} title={linkDisabledReason ?? "Create share link"} type="button">
               <Link2 className="h-4 w-4" />
-              {operation === "link" ? "创建中" : linkScope === "public" ? "创建公开链接" : "应用链接设置"}
+              {operation === "link" ? "Creating" : linkScope === "public" ? "Create public link" : linkScope === "workspace" ? "Create internal link" : "Invitation only"}
             </button>
             {linkScope === "public" && !publicExpiryIso ? (
-              <p className="document-share-help is-warning">公开链接按后端策略需要设置未来过期时间；不会通过普通 policy 开启 public。</p>
+              <p className="document-share-help is-warning">Public links require a future expiry. The drawer does not set public access through generic policy mutation.</p>
             ) : null}
           </section>
 
           <section className="document-share-section">
-            <h3>3. 当前访问</h3>
+            <h3>Who can access</h3>
+            <p className="document-share-help">
+              Permission summary by source. This is not a live viewers or current presence list.
+            </p>
             <div className="document-share-access-list">
-              <AccessRow
-                initials={initials(document.owner?.name ?? "Owner")}
-                label={document.owner?.name ?? "Document Owner"}
-                role="所有者"
-                tone="gold"
-              />
-              {permissions?.grants.filter((grant) => grant.subjectType === "user").map((grant) => (
-                <GrantAccessRow
-                  availableRoles={availableGrantRoles}
-                  canMutate={canMutate}
-                  grant={grant}
-                  key={grant.id}
-                  member={memberById.get(grant.subjectId)}
-                  onRevoke={() =>
-                    void runOperation(`grant:${grant.id}`, async () => {
-                      await revokeDocumentPermissionGrant(document.id, grant.id, "Revoked from document drawer.");
-                      setMessage("访问权限已撤销。");
-                      await reloadShareState();
-                    })
-                  }
-                  onRoleChange={(roleKey) =>
-                    void runOperation(`grant:${grant.id}`, async () => {
-                      await updateDocumentPermissionGrant(document.id, grant.id, { expiresAt: grant.expiresAt, reason: grant.reason, roleKey });
-                      setMessage("访问权限已更新。");
-                      await reloadShareState();
-                    })
-                  }
-                />
-              ))}
-              {activeLinks.map((link) => (
+              <AccessGroup title="Owner">
                 <AccessRow
-                  action={
-                    <button
-                      disabled={!canMutate || operation === `link:${link.id}`}
-                      onClick={() =>
+                  initials={initials(document.owner?.name ?? "Owner")}
+                  label={document.owner?.name ?? "Document owner"}
+                  role="Owner"
+                  tone="gold"
+                />
+              </AccessGroup>
+
+              <AccessGroup title="People">
+                {peopleGrants.length || visibleInvites.length ? (
+                  <>
+                    {peopleGrants.map((grant) => (
+                      <GrantAccessRow
+                        availableRoles={availableGrantRoles}
+                        canMutate={canMutate}
+                        grant={grant}
+                        key={grant.id}
+                        member={memberById.get(grant.subjectId)}
+                        onRevoke={() =>
+                          void runOperation(`grant:${grant.id}`, async () => {
+                            await revokeDocumentPermissionGrant(document.id, grant.id, "Revoked from document drawer.");
+                            setMessage("Access revoked.");
+                            await reloadShareState();
+                          })
+                        }
+                        onRoleChange={(roleKey) =>
+                          void runOperation(`grant:${grant.id}`, async () => {
+                            await updateDocumentPermissionGrant(document.id, grant.id, { expiresAt: grant.expiresAt, reason: grant.reason, roleKey });
+                            setMessage("Access updated.");
+                            await reloadShareState();
+                          })
+                        }
+                      />
+                    ))}
+                    {visibleInvites.map((invite) => (
+                      <InviteAccessRow
+                        canMutate={canMutate}
+                        invite={invite}
+                        key={invite.id}
+                        onRevoke={() =>
+                          void runOperation(`invite:${invite.id}`, async () => {
+                            await revokeEmailInvite(invite.id);
+                            setMessage("Email invite revoked.");
+                            await reloadShareState();
+                          })
+                        }
+                      />
+                    ))}
+                  </>
+                ) : (
+                  <AccessEmpty label="No direct people grants or active email invites." />
+                )}
+              </AccessGroup>
+
+              <AccessGroup title="Groups">
+                {groupGrants.length ? (
+                  groupGrants.map((grant) => (
+                    <GroupAccessRow
+                      grant={grant}
+                      group={groupById.get(grant.subjectId)}
+                      key={grant.id}
+                    />
+                  ))
+                ) : (
+                  <AccessEmpty label="No direct group grants." />
+                )}
+              </AccessGroup>
+
+              <AccessGroup title="Links">
+                {links?.length ? (
+                  links.map((link) => (
+                    <LinkAccessRow
+                      apiConfigured={Boolean(apiBaseUrl)}
+                      canMutate={canMutate}
+                      key={link.id}
+                      link={link}
+                      operation={operation}
+                      policyLinkMode={permissions?.policy.linkMode}
+                      onCopy={() => copyExistingLink(link)}
+                      onRevoke={() =>
                         void runOperation(`link:${link.id}`, async () => {
                           await revokeShareLink(link.id);
-                          setMessage("分享链接已撤销。");
+                          setMessage("Share link revoked.");
                           await reloadShareState();
                         })
                       }
-                      title="撤销链接"
-                      type="button"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  }
-                  initials={link.audience === "public" ? "PB" : "L"}
-                  key={link.id}
-                  label={link.audience === "public" ? "公开访问链接" : "Atlas Library"}
-                  role={`${formatRoleLabel(link.roleKey)} / ${formatAudienceLabel(link.audience)}`}
-                  tone={link.audience === "public" ? "blue" : "gray"}
-                />
-              ))}
-              {pendingInvites.map((invite) => (
-                <AccessRow
-                  action={
-                    <button
-                      disabled={!canMutate || operation === `invite:${invite.id}`}
-                      onClick={() =>
-                        void runOperation(`invite:${invite.id}`, async () => {
-                          await revokeEmailInvite(invite.id);
-                          setMessage("邮件邀请已撤销。");
-                          await reloadShareState();
-                        })
-                      }
-                      title="撤销邀请"
-                      type="button"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  }
-                  initials="EM"
-                  key={invite.id}
-                  label={invite.email}
-                  role={`${formatRoleLabel(invite.roleKey)} / 邀请中`}
-                  tone="blue"
-                />
-              ))}
-              {permissions ? (
-                <AccessRow
-                  initials="WS"
-                  label="Workspace inherited access"
-                  role={`${formatRoleLabel(permissions.effectiveAccess.effectiveRole ?? "viewer")} / ${formatPolicyLabel(permissions.policy.inheritanceMode)}`}
-                  tone="gray"
-                />
-              ) : null}
+                    />
+                  ))
+                ) : (
+                  <AccessEmpty label="No share links returned by the API." />
+                )}
+              </AccessGroup>
+
+              <AccessGroup title="Inherited access">
+                {inheritedSource ? (
+                  <AccessRow
+                    initials={inheritedSource.initials}
+                    label={inheritedSource.label}
+                    role={`${formatRoleLabel(permissions?.effectiveAccess.effectiveRole ?? "viewer")} / ${formatPolicyLabel(permissions?.policy.inheritanceMode ?? "inherit")}`}
+                    tone="gray"
+                  />
+                ) : (
+                  <AccessEmpty label="No workspace or collection inheritance source returned." />
+                )}
+              </AccessGroup>
             </div>
           </section>
         </div>
@@ -585,10 +667,10 @@ export function DocumentShareDrawer({ document, isOpen, onClose, workspaceId }: 
           </a>
           <span className={error ? "is-error" : ""}>{error ?? message}</span>
           <button onClick={onClose} type="button">
-            取消
+            Cancel
           </button>
           <button className="document-share-primary" onClick={onClose} type="button">
-            完成
+            Done
           </button>
         </footer>
       </aside>
@@ -611,10 +693,23 @@ function GeneratedSecret({ label, onCopy, value }: { label: string; onCopy: () =
       <span>{label}: {value}</span>
       <button onClick={onCopy} type="button">
         <Copy className="h-4 w-4" />
-        复制
+        Copy
       </button>
     </div>
   );
+}
+
+function AccessGroup({ children, title }: { children: ReactNode; title: string }) {
+  return (
+    <div className="document-share-access-group">
+      <h4>{title}</h4>
+      {children}
+    </div>
+  );
+}
+
+function AccessEmpty({ label }: { label: string }) {
+  return <p className="document-share-access-empty">{label}</p>;
 }
 
 function GrantAccessRow({
@@ -644,7 +739,7 @@ function GrantAccessRow({
               </option>
             ))}
           </select>
-          <button disabled={!canMutate} onClick={onRevoke} title="撤销访问" type="button">
+          <button disabled={!canMutate} onClick={onRevoke} title="Revoke access" type="button">
             <Trash2 className="h-4 w-4" />
           </button>
         </>
@@ -653,6 +748,94 @@ function GrantAccessRow({
       label={label}
       role={formatRoleLabel(grant.roleKey)}
       tone="blue"
+    />
+  );
+}
+
+function InviteAccessRow({ canMutate, invite, onRevoke }: { canMutate: boolean; invite: EmailInviteDto; onRevoke: () => void }) {
+  return (
+    <AccessRow
+      action={
+        invite.status === "pending" ? (
+          <button disabled={!canMutate} onClick={onRevoke} title="Revoke email invite" type="button">
+            <Trash2 className="h-4 w-4" />
+          </button>
+        ) : null
+      }
+      initials="EM"
+      label={invite.email}
+      role={`${formatRoleLabel(invite.roleKey)} / invite ${invite.status}`}
+      tone="blue"
+    />
+  );
+}
+
+function GroupAccessRow({ grant, group }: { grant: PermissionGrantDto; group?: WorkspaceGroupDto }) {
+  const isIamManaged = Boolean(group?.externalProvider || group?.externalGroupId);
+  const source = isIamManaged
+    ? `IAM-managed${group?.externalProvider ? ` / ${group.externalProvider}` : ""}`
+    : "local group";
+
+  return (
+    <AccessRow
+      initials="GR"
+      label={group?.name ?? `Group ${shortId(grant.subjectId)}`}
+      role={`${formatRoleLabel(grant.roleKey)} / ${source} / read-only`}
+      tone="gray"
+    />
+  );
+}
+
+function LinkAccessRow({
+  apiConfigured,
+  canMutate,
+  link,
+  operation,
+  policyLinkMode,
+  onCopy,
+  onRevoke,
+}: {
+  apiConfigured: boolean;
+  canMutate: boolean;
+  link: ShareLinkDto;
+  operation: string | null;
+  policyLinkMode: string | null | undefined;
+  onCopy: () => void;
+  onRevoke: () => void;
+}) {
+  const status = getDocumentShareLinkStatus(link, policyLinkMode);
+  const copyDisabledReason = getExistingShareLinkCopyCapability({
+    apiConfigured,
+    canManage: canMutate,
+    copyEndpointAvailable: true,
+    operation,
+    status,
+  });
+  const canRevoke = canMutate && status !== "revoked";
+  const label = `${formatAudienceLabel(link.audience)} link`;
+  const metadata = [
+    formatRoleLabel(link.roleKey),
+    formatExpiryLabel(link.expiresAt),
+    formatLinkStatusLabel(status),
+    link.audience === "public" ? (link.hasPassword ? "password" : "no password") : null,
+  ].filter(Boolean).join(" / ");
+
+  return (
+    <AccessRow
+      action={
+        <>
+          <button disabled={Boolean(copyDisabledReason)} onClick={onCopy} title={copyDisabledReason ?? "Audited copy through backend endpoint"} type="button">
+            <Copy className="h-4 w-4" />
+          </button>
+          <button disabled={!canRevoke} onClick={onRevoke} title={canRevoke ? "Revoke link" : "Cannot revoke this link"} type="button">
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </>
+      }
+      initials={link.audience === "public" ? "PB" : link.audience === "external" ? "EX" : "LK"}
+      label={label}
+      role={metadata}
+      tone={link.audience === "public" ? "blue" : "gray"}
     />
   );
 }
@@ -700,12 +883,12 @@ function findInviteMember(value: string, members: WorkspaceMemberDto[]) {
 
 function copyValue(value: string, setMessage: (message: string | null) => void, setError: (message: string | null) => void) {
   if (!value) {
-    setError("暂无可复制内容。");
+    setError("Nothing to copy.");
     return Promise.resolve();
   }
 
   if (!navigator.clipboard) {
-    setError("当前浏览器不支持剪贴板，请手动复制。");
+    setError("Clipboard access is unavailable. Copy the value manually.");
     return Promise.resolve();
   }
 
@@ -713,9 +896,9 @@ function copyValue(value: string, setMessage: (message: string | null) => void, 
     .writeText(value)
     .then(() => {
       setError(null);
-      setMessage("已复制。");
+      setMessage("Copied.");
     })
-    .catch(() => setError("剪贴板访问被阻止，请手动复制。"));
+    .catch(() => setError("Clipboard access was blocked. Copy the value manually."));
 }
 
 function isEmail(value: string) {
@@ -767,38 +950,62 @@ function isInviteRole(value: string): value is InviteRole {
 
 function formatRoleLabel(value: string) {
   if (value === "owner") {
-    return "所有者";
+    return "Owner";
   }
 
   if (value === "admin") {
-    return "管理员";
+    return "Admin";
   }
 
   if (value === "editor") {
-    return "可编辑";
+    return "Can edit";
   }
 
   if (value === "commenter") {
-    return "可评论";
+    return "Can comment";
   }
 
-  return "可查看";
+  return "Can view";
 }
 
 function formatAudienceLabel(value: string) {
   if (value === "public") {
-    return "公开访问";
+    return "Public";
   }
 
   if (value === "external") {
-    return "外部认证";
+    return "External";
   }
 
-  return "内部可见";
+  return "Workspace";
 }
 
 function formatPolicyLabel(value: string) {
-  return value === "restricted" ? "仅直接授权" : "继承访问";
+  return value === "restricted" ? "restricted" : "inherited";
+}
+
+function formatExpiryLabel(value: string | null) {
+  return value ? `expires ${new Date(value).toLocaleDateString()}` : "no expiry";
+}
+
+function formatLinkStatusLabel(status: DocumentShareLinkStatus) {
+  return status;
+}
+
+function getInheritedAccessSource(permissions: ResourcePermissionsResponse | null) {
+  if (!permissions) {
+    return null;
+  }
+
+  if (permissions.inheritedFrom === "workspace") {
+    return { initials: "WS", label: "Workspace inherited access" };
+  }
+
+  if (permissions.inheritedFrom === "collection") {
+    return { initials: "CO", label: "Collection inherited access" };
+  }
+
+  return null;
 }
 
 function initials(value: string) {
@@ -808,4 +1015,8 @@ function initials(value: string) {
   }
 
   return (words[0] ?? "U").slice(0, 2).toUpperCase();
+}
+
+function shortId(value: string) {
+  return value.length <= 12 ? value : value.slice(0, 8);
 }

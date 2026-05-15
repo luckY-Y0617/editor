@@ -9,6 +9,31 @@ public interface IShareLinkService
         Guid resourceId,
         CancellationToken cancellationToken = default);
 
+    Task<LinkManagementListResponse> SearchShareLinksAsync(
+        Guid workspaceId,
+        string? resourceType,
+        Guid? resourceId,
+        string? audience,
+        string? roleKey,
+        string? status,
+        string? q,
+        int? offset,
+        int? limit,
+        CancellationToken cancellationToken = default);
+
+    Task<ShareLinkDto> GetShareLinkAsync(
+        Guid shareLinkId,
+        CancellationToken cancellationToken = default);
+
+    Task<LinkManagementDto> GetManagedShareLinkAsync(
+        Guid shareLinkId,
+        CancellationToken cancellationToken = default);
+
+    Task<LinkManagementDto> UpdateShareLinkAsync(
+        Guid shareLinkId,
+        UpdateShareLinkRequest request,
+        CancellationToken cancellationToken = default);
+
     Task<CreateShareLinkResponse> CreateShareLinkAsync(
         string resourceType,
         Guid resourceId,
@@ -17,6 +42,25 @@ public interface IShareLinkService
 
     Task RevokeShareLinkAsync(
         Guid shareLinkId,
+        CancellationToken cancellationToken = default);
+
+    Task<LinkManagementDto> PauseShareLinkAsync(
+        Guid shareLinkId,
+        ShareLinkPauseRequest? request,
+        CancellationToken cancellationToken = default);
+
+    Task<LinkManagementDto> ResumeShareLinkAsync(
+        Guid shareLinkId,
+        CancellationToken cancellationToken = default);
+
+    Task<CopyShareLinkResponse> CopyShareLinkAsync(
+        Guid shareLinkId,
+        ShareLinkCopyEventRequest? request,
+        CancellationToken cancellationToken = default);
+
+    Task RecordCopyEventAsync(
+        Guid shareLinkId,
+        ShareLinkCopyEventRequest? request,
         CancellationToken cancellationToken = default);
 
     Task<ResolveShareLinkResponse> ResolveShareLinkAsync(

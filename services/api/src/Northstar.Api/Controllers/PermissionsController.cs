@@ -15,6 +15,7 @@ public sealed class PermissionsController : ControllerBase
     private readonly IPermissionAuditService _permissionAuditService;
     private readonly IAccessRequestService _accessRequestService;
     private readonly IShareLinkService _shareLinkService;
+    private readonly IShareLinkAccessAuditService _shareLinkAccessAuditService;
     private readonly IEmailInviteService _emailInviteService;
 
     public PermissionsController(
@@ -23,6 +24,7 @@ public sealed class PermissionsController : ControllerBase
         IPermissionAuditService permissionAuditService,
         IAccessRequestService accessRequestService,
         IShareLinkService shareLinkService,
+        IShareLinkAccessAuditService shareLinkAccessAuditService,
         IEmailInviteService emailInviteService)
     {
         _permissionQueryService = permissionQueryService;
@@ -30,6 +32,7 @@ public sealed class PermissionsController : ControllerBase
         _permissionAuditService = permissionAuditService;
         _accessRequestService = accessRequestService;
         _shareLinkService = shareLinkService;
+        _shareLinkAccessAuditService = shareLinkAccessAuditService;
         _emailInviteService = emailInviteService;
     }
 
@@ -134,6 +137,52 @@ public sealed class PermissionsController : ControllerBase
         return Ok(await _shareLinkService.GetShareLinksAsync(resourceType, resourceId, cancellationToken));
     }
 
+    [HttpGet("share-links")]
+    [ProducesResponseType(typeof(LinkManagementListResponse), StatusCodes.Status200OK)]
+    public async Task<ActionResult<LinkManagementListResponse>> SearchShareLinks(
+        [FromQuery] Guid workspaceId,
+        [FromQuery] string? resourceType,
+        [FromQuery] Guid? resourceId,
+        [FromQuery] string? audience,
+        [FromQuery] string? roleKey,
+        [FromQuery] string? status,
+        [FromQuery] string? q,
+        [FromQuery] int? offset,
+        [FromQuery] int? limit,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await _shareLinkService.SearchShareLinksAsync(
+            workspaceId,
+            resourceType,
+            resourceId,
+            audience,
+            roleKey,
+            status,
+            q,
+            offset,
+            limit,
+            cancellationToken));
+    }
+
+    [HttpGet("share-links/{shareLinkId:guid}")]
+    [ProducesResponseType(typeof(LinkManagementDto), StatusCodes.Status200OK)]
+    public async Task<ActionResult<LinkManagementDto>> GetShareLink(
+        Guid shareLinkId,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await _shareLinkService.GetManagedShareLinkAsync(shareLinkId, cancellationToken));
+    }
+
+    [HttpPatch("share-links/{shareLinkId:guid}")]
+    [ProducesResponseType(typeof(LinkManagementDto), StatusCodes.Status200OK)]
+    public async Task<ActionResult<LinkManagementDto>> UpdateShareLink(
+        Guid shareLinkId,
+        UpdateShareLinkRequest request,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await _shareLinkService.UpdateShareLinkAsync(shareLinkId, request, cancellationToken));
+    }
+
     [HttpPost("resources/{resourceType}/{resourceId:guid}/share-links")]
     [ProducesResponseType(typeof(CreateShareLinkResponse), StatusCodes.Status200OK)]
     public async Task<ActionResult<CreateShareLinkResponse>> CreateShareLink(
@@ -153,6 +202,74 @@ public sealed class PermissionsController : ControllerBase
     {
         await _shareLinkService.RevokeShareLinkAsync(shareLinkId, cancellationToken);
         return NoContent();
+    }
+
+    [HttpPost("share-links/{shareLinkId:guid}/pause")]
+    [ProducesResponseType(typeof(LinkManagementDto), StatusCodes.Status200OK)]
+    public async Task<ActionResult<LinkManagementDto>> PauseShareLink(
+        Guid shareLinkId,
+        ShareLinkPauseRequest? request,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await _shareLinkService.PauseShareLinkAsync(shareLinkId, request, cancellationToken));
+    }
+
+    [HttpPost("share-links/{shareLinkId:guid}/resume")]
+    [ProducesResponseType(typeof(LinkManagementDto), StatusCodes.Status200OK)]
+    public async Task<ActionResult<LinkManagementDto>> ResumeShareLink(
+        Guid shareLinkId,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await _shareLinkService.ResumeShareLinkAsync(shareLinkId, cancellationToken));
+    }
+
+    [HttpPost("share-links/{shareLinkId:guid}/copy")]
+    [ProducesResponseType(typeof(CopyShareLinkResponse), StatusCodes.Status200OK)]
+    public async Task<ActionResult<CopyShareLinkResponse>> CopyShareLink(
+        Guid shareLinkId,
+        ShareLinkCopyEventRequest? request,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await _shareLinkService.CopyShareLinkAsync(shareLinkId, request, cancellationToken));
+    }
+
+    [HttpPost("share-links/{shareLinkId:guid}/copy-events")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> RecordShareLinkCopyEvent(
+        Guid shareLinkId,
+        ShareLinkCopyEventRequest? request,
+        CancellationToken cancellationToken)
+    {
+        await _shareLinkService.RecordCopyEventAsync(shareLinkId, request, cancellationToken);
+        return NoContent();
+    }
+
+    [HttpGet("share-links/{shareLinkId:guid}/stats")]
+    [ProducesResponseType(typeof(ShareLinkAccessStatsResponse), StatusCodes.Status200OK)]
+    public async Task<ActionResult<ShareLinkAccessStatsResponse>> GetShareLinkStats(
+        Guid shareLinkId,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await _shareLinkAccessAuditService.GetStatsAsync(shareLinkId, cancellationToken));
+    }
+
+    [HttpGet("share-links/{shareLinkId:guid}/access-events")]
+    [ProducesResponseType(typeof(ShareLinkAccessEventsResponse), StatusCodes.Status200OK)]
+    public async Task<ActionResult<ShareLinkAccessEventsResponse>> GetShareLinkAccessEvents(
+        Guid shareLinkId,
+        [FromQuery] int? offset,
+        [FromQuery] int? limit,
+        [FromQuery] string? result,
+        [FromQuery] string? eventType,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await _shareLinkAccessAuditService.GetEventsAsync(
+            shareLinkId,
+            result,
+            eventType,
+            offset,
+            limit,
+            cancellationToken));
     }
 
     [HttpGet("resources/{resourceType}/{resourceId:guid}/email-invites")]

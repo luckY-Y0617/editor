@@ -17,6 +17,11 @@ public static class PermissionAuditActions
     public const string AccessRequestCancelled = "access_request.cancelled";
     public const string ShareLinkCreated = "share_link.created";
     public const string ShareLinkRevoked = "share_link.revoked";
+    public const string ShareLinkCopyRequested = "share_link.copy_requested";
+    public const string ShareLinkPaused = "share_link.paused";
+    public const string ShareLinkResumed = "share_link.resumed";
+    public const string ShareLinkRoleUpdated = "share_link.role_updated";
+    public const string ShareLinkExpiryUpdated = "share_link.expiry_updated";
     public const string EmailInviteCreated = "email_invite.created";
     public const string EmailInviteAccepted = "email_invite.accepted";
     public const string EmailInviteRevoked = "email_invite.revoked";

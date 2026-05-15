@@ -26,7 +26,7 @@ management. SCIM bulk/complex-filter/enterprise/delete-deactivate behavior and
 broader compatibility beyond V1.1, full OIDC/SAML provider redirect/callback
 and secret management, additional MFA providers/recovery flows, PostgreSQL smoke
 from the agent process, and Browser QA/frontend public-link browser acceptance
-after Node runtime upgrade remain deferred non-V1 items.
+using non-in-browser local automation remain deferred non-V1 items.
 
 Public-link conflict resolution:
 
@@ -115,9 +115,11 @@ Phase 1 through Phase 11 implementation status:
   writes audit and notifications in the same transaction;
 - notification APIs support current-user listing, mark-read operations, and
   current-user notification preference read/upsert;
-- share-link and email-invite create/revoke/accept/delivery-failure flows emit
-  in-app notifications to relevant resource managers, excluding the actor and
-  respecting matching muted notification preferences;
+- share-link create/revoke flows emit in-app notifications to relevant resource
+  managers and the actor so the access-and-sharing event feed reflects local
+  link operations; email-invite create/revoke/accept/delivery-failure flows
+  emit to relevant resource managers, excluding the actor and respecting
+  matching muted notification preferences;
 - key document read/write paths now use scoped effective permission, including
   document get/update/move/archive/restore/delete, context, activity, comments,
   attachments, search, export, map, and bootstrap filtering;
@@ -185,8 +187,10 @@ Phase 1 through Phase 11 implementation status:
 - internal share links require authenticated active workspace membership and
   can authorize only the linked resource path for view/comment actions when the
   linked resource policy has `linkMode = internal`;
-- share link creation/revocation writes permission audit without storing raw
-  tokens, and raw tokens are returned only in the create response;
+- share link creation/revocation/copy writes permission audit without storing
+  raw tokens or token hashes in audit metadata; raw tokens are returned only in
+  the create response, while existing full-URL copy uses the audited copy
+  response;
 - document read/context/activity/comment APIs accept a share link token through
   `shareToken` query or `X-Share-Link-Token` header; search/export/list
   filtering does not use share tokens;
@@ -313,8 +317,8 @@ The current permission system does not yet have:
 - advanced SCIM compatibility beyond V1.1;
 - PostgreSQL smoke from the agent process while
   `NORTHSTAR_POSTGRES_SMOKE_CONNECTION` is not visible;
-- Browser QA and frontend public-link browser acceptance while the local Node
-  runtime remains too old for Browser Use.
+- Browser QA and frontend public-link browser acceptance using non-in-browser
+  local automation when allowed.
 
 Those capabilities must not be represented as real backend behavior until the
 schemas, services, APIs, and tests described here exist.
@@ -346,6 +350,94 @@ The supported subject scopes are:
 
 Effective access is computed for each `(user, resource, action)` request. The
 client never supplies effective permissions as trusted input.
+
+## Enterprise Share Product Semantics
+
+Northstar share is not a single feature. It is a set of resource-scoped access
+entry points that must stay separated in product copy, API behavior, and audit:
+
+- people access: direct `user` grants and accepted email invites;
+- group access: direct `group` grants, including IAM-managed groups;
+- link access: `share_links` with `audience = workspace`, `external`, or
+  `public`;
+- inherited access: effective access flowing from workspace and collection
+  policy/grants;
+- owner/manager access: workspace owner/admin escape paths and resource
+  manage-permissions authority.
+
+The normal document Share drawer owns day-to-day sharing:
+
+- invite a workspace user or external email;
+- create an internal, external authenticated, or public link when supported by
+  backend policy and feature flags;
+- set link role, expiry, and public-link password within backend constraints;
+- copy the one-time create result or a later copy result only when the approved
+  token-handling design allows it;
+- show a concise "Who can access" summary grouped by people, groups, links, and
+  inherited access.
+
+The document Advanced Permissions surface owns resource governance:
+
+- direct user and group grants;
+- inheritance mode;
+- non-public link policy modes (`disabled`, `internal`, `external`);
+- access requests and request review;
+- document-scoped audit context.
+
+The workspace Access & Sharing surface owns centralized link governance:
+
+- cross-resource link inventory;
+- status, expiry, risk, and access analytics;
+- pause/resume/revoke/update operations where implemented;
+- access event review and incident investigation.
+
+The Share drawer must not label link rows as libraries or folders. A link row is
+a link entry and should display at least audience, role, expiry/status, creator
+when known, and revoke/copy actions when the current user can perform them.
+Inherited rows must name the source (`workspace` or `collection`) and must not
+look like duplicate active links.
+
+"Current access" is ambiguous and must not be used as the primary label for the
+Share drawer access list. Use "Who can access" or an equivalent label. The list
+is a permissions summary, not a live presence list. Live viewers/presence, if
+added later, must be a separate collaboration feature with separate state and
+audit rules.
+
+Share modes map to backend semantics as follows:
+
+- "Invitation only": no general link authorization is needed. Access comes from
+  owner/admin escape paths, inherited access allowed by policy, direct grants,
+  accepted invites, or email invite acceptance.
+- "Internal": workspace-audience links require active workspace membership and
+  `linkMode = internal`; they do not grant outsiders access.
+- "External authenticated": external-audience links are email-bound and require
+  an authenticated matching user; they do not create workspace membership.
+- "Public": public-audience links are anonymous, viewer-only, expiring,
+  optionally password-protected, feature-flagged, and isolated to dedicated
+  public endpoints.
+
+Link roles are intentionally narrower than resource grants:
+
+- resource grants may use the scoped permission roles returned by the backend
+  catalog, including `viewer`, `commenter`, `editor`, and management roles where
+  allowed;
+- share links support only `viewer` and `commenter` generally;
+- public links support only `viewer`;
+- editable, admin, or owner share links are not part of the current contract and
+  require a future explicit security decision, catalog updates, API updates, and
+  tests.
+
+Token handling remains a security boundary:
+
+- raw tokens, token hashes, public-link passwords, password hashes, invite
+  tokens, accept URLs, provider secrets, and MFA secrets must not be written to
+  audit metadata, analytics, logs, or long-lived UI state;
+- existing share-link full URL copy is implemented through an authenticated
+  audited copy endpoint backed by protected `share_links.token_ciphertext`.
+  List/detail/audit/stat surfaces remain token-free and hash-free; the copy
+  endpoint returns only the URL for the requested copy operation. Legacy links
+  without ciphertext are reissued by rotating to a new token and storing the
+  new hash plus ciphertext, and the response marks `reissued = true`.
 
 ## Non-Negotiable Rules
 
@@ -958,10 +1050,13 @@ create index idx_share_links_public_active
 Rules:
 
 - generated tokens must be high entropy, URL-safe, and non-guessable.
-- store only token hashes, never raw tokens.
+- store token hashes for lookup and protected token ciphertext for the audited
+  copy endpoint; never store plaintext raw tokens.
 - raw tokens are returned only in `POST .../share-links` create responses.
-- list and resolve responses never expose the token hash or any reusable raw
-  secret.
+  Existing-link full URL copy is returned only by the authenticated audited
+  `POST /permissions/share-links/{shareLinkId}/copy` endpoint.
+- list, detail, stat, event, and resolve responses never expose the token hash
+  or reusable raw token as a standalone field.
 - `audience = workspace` requires active workspace membership and
   `link_mode = internal`.
 - `audience = external` requires authenticated user email binding through
@@ -992,6 +1087,185 @@ Rules:
   `/api/v1/public/share-links/{token}/document`.
 - public collection reads use `/api/v1/public/share-links/{token}/collection`
   and expose collection metadata plus visible child document summaries only.
+
+### Link management rules
+
+Status: implementation verified for protected inventory, per-link pause/resume,
+access analytics, and authenticated audited full-URL copy.
+
+Fit for the current project:
+
+- suitable: centralized link inventory, status visibility, permission/range
+  controls, management audit, access audit, access statistics, risk indicators,
+  and a detail drawer all fit the permission module and existing
+  `share_links` model.
+- suitable with adjustment: link management must stay on top of `share_links`,
+  `permission_audit_events`, and future share-link access analytics tables. Do
+  not introduce a generic `resources` table only for links; resource identity
+  remains `resource_type` plus `resource_id` against existing `documents` and
+  `collections`.
+- suitable with adjustment: UI copy may call the product resource "Folder", but
+  backend persistence continues to use `collection`.
+- not accepted for this baseline: share-link role `edit`. Current share links
+  support `viewer` and `commenter`; public links are `viewer` only. Any future
+  editable link capability requires an explicit permission/security decision,
+  catalog updates, schema/API contract changes, and tests.
+- accepted for this baseline: existing-link full URL copy through the protected
+  audited copy endpoint. Current links store `token_hash` for lookup and
+  protected `token_ciphertext` for audited copy. The frontend must not
+  reconstruct token-bearing URLs from token-free metadata. Raw tokens and token
+  hashes still do not appear in list/detail/audit/stat APIs.
+
+Default product policy:
+
+- create generates a high-entropy token and a stable `share_links.id`.
+- token-bearing URLs are shown and copyable in the create response, or through
+  the authenticated audited copy endpoint when the caller can manage the link.
+- list/detail views can show and copy token-free metadata such as link id,
+  resource, audience, role, expiry, status, and creator.
+- status is derived from link state, expiry, per-link pause, and resource
+  policy state:
+  - `revoked`: `revoked_at` is not null.
+  - `expired`: `expires_at <= now` and not revoked.
+  - `paused`: the link has been explicitly paused.
+  - `policy_paused`: the resource `linkMode` no longer matches the link
+    audience.
+  - `active`: not revoked, not expired, and resource policy link mode matches
+    the link audience, with no per-link pause.
+- internal and external links may be permanent or expiring according to existing
+  rules; public links require a future bounded expiry and optional password.
+- public links remain read-only, token-scoped capabilities under dedicated
+  `/api/v1/public/share-links/...` endpoints.
+
+Management authorization target:
+
+- management decisions must use central effective permission and action keys,
+  not controller-local role checks.
+- `document.share` or `collection.share` is required to create a link for that
+  resource.
+- `document.manage_permissions` or `collection.manage_permissions` may manage
+  all links for that resource.
+- users with share permission but without manage-permissions authority may be
+  limited to links they created; this is a follow-up behavior change and must
+  be implemented explicitly with tests before being claimed.
+- `viewer` and unauthenticated public visitors may access valid links according
+  to link audience rules, but cannot create, update, copy-audit, pause, resume,
+  or revoke links.
+- "Contributor" is not a `workspace_members.role` in the current catalog; if UI
+  copy uses that label, it must map to existing effective permissions rather
+  than introduce a new workspace role.
+- sensitive-document copy restrictions require a documented sensitivity source
+  before implementation. Until such a source exists, do not infer sensitivity
+  from title, tags, collection, or UI labels.
+
+Management audit target:
+
+- share-link mutations continue to write immutable `permission_audit_events` in
+  the same transaction as the mutation.
+- implemented action keys include:
+  - `share_link.created`
+  - `share_link.revoked`
+  - `share_link.copy_requested`
+  - `share_link.paused`
+  - `share_link.resumed`
+  - `share_link.role_updated`
+  - `share_link.expiry_updated`
+- `share_link.copy_requested` records that an authorized client copied a
+  token-bearing URL or token-free link identifier. Audit metadata must not
+  persist, log, or audit raw token material, token hashes, passwords, password
+  hashes, or password proofs. The copy endpoint may return the token-bearing
+  URL directly to the authorized caller for the requested operation.
+- `reveal_link` as a general display surface is not supported. Existing-link
+  URL access is limited to the audited copy endpoint and must not become a
+  long-lived visible token field in list/detail UI.
+- audit metadata may include share link id, resource, audience, role, expiry,
+  hasPassword, actor, timestamp, IP, and user agent when available.
+- audit metadata must not include raw token, token hash, password, password
+  hash, password proof, accept URL, provider secret, or SMTP secret.
+
+Access audit and analytics target:
+
+Use separate share-link access analytics tables for access events and rollups.
+Do not overload `permission_audit_events` with high-volume anonymous access
+traffic, and do not replace immutable management audit with analytics rows.
+
+```sql
+create table share_link_access_events (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id uuid not null references workspaces(id) on delete cascade,
+  share_link_id uuid not null references share_links(id) on delete cascade,
+  resource_type text not null check (resource_type in ('collection', 'document')),
+  resource_id uuid not null,
+  actor_user_id uuid references users(id) on delete set null,
+  audience text not null check (audience in ('workspace', 'external', 'public')),
+  event_type text not null check (event_type in ('resolve', 'access', 'download')),
+  result text not null check (result in ('success', 'fail')),
+  failure_category text,
+  remote_ip text,
+  user_agent text,
+  occurred_at timestamptz not null default now(),
+  metadata jsonb not null default '{}'
+);
+
+create index idx_share_link_access_events_link_time
+  on share_link_access_events (workspace_id, share_link_id, occurred_at desc);
+
+create index idx_share_link_access_events_resource_time
+  on share_link_access_events (workspace_id, resource_type, resource_id, occurred_at desc);
+
+create table share_link_access_stats (
+  workspace_id uuid not null references workspaces(id) on delete cascade,
+  share_link_id uuid primary key references share_links(id) on delete cascade,
+  last_accessed_at timestamptz,
+  access_count bigint not null default 0,
+  unique_visitor_count bigint not null default 0,
+  last_access_ip text
+);
+```
+
+Access analytics rules:
+
+- record access events only after a token resolves to a known link. Unknown
+  token attempts may be counted by rate limiting or infrastructure security
+  logs, but must not store raw tokens or token hashes in application tables.
+- public-link failures must keep the existing safe external behavior and must
+  not reveal whether the token exists, the password failed, the policy
+  mismatched, or the link expired/revoked.
+- `download` is allowed in the analytics model only for a future explicitly
+  documented file/share-token download path. File access rules still go through
+  the files contract and must not be widened by public links.
+- unique visitor counts for anonymous public traffic are approximate unless a
+  privacy-reviewed visitor fingerprint design is documented.
+- IP and user-agent storage must be treated as security metadata and excluded
+  from token/password/secret material.
+
+Current API surface:
+
+```text
+GET    /api/v1/permissions/share-links?workspaceId=&resourceType=&resourceId=&audience=&roleKey=&status=&q=&offset=&limit=
+PATCH  /api/v1/permissions/share-links/{shareLinkId}
+POST   /api/v1/permissions/share-links/{shareLinkId}/copy-events
+POST   /api/v1/permissions/share-links/{shareLinkId}/copy
+POST   /api/v1/permissions/share-links/{shareLinkId}/pause
+POST   /api/v1/permissions/share-links/{shareLinkId}/resume
+GET    /api/v1/permissions/share-links/{shareLinkId}/access-events
+GET    /api/v1/permissions/share-links/{shareLinkId}/stats
+```
+
+Rules for the API surface:
+
+- all management and analytics endpoints above are authenticated protected
+  `/api/v1` endpoints and must use the Northstar error envelope.
+- list/detail/stat/event management endpoints must never return raw tokens or
+  token hashes. `POST /copy` is the only management endpoint that may return a
+  token-bearing URL, and only after authorization plus audit.
+- `PATCH` may update role and expiry only within current share-link role and
+  audience constraints; it must not allow public `commenter`, `editor`, `admin`,
+  or `owner` links.
+- pause/resume is per-link state. Resource-policy mismatch is reported as
+  `policy_paused` and is adjusted through resource policy, not pause/resume.
+- list/search/filter must be workspace-scoped and must not leak inaccessible
+  resource metadata.
 
 ### resource_email_invites
 
@@ -1485,6 +1759,7 @@ Share links:
 
 ```text
 GET    /api/v1/permissions/resources/{resourceType}/{resourceId}/share-links
+GET    /api/v1/permissions/share-links/{shareLinkId}
 POST   /api/v1/permissions/resources/{resourceType}/{resourceId}/share-links
 DELETE /api/v1/permissions/share-links/{shareLinkId}
 GET    /api/v1/share-links/{token}/resolve
@@ -1492,6 +1767,11 @@ GET    /api/v1/public/share-links/{token}/resolve
 GET    /api/v1/public/share-links/{token}/document
 GET    /api/v1/public/share-links/{token}/collection
 ```
+
+The single-link metadata endpoint is authenticated and manager-scoped. It
+returns the token-free `ShareLinkDto` for active, expired, or revoked links so
+notification and audit surfaces can describe historical link events without
+re-exposing raw tokens or token hashes.
 
 `CreateShareLinkRequest` is:
 
@@ -1514,7 +1794,9 @@ deleted child documents. `password` is supported only for public links, accepted
 once at create time, and stored only as `password_hash`. `audience = "external"`
 requires `subjectEmail`.
 
-`CreateShareLinkResponse` returns the raw token only once:
+`CreateShareLinkResponse` returns the raw token only once. Later full URL copy
+uses the audited copy endpoint and returns `CopyShareLinkResponse`, not a raw
+token field:
 
 ```ts
 type ShareLinkDto = {
@@ -1540,6 +1822,12 @@ type CreateShareLinkResponse = {
 
 type ShareLinksResponse = {
   links: ShareLinkDto[];
+};
+
+type CopyShareLinkResponse = {
+  linkId: string;
+  url: string;
+  reissued: boolean;
 };
 ```
 
@@ -1774,7 +2062,8 @@ workflows:
 - create `viewer` or `commenter` internal links;
 - create `viewer` or `commenter` external authenticated links for a normalized
   email address;
-- display the generated URL and raw token only immediately after create;
+- display the generated URL and raw token only immediately after create, and
+  use the audited copy endpoint for existing-link full URL copy;
 - show link expiry when present;
 - revoke an existing link;
 - create email invites with recipient email, role, and expiry;
@@ -1968,9 +2257,8 @@ Recipients:
   subject.
 - `group.member_added` / `group.member_removed` /
   `group.member_expiring` / `group.member_expired`: member user.
-- `share_link.created` / `share_link.revoked`: resource managers and direct
-  user grants with resource `share` or `manage_permissions`, excluding the
-  actor.
+- `share_link.created` / `share_link.revoked`: resource managers, direct user
+  grants with resource `share` or `manage_permissions`, and the actor.
 - `email_invite.created` / `email_invite.delivery_failed`: resource managers
   and direct user grants with resource `share` or `manage_permissions`,
   excluding the actor.
@@ -2689,6 +2977,11 @@ Frontend public-link interaction hardening V1 slice:
 - Active link lists show metadata such as audience, role, expiry, and
   `hasPassword`; they do not show raw tokens, token hashes, passwords, password
   hashes, or password proofs.
+- Public reader visual convergence uses a shared frontend document reader
+  surface and readonly Tiptap renderer for public document bodies. The public
+  route still resolves under `#public/share-links/:token`, uses only the
+  dedicated anonymous public endpoints, does not enter the internal editor
+  shell, and keeps collection links summary-only.
 - No collection public-link content UI, public anonymous route expansion,
   backend public-link change, or protected API widening was added.
 

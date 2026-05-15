@@ -1,10 +1,9 @@
 import {
   AlertCircle,
+  ArrowUpDown,
   Check,
   Clock3,
-  ChevronDown,
   ChevronRight,
-  Copy,
   Eye,
   FileText,
   Link2,
@@ -22,11 +21,10 @@ import { WorkspaceHomeSidebar } from "./WorkspaceHomeSidebar";
 import { WorkspaceHomeTopBar } from "./WorkspaceHomeTopBar";
 import { ApiClientError, getConfiguredApiBaseUrl, getConfiguredWorkspaceId } from "../lib/apiClient";
 import {
-  createResourceShareLink,
   getAccessSharingSummary,
   getAccessRequests,
   getResourceEmailInvites,
-  getResourceShareLinks,
+  getShareLink,
   getWorkspaceNotificationPreferences,
   getWorkspaceNotifications,
   markAllWorkspaceNotificationsRead,
@@ -97,7 +95,7 @@ export function WorkspaceUpdatesPage() {
   );
   const displayGroups = useMemo(() => {
     if (status === "unconfigured") {
-      return filterDemoNotificationGroups(notificationGroups, activeTab);
+      return filterDemoNotificationGroups(notificationGroups, activeTab, sortDirection);
     }
 
     if (status !== "ready") {
@@ -115,7 +113,7 @@ export function WorkspaceUpdatesPage() {
         notifications: sortedFilteredNotifications.map((notification) => toWorkspaceNotification(notification, locale)),
       },
     ];
-  }, [activeTab, locale, sortedFilteredNotifications, status]);
+  }, [activeTab, locale, sortDirection, sortedFilteredNotifications, status]);
   const totalCount = status === "ready"
     ? notifications.length
     : status === "unconfigured"
@@ -196,13 +194,18 @@ export function WorkspaceUpdatesPage() {
             <div className="updates-page-toolbar">
               <span>{status === "ready" ? t(locale, "updates.shown", { count: filteredNotifications.length }) : getLocalizedNotificationStatusLabel(status, locale)}</span>
               <button
+                aria-label={sortDirection === "desc"
+                  ? localText(locale, "Newest first", "最新优先")
+                  : localText(locale, "Oldest first", "最早优先")}
                 aria-pressed={sortDirection === "asc"}
+                className="updates-page-sort-button"
                 onClick={() => setSortDirection((current) => (current === "desc" ? "asc" : "desc"))}
-                title={localText(locale, "Toggle notification sort order", "切换通知排序")}
+                title={sortDirection === "desc"
+                  ? localText(locale, "Newest first", "最新优先")
+                  : localText(locale, "Oldest first", "最早优先")}
                 type="button"
               >
-                {sortDirection === "desc" ? t(locale, "updates.newestFirst") : localText(locale, "Oldest first", "最早优先")}
-                <ChevronDown className="h-4 w-4" style={{ transform: sortDirection === "asc" ? "rotate(180deg)" : undefined }} />
+                <ArrowUpDown className="h-4 w-4" />
               </button>
               {status === "ready" && unreadCount > 0 ? (
                 <button
@@ -261,19 +264,27 @@ export function WorkspaceUpdatesPage() {
           </div>
         </section>
         {selectedDisplayNotification ? (
-          <AccessSharingDetailPanel
-            displayNotification={selectedDisplayNotification}
-            preferences={preferences}
-            locale={locale}
-            notification={selectedRawNotification}
-            onClose={() => setSelectedNotificationId(null)}
-            onRefresh={refresh}
-            status={status}
-            summary={summary}
-            totalCount={totalCount}
-            unreadCount={displayUnreadCount}
-            workspaceId={updatesApiWorkspaceId}
-          />
+          <>
+            <button
+              aria-label={localText(locale, "Close detail", "关闭详情")}
+              className="updates-page-detail-backdrop"
+              onClick={() => setSelectedNotificationId(null)}
+              type="button"
+            />
+            <AccessSharingDetailPanel
+              displayNotification={selectedDisplayNotification}
+              preferences={preferences}
+              locale={locale}
+              notification={selectedRawNotification}
+              onClose={() => setSelectedNotificationId(null)}
+              onRefresh={refresh}
+              status={status}
+              summary={summary}
+              totalCount={totalCount}
+              unreadCount={displayUnreadCount}
+              workspaceId={updatesApiWorkspaceId}
+            />
+          </>
         ) : null}
       </div>
     </main>
@@ -384,10 +395,18 @@ function AccessSharingDetailPanel({
     unreadCount,
   };
   const actionContext = useAccessSharingActionContext(notification, workspaceId, onRefresh, locale);
+  const headerShareLinkStatus = getShareLinkStatus(actionContext.eventShareLink, notification);
+  const isHeaderShareLink = Boolean(notification?.type.startsWith("share_link."));
+  const headerShareLinkEvent = getShareLinkEvent(notification);
+  const canRevokeHeaderShareLink = Boolean(
+    isHeaderShareLink &&
+    actionContext.eventShareLink &&
+    headerShareLinkStatus === "active",
+  );
 
   if (!displayNotification) {
     return (
-      <aside className="updates-page-detail editor-scrollbar h-full w-[700px] shrink-0 overflow-y-auto border-l border-[var(--ns-border)]">
+      <aside className="updates-page-detail editor-scrollbar border-l border-[var(--ns-border)]">
         <div className="updates-page-detail-inner">
           <SummaryCard title={t(locale, "updates.summary")}>
             <div className="updates-page-summary-count">
@@ -437,7 +456,7 @@ function AccessSharingDetailPanel({
   }
 
   return (
-    <aside className="updates-page-detail editor-scrollbar h-full w-[700px] shrink-0 overflow-y-auto border-l border-[var(--ns-border)]">
+    <aside className="updates-page-detail editor-scrollbar border-l border-[var(--ns-border)]">
       <div className="updates-page-detail-inner">
         <section className="updates-page-detail-card">
           <header className="updates-page-detail-heading">
@@ -448,15 +467,40 @@ function AccessSharingDetailPanel({
               <h2>{getDetailTitle(notification, displayNotification, locale)}</h2>
               <p>{formatDetailLead(notification, displayNotification, locale)}</p>
               <p className="updates-page-detail-time">{displayNotification.time}</p>
+              {isHeaderShareLink ? (
+                <ShareLinkHeaderSummary
+                  link={actionContext.eventShareLink}
+                  loading={actionContext.status === "loading"}
+                  locale={locale}
+                  notification={notification}
+                  status={headerShareLinkStatus}
+                  unavailableLabel={getUnavailableShareLinkLabel(headerShareLinkEvent, locale)}
+                />
+              ) : null}
             </div>
-            <button
-              aria-label={localText(locale, "Close detail", "关闭详情")}
-              className="updates-page-detail-close"
-              onClick={onClose}
-              type="button"
-            >
-              <X className="h-4 w-4" />
-            </button>
+            <div className="updates-page-detail-heading-actions">
+              {canRevokeHeaderShareLink ? (
+                <button
+                  className="updates-page-detail-revoke"
+                  disabled={actionContext.operation !== null}
+                  onClick={() => actionContext.eventShareLink ? void actionContext.revokeLink(actionContext.eventShareLink.id) : undefined}
+                  type="button"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  {actionContext.eventShareLink && actionContext.operation === `revokeLink:${actionContext.eventShareLink.id}`
+                    ? localText(locale, "Revoking", "正在撤销")
+                    : localText(locale, "Revoke link", "撤销该链接")}
+                </button>
+              ) : null}
+              <button
+                aria-label={localText(locale, "Close detail", "关闭详情")}
+                className="updates-page-detail-close"
+                onClick={onClose}
+                type="button"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
           </header>
 
           <section className="updates-page-detail-section">
@@ -512,13 +556,10 @@ function AccessSharingDetailPanel({
 
 type AccessSharingActionContext = {
   accessRequest: AccessRequestDto | null;
-  activeShareLinks: ShareLinkDto[];
-  createWorkspaceLink: () => Promise<void>;
   denyAccessRequest: () => Promise<void>;
   emailInvites: EmailInviteDto[];
   error: string | null;
-  latestCreatedShareUrl: string | null;
-  copyLatestShareUrl: () => Promise<void>;
+  eventShareLink: ShareLinkDto | null;
   message: string | null;
   operation: string | null;
   reviewAccessRequest: () => Promise<void>;
@@ -532,7 +573,6 @@ type AccessSharingActionContext = {
   setReviewExpiresAt: (value: string) => void;
   setReviewReason: (value: string) => void;
   setReviewRole: (value: string) => void;
-  shareLinks: ShareLinkDto[];
   status: "idle" | "loading" | "ready" | "error";
 };
 
@@ -668,43 +708,7 @@ function ActionClosurePanel({
   }
 
   if (isShareLink) {
-    return (
-      <section className="updates-page-detail-section">
-        <h3>{localText(locale, "Recommended actions", "推荐操作")}</h3>
-        <div className="updates-page-link-list">
-          {context.activeShareLinks.length === 0 ? (
-            <p className="updates-page-summary-note">{localText(locale, "No active links for this resource.", "此资源暂无有效链接。")}</p>
-          ) : context.activeShareLinks.slice(0, 3).map((link) => (
-            <div className="updates-page-link-item" key={link.id}>
-              <Link2 className="h-4 w-4" />
-              <span>
-                <strong>{formatAudience(link.audience, locale)} / {link.roleKey}</strong>
-                <small>{link.expiresAt ? formatTimestamp(link.expiresAt) : localText(locale, "No expiry", "不过期")}</small>
-              </span>
-              <button
-                disabled={context.operation !== null}
-                onClick={() => void context.revokeLink(link.id)}
-                title={localText(locale, "Revoke link", "撤销链接")}
-                type="button"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
-            </div>
-          ))}
-        </div>
-        <div className="updates-page-action-buttons">
-          <button disabled={context.operation !== null} onClick={() => void context.createWorkspaceLink()} type="button">
-            <Copy className="h-4 w-4" />
-            {context.operation === "createLink" ? localText(locale, "Creating", "正在创建") : localText(locale, "Create workspace link", "创建工作区链接")}
-          </button>
-          <a className="updates-page-action-button-link" href={displayNotification.actionHref}>
-            <ShieldCheck className="h-4 w-4" />
-            {localText(locale, "Manage permissions", "管理权限")}
-          </a>
-        </div>
-        <ActionFeedback context={context} />
-      </section>
-    );
+    return <ActionFeedback context={context} />;
   }
 
   return (
@@ -717,6 +721,66 @@ function ActionClosurePanel({
         </a>
       </div>
     </section>
+  );
+}
+
+function ShareLinkHeaderSummary({
+  link,
+  loading,
+  locale,
+  notification,
+  status,
+  unavailableLabel,
+}: {
+  link: ShareLinkDto | null;
+  loading: boolean;
+  locale: ReturnType<typeof useDisplayLanguage>["locale"];
+  notification: PermissionNotificationDto | null;
+  status: ShareLinkStatus;
+  unavailableLabel: string;
+}) {
+  if (!link) {
+    return (
+      <div className="updates-page-detail-heading-link is-muted">
+        <div className="updates-page-detail-heading-link-title">
+          <Link2 className="h-4 w-4" />
+          <span>
+            <strong>{loading ? localText(locale, "Loading link metadata", "正在加载链接元数据") : unavailableLabel}</strong>
+            <small>{loading ? localText(locale, "Loading", "加载中") : formatShareLinkStatus(status, locale)}</small>
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="updates-page-detail-heading-link">
+      <div className="updates-page-detail-heading-link-title">
+        <Link2 className="h-4 w-4" />
+        <span>
+          <strong>{formatShareLinkManagementTitle(link, locale)}</strong>
+          <small>{formatShareLinkPermission(link, locale)}</small>
+        </span>
+      </div>
+      <dl className="updates-page-detail-heading-link-facts">
+        <div>
+          <dt>{localText(locale, "Created", "创建")}</dt>
+          <dd>{formatShareLinkCreatedBy(link, notification, locale)}</dd>
+        </div>
+        <div>
+          <dt>{localText(locale, "Expiry", "过期")}</dt>
+          <dd>{formatShareLinkExpiry(link, locale)}</dd>
+        </div>
+        <div>
+          <dt>{localText(locale, "Status", "状态")}</dt>
+          <dd>{formatShareLinkStatus(status, locale)}</dd>
+        </div>
+        <div>
+          <dt>{localText(locale, "Identifier", "标识")}</dt>
+          <dd>{formatShareLinkIdentifier(link.id, locale)}</dd>
+        </div>
+      </dl>
+    </div>
   );
 }
 
@@ -739,7 +803,7 @@ function useAccessSharingActionContext(
   locale: ReturnType<typeof useDisplayLanguage>["locale"],
 ): AccessSharingActionContext {
   const [accessRequest, setAccessRequest] = useState<AccessRequestDto | null>(null);
-  const [shareLinks, setShareLinks] = useState<ShareLinkDto[]>([]);
+  const [eventShareLink, setEventShareLink] = useState<ShareLinkDto | null>(null);
   const [emailInvites, setEmailInvites] = useState<EmailInviteDto[]>([]);
   const [status, setStatus] = useState<AccessSharingActionContext["status"]>("idle");
   const [operation, setOperation] = useState<string | null>(null);
@@ -753,14 +817,16 @@ function useAccessSharingActionContext(
   const accessRequestId = notification?.action?.accessRequestId ?? notification?.action?.subjectId;
   const subjectType = notification?.action?.subjectType;
   const subjectId = notification?.action?.subjectId;
+  const notificationId = notification?.id ?? null;
+  const notificationType = notification?.type ?? null;
 
   useEffect(() => {
     setMessage(null);
     setError(null);
     setAccessRequest(null);
-    setShareLinks([]);
+    setEventShareLink(null);
     setEmailInvites([]);
-    if (!notification) {
+    if (!notificationId || !notificationType) {
       setStatus("idle");
       return;
     }
@@ -768,7 +834,7 @@ function useAccessSharingActionContext(
     const controller = new AbortController();
     setStatus("loading");
     const loads: Promise<unknown>[] = [];
-    if (workspaceId && accessRequestId && notification.type === "access_request.created") {
+    if (workspaceId && accessRequestId && notificationType === "access_request.created") {
       loads.push(
         getAccessRequests(workspaceId, null, controller.signal).then((body) => {
           const request = body.requests.find((item) => item.id === accessRequestId) ?? null;
@@ -779,8 +845,21 @@ function useAccessSharingActionContext(
     }
 
     if (resourceType && resourceId) {
-      loads.push(getResourceShareLinks(resourceType, resourceId, controller.signal).then((body) => setShareLinks(body.links)));
       loads.push(getResourceEmailInvites(resourceType, resourceId, controller.signal).then((body) => setEmailInvites(body.invites)));
+    }
+
+    if (subjectType === "share_link" && subjectId) {
+      loads.push(
+        getShareLink(subjectId, controller.signal)
+          .then((link) => setEventShareLink(link))
+          .catch((value: unknown) => {
+            if (value instanceof DOMException && value.name === "AbortError") {
+              throw value;
+            }
+
+            setEventShareLink(null);
+          }),
+      );
     }
 
     if (loads.length === 0) {
@@ -800,7 +879,7 @@ function useAccessSharingActionContext(
       });
 
     return () => controller.abort();
-  }, [accessRequestId, locale, notification, resourceId, resourceType, workspaceId]);
+  }, [accessRequestId, locale, notificationId, notificationType, resourceId, resourceType, subjectId, subjectType, workspaceId]);
 
   const selectedInvite = useMemo(() => {
     if (subjectType === "email_invite" && subjectId) {
@@ -809,7 +888,6 @@ function useAccessSharingActionContext(
 
     return emailInvites.find((invite) => invite.deliveryStatus === "failed") ?? null;
   }, [emailInvites, subjectId, subjectType]);
-  const activeShareLinks = useMemo(() => shareLinks.filter((link) => !link.revokedAt), [shareLinks]);
 
   const runOperation = async (operationKey: string, callback: () => Promise<void>) => {
     if (operation) {
@@ -823,11 +901,7 @@ function useAccessSharingActionContext(
       await callback();
       await onRefresh();
       if (resourceType && resourceId) {
-        const [linksBody, invitesBody] = await Promise.all([
-          getResourceShareLinks(resourceType, resourceId),
-          getResourceEmailInvites(resourceType, resourceId),
-        ]);
-        setShareLinks(linksBody.links);
+        const invitesBody = await getResourceEmailInvites(resourceType, resourceId);
         setEmailInvites(invitesBody.invites);
       }
     } catch (value) {
@@ -839,20 +913,6 @@ function useAccessSharingActionContext(
 
   return {
     accessRequest,
-    activeShareLinks,
-    createWorkspaceLink: () =>
-      runOperation("createLink", async () => {
-        if (!resourceType || !resourceId) {
-          throw new Error(localText(locale, "Resource is unavailable.", "资源不可用。"));
-        }
-
-        await createResourceShareLink(resourceType, resourceId, {
-          audience: "workspace",
-          expiresAt: null,
-          roleKey: "viewer",
-        });
-        setMessage(localText(locale, "Workspace link created.", "工作区链接已创建。"));
-      }),
     denyAccessRequest: () =>
       runOperation("deny", async () => {
         if (!accessRequest) {
@@ -868,6 +928,7 @@ function useAccessSharingActionContext(
       }),
     emailInvites,
     error,
+    eventShareLink,
     message,
     operation,
     reviewAccessRequest: () =>
@@ -899,6 +960,7 @@ function useAccessSharingActionContext(
     revokeLink: (linkId: string) =>
       runOperation(`revokeLink:${linkId}`, async () => {
         await revokeShareLink(linkId);
+        setEventShareLink((current) => current?.id === linkId ? { ...current, revokedAt: new Date().toISOString() } : current);
         setMessage(localText(locale, "Share link revoked.", "分享链接已撤销。"));
       }),
     retryInvite: () =>
@@ -914,7 +976,6 @@ function useAccessSharingActionContext(
     setReviewExpiresAt,
     setReviewReason,
     setReviewRole,
-    shareLinks,
     status,
   };
 }
@@ -1117,21 +1178,135 @@ function getNotificationKindLabel(kind: NotificationKind, locale: ReturnType<typ
   }
 }
 
-function formatAudience(audience: string, locale: ReturnType<typeof useDisplayLanguage>["locale"]) {
-  if (locale === "zh-CN") {
-    switch (audience) {
-      case "workspace":
-        return "工作区";
-      case "specific":
-        return "指定对象";
-      case "public":
-        return "公开";
-      default:
-        return audience;
-    }
+function formatShareLinkPermission(link: ShareLinkDto, locale: ReturnType<typeof useDisplayLanguage>["locale"]) {
+  const role = formatShareLinkRole(link.roleKey, locale);
+  if (link.audience === "public") {
+    return localText(locale, `Anyone with the link · ${role}`, `拥有链接的任何人 · ${role}`);
   }
 
-  return audience.charAt(0).toUpperCase() + audience.slice(1);
+  if (link.audience === "external") {
+    return localText(locale, `${link.subjectEmail ?? "Specific email"} · ${role}`, `${link.subjectEmail ?? "指定邮箱用户"} · ${role}`);
+  }
+
+  return localText(locale, `Workspace members · ${role}`, `工作区成员 · ${role}`);
+}
+
+function formatShareLinkManagementTitle(link: ShareLinkDto, locale: ReturnType<typeof useDisplayLanguage>["locale"]) {
+  return localText(locale, `Link ${shortIdentifier(link.id)}`, `链接 ${shortIdentifier(link.id)}`);
+}
+
+type ShareLinkEvent = "created" | "expired" | "other" | "revoked";
+type ShareLinkStatus = "active" | "expired" | "missing" | "revoked";
+
+function getShareLinkEvent(notification: PermissionNotificationDto | null): ShareLinkEvent {
+  if (notification?.type === "share_link.revoked" || notification?.state === "revoked") {
+    return "revoked";
+  }
+
+  if (notification?.type === "share_link.expired" || notification?.state === "expired") {
+    return "expired";
+  }
+
+  if (notification?.type === "share_link.created") {
+    return "created";
+  }
+
+  return "other";
+}
+
+function getShareLinkStatus(link: ShareLinkDto | null, notification: PermissionNotificationDto | null): ShareLinkStatus {
+  if (link?.revokedAt) {
+    return "revoked";
+  }
+
+  if (link?.expiresAt && new Date(link.expiresAt).getTime() <= Date.now()) {
+    return "expired";
+  }
+
+  if (link) {
+    return "active";
+  }
+
+  const event = getShareLinkEvent(notification);
+  if (event === "revoked") {
+    return "revoked";
+  }
+
+  if (event === "expired") {
+    return "expired";
+  }
+
+  return "missing";
+}
+
+function formatShareLinkStatus(status: ShareLinkStatus, locale: ReturnType<typeof useDisplayLanguage>["locale"]) {
+  switch (status) {
+    case "active":
+      return localText(locale, "Active", "有效");
+    case "revoked":
+      return localText(locale, "Revoked", "已撤销");
+    case "expired":
+      return localText(locale, "Expired", "已过期");
+    case "missing":
+    default:
+      return localText(locale, "Metadata unavailable", "链接元数据不可用");
+  }
+}
+
+function getUnavailableShareLinkLabel(event: ShareLinkEvent, locale: ReturnType<typeof useDisplayLanguage>["locale"]) {
+  if (event === "revoked") {
+    return localText(locale, "Revoked link metadata unavailable", "已撤销链接的元数据不可用");
+  }
+
+  if (event === "expired") {
+    return localText(locale, "Expired link metadata unavailable", "已过期链接的元数据不可用");
+  }
+
+  return localText(locale, "Share link metadata unavailable", "分享链接元数据不可用");
+}
+
+function formatShareLinkRole(roleKey: string, locale: ReturnType<typeof useDisplayLanguage>["locale"]) {
+  if (roleKey === "viewer") {
+    return localText(locale, "Can view", "可查看");
+  }
+
+  if (roleKey === "commenter") {
+    return localText(locale, "Can comment", "可评论");
+  }
+
+  return roleKey;
+}
+
+function formatShareLinkCreatedBy(
+  link: ShareLinkDto,
+  notification: PermissionNotificationDto | null,
+  locale: ReturnType<typeof useDisplayLanguage>["locale"],
+) {
+  const actor = notification?.actor?.displayName?.trim() ||
+    (link.createdBy ? formatPrincipalIdentifier(link.createdBy, locale) : localText(locale, "Unknown creator", "未知创建人"));
+
+  return `${actor} · ${formatShareLinkCreatedAt(link)}`;
+}
+
+function formatShareLinkCreatedAt(link: ShareLinkDto) {
+  return formatTimestamp(link.createdAt);
+}
+
+function formatShareLinkExpiry(link: ShareLinkDto, locale: ReturnType<typeof useDisplayLanguage>["locale"]) {
+  return link.expiresAt ? formatTimestamp(link.expiresAt) : localText(locale, "No expiry", "不过期");
+}
+
+function formatShareLinkIdentifier(id: string, locale: ReturnType<typeof useDisplayLanguage>["locale"]) {
+  return localText(locale, `ID ${shortIdentifier(id)}`, `ID ${shortIdentifier(id)}`);
+}
+
+function formatPrincipalIdentifier(id: string, locale: ReturnType<typeof useDisplayLanguage>["locale"]) {
+  return localText(locale, `User ${shortIdentifier(id)}`, `用户 ${shortIdentifier(id)}`);
+}
+
+function shortIdentifier(id: string) {
+  const compact = id.replace(/-/g, "");
+  return compact.length > 8 ? `#${compact.slice(0, 8)}` : `#${compact || "unknown"}`;
 }
 
 function formatTimestamp(value: string) {
@@ -1229,8 +1404,12 @@ function getNotificationIcon(kind: NotificationKind) {
   }
 }
 
-function filterDemoNotificationGroups(groups: NotificationGroup[], activeTab: WorkspaceUpdatesTab): NotificationGroup[] {
-  return groups
+function filterDemoNotificationGroups(
+  groups: NotificationGroup[],
+  activeTab: WorkspaceUpdatesTab,
+  sortDirection: "asc" | "desc",
+): NotificationGroup[] {
+  const filteredGroups = groups
     .map((group) => ({
       ...group,
       notifications: group.notifications.filter((notification) => {
@@ -1250,6 +1429,14 @@ function filterDemoNotificationGroups(groups: NotificationGroup[], activeTab: Wo
       }),
     }))
     .filter((group) => group.notifications.length > 0);
+
+  if (sortDirection === "desc") {
+    return filteredGroups;
+  }
+
+  return [...filteredGroups]
+    .reverse()
+    .map((group) => ({ ...group, notifications: [...group.notifications].reverse() }));
 }
 
 function usePermissionNotifications(workspaceId: string | null) {

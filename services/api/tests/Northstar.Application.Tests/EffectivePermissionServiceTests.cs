@@ -1025,11 +1025,25 @@ public sealed class EffectivePermissionServiceTests
             return Task.FromResult<ShareLink?>(null);
         }
 
+        public Task<ShareLink?> GetByIdAsync(
+            Guid shareLinkId,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<ShareLink?>(null);
+        }
+
         public Task<ShareLink?> GetForUpdateAsync(
             Guid shareLinkId,
             CancellationToken cancellationToken = default)
         {
             return Task.FromResult<ShareLink?>(null);
+        }
+
+        public Task<IReadOnlyList<ShareLink>> SearchAsync(
+            ShareLinkSearchQuery query,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<ShareLink>>(Array.Empty<ShareLink>());
         }
 
         public Task AddAsync(ShareLink link, CancellationToken cancellationToken = default)

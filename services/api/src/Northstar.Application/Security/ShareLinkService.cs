@@ -15,14 +15,19 @@ public sealed class ShareLinkService : IShareLinkService
 
     private readonly IShareLinkRepository _shareLinkRepository;
     private readonly IShareLinkTokenService _tokenService;
+    private readonly IShareLinkTokenProtector _tokenProtector;
     private readonly IResourceWorkspaceResolver _resourceResolver;
+    private readonly IPermissionResourceDisplayResolver _resourceDisplayResolver;
     private readonly IResourcePermissionRepository _permissionRepository;
     private readonly IScopedResourceAccessService _scopedAccessService;
+    private readonly IEffectivePermissionService _effectivePermissionService;
     private readonly IWorkspaceGroupRepository _groupRepository;
     private readonly IPermissionUserRepository _userRepository;
     private readonly ICurrentUser _currentUser;
     private readonly IPermissionCatalog _permissionCatalog;
     private readonly IPermissionAuditService _auditService;
+    private readonly IShareLinkAccessAuditService _shareLinkAccessAuditService;
+    private readonly IShareLinkAccessRepository _shareLinkAccessRepository;
     private readonly IPermissionNotificationFanoutService _notificationFanoutService;
     private readonly IAuthStepUpService _stepUpService;
     private readonly ITransactionRunner _transactionRunner;
@@ -35,14 +40,19 @@ public sealed class ShareLinkService : IShareLinkService
     public ShareLinkService(
         IShareLinkRepository shareLinkRepository,
         IShareLinkTokenService tokenService,
+        IShareLinkTokenProtector tokenProtector,
         IResourceWorkspaceResolver resourceResolver,
+        IPermissionResourceDisplayResolver resourceDisplayResolver,
         IResourcePermissionRepository permissionRepository,
         IScopedResourceAccessService scopedAccessService,
+        IEffectivePermissionService effectivePermissionService,
         IWorkspaceGroupRepository groupRepository,
         IPermissionUserRepository userRepository,
         ICurrentUser currentUser,
         IPermissionCatalog permissionCatalog,
         IPermissionAuditService auditService,
+        IShareLinkAccessAuditService shareLinkAccessAuditService,
+        IShareLinkAccessRepository shareLinkAccessRepository,
         IPermissionNotificationFanoutService notificationFanoutService,
         IAuthStepUpService stepUpService,
         ITransactionRunner transactionRunner,
@@ -54,14 +64,19 @@ public sealed class ShareLinkService : IShareLinkService
     {
         _shareLinkRepository = shareLinkRepository;
         _tokenService = tokenService;
+        _tokenProtector = tokenProtector;
         _resourceResolver = resourceResolver;
+        _resourceDisplayResolver = resourceDisplayResolver;
         _permissionRepository = permissionRepository;
         _scopedAccessService = scopedAccessService;
+        _effectivePermissionService = effectivePermissionService;
         _groupRepository = groupRepository;
         _userRepository = userRepository;
         _currentUser = currentUser;
         _permissionCatalog = permissionCatalog;
         _auditService = auditService;
+        _shareLinkAccessAuditService = shareLinkAccessAuditService;
+        _shareLinkAccessRepository = shareLinkAccessRepository;
         _notificationFanoutService = notificationFanoutService;
         _stepUpService = stepUpService;
         _transactionRunner = transactionRunner;
@@ -87,6 +102,85 @@ public sealed class ShareLinkService : IShareLinkService
             cancellationToken);
 
         return new ShareLinksResponse(links.Select(ToDto).ToArray());
+    }
+
+    public async Task<LinkManagementListResponse> SearchShareLinksAsync(
+        Guid workspaceId,
+        string? resourceType,
+        Guid? resourceId,
+        string? audience,
+        string? roleKey,
+        string? status,
+        string? q,
+        int? offset,
+        int? limit,
+        CancellationToken cancellationToken = default)
+    {
+        if (workspaceId == Guid.Empty)
+        {
+            throw new ApplicationErrorException(ErrorCodes.ValidationError, "workspaceId is required.");
+        }
+
+        _ = await _scopedAccessService.GetRequiredUserIdAsync(cancellationToken);
+        var normalizedOffset = Math.Max(0, offset ?? 0);
+        var normalizedLimit = Math.Clamp(limit ?? 50, 1, 100);
+        var normalizedResourceType = string.IsNullOrWhiteSpace(resourceType)
+            ? null
+            : PermissionResourceNormalizer.NormalizeScopedResourceType(resourceType);
+        var normalizedAudience = NormalizeAudienceFilter(audience);
+        var normalizedRole = NormalizeRoleFilter(roleKey);
+        var normalizedStatus = NormalizeStatusFilter(status);
+        var normalizedSearch = string.IsNullOrWhiteSpace(q) ? null : q.Trim();
+
+        var links = await _shareLinkRepository.SearchAsync(
+            new ShareLinkSearchQuery(
+                workspaceId,
+                normalizedResourceType,
+                resourceId,
+                normalizedAudience,
+                normalizedRole),
+            cancellationToken);
+        var managementRows = await BuildManagementDtosAsync(links, cancellationToken);
+        if (links.Count > 0 && managementRows.Count == 0)
+        {
+            throw new ApplicationErrorException(ErrorCodes.Forbidden, "Workspace permission is insufficient.");
+        }
+
+        var filtered = managementRows
+            .Where(row => normalizedStatus is null || row.Status == normalizedStatus)
+            .Where(row => MatchesSearch(row, normalizedSearch))
+            .ToArray();
+
+        return new LinkManagementListResponse(
+            filtered.Skip(normalizedOffset).Take(normalizedLimit).ToArray(),
+            normalizedOffset,
+            normalizedLimit,
+            filtered.Length,
+            normalizedOffset + normalizedLimit < filtered.Length);
+    }
+
+    public async Task<ShareLinkDto> GetShareLinkAsync(
+        Guid shareLinkId,
+        CancellationToken cancellationToken = default)
+    {
+        var link = await _shareLinkRepository.GetByIdAsync(shareLinkId, cancellationToken)
+            ?? throw new ApplicationErrorException(ErrorCodes.NotFound, "Share link was not found.");
+        var target = new PermissionResourceTarget(
+            link.ResourceType,
+            link.ResourceId,
+            link.WorkspaceId);
+        await EnsureCanShareAsync(target, cancellationToken);
+        return ToDto(link);
+    }
+
+    public async Task<LinkManagementDto> GetManagedShareLinkAsync(
+        Guid shareLinkId,
+        CancellationToken cancellationToken = default)
+    {
+        var link = await _shareLinkRepository.GetByIdAsync(shareLinkId, cancellationToken)
+            ?? throw new ApplicationErrorException(ErrorCodes.NotFound, "Share link was not found.");
+        return await BuildManagementDtoAsync(link, cancellationToken)
+            ?? throw new ApplicationErrorException(ErrorCodes.Forbidden, "Workspace permission is insufficient.");
     }
 
     public Task<CreateShareLinkResponse> CreateShareLinkAsync(
@@ -120,7 +214,8 @@ public sealed class ShareLinkService : IShareLinkService
                 actorId,
                 request.ExpiresAt,
                 subjectEmail,
-                passwordHash);
+                passwordHash,
+                _tokenProtector.Protect(token));
             await _shareLinkRepository.AddAsync(link, ct);
             await EnsureLinkPolicyAsync(target, audience, roleKey, actorId, shareResult, link.Id, ct);
             await _auditService.AddAsync(
@@ -145,9 +240,83 @@ public sealed class ShareLinkService : IShareLinkService
             return new CreateShareLinkResponse(
                 ToDto(link),
                 token,
-                audience == ShareLinkAudiences.Public
-                    ? $"/api/v1/public/share-links/{token}/resolve"
-                    : $"/api/v1/share-links/{token}/resolve");
+                BuildShareLinkResolveUrl(audience, token));
+        }, cancellationToken);
+    }
+
+    public Task<LinkManagementDto> UpdateShareLinkAsync(
+        Guid shareLinkId,
+        UpdateShareLinkRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return _transactionRunner.ExecuteAsync(async ct =>
+        {
+            var link = await _shareLinkRepository.GetForUpdateAsync(shareLinkId, ct)
+                ?? throw new ApplicationErrorException(ErrorCodes.NotFound, "Share link was not found.");
+            var target = new PermissionResourceTarget(
+                link.ResourceType,
+                link.ResourceId,
+                link.WorkspaceId);
+            var management = await EnsureCanManageLinkAsync(link, ct);
+            await _stepUpService.EnsureSatisfiedAsync(ct);
+            var actorId = await _scopedAccessService.GetRequiredUserIdAsync(ct);
+
+            var updated = false;
+            if (!string.IsNullOrWhiteSpace(request.RoleKey))
+            {
+                var roleKey = NormalizeLinkRole(request.RoleKey);
+                EnsureCanGrant(management.EffectiveRole, roleKey);
+                EnsureAudienceRules(target, link.Audience, roleKey, link.SubjectEmail, link.ExpiresAt);
+                if (link.RoleKey != roleKey)
+                {
+                    var before = ShareLinkSnapshot(link);
+                    link.UpdateRole(roleKey);
+                    await _auditService.AddAsync(
+                        CreateAuditEvent(
+                            target,
+                            actorId,
+                            PermissionAuditActions.ShareLinkRoleUpdated,
+                            before,
+                            ShareLinkSnapshot(link),
+                            management,
+                            link,
+                            request.Reason),
+                        ct);
+                    updated = true;
+                }
+            }
+
+            if (request.ExpiresAt.ValueKind != JsonValueKind.Undefined)
+            {
+                var expiresAt = ReadOptionalExpiry(request.ExpiresAt);
+                EnsureExpiry(link.Audience, expiresAt);
+                EnsureAudienceRules(target, link.Audience, link.RoleKey, link.SubjectEmail, expiresAt);
+                if (link.ExpiresAt != expiresAt)
+                {
+                    var before = ShareLinkSnapshot(link);
+                    link.UpdateExpiry(expiresAt);
+                    await _auditService.AddAsync(
+                        CreateAuditEvent(
+                            target,
+                            actorId,
+                            PermissionAuditActions.ShareLinkExpiryUpdated,
+                            before,
+                            ShareLinkSnapshot(link),
+                            management,
+                            link,
+                            request.Reason),
+                        ct);
+                    updated = true;
+                }
+            }
+
+            if (updated)
+            {
+                await _unitOfWork.SaveChangesAsync(ct);
+            }
+
+            return await BuildManagementDtoAsync(link, ct)
+                ?? throw new ApplicationErrorException(ErrorCodes.Forbidden, "Workspace permission is insufficient.");
         }, cancellationToken);
     }
 
@@ -163,7 +332,7 @@ public sealed class ShareLinkService : IShareLinkService
                 link.ResourceType,
                 link.ResourceId,
                 link.WorkspaceId);
-            var shareResult = await EnsureCanShareAsync(target, ct);
+            var shareResult = await EnsureCanManageLinkAsync(link, ct);
             await _stepUpService.EnsureSatisfiedAsync(ct);
             var actorId = await _scopedAccessService.GetRequiredUserIdAsync(ct);
             if (link.RevokedAt.HasValue)
@@ -195,6 +364,174 @@ public sealed class ShareLinkService : IShareLinkService
         }, cancellationToken);
     }
 
+    public Task<LinkManagementDto> PauseShareLinkAsync(
+        Guid shareLinkId,
+        ShareLinkPauseRequest? request,
+        CancellationToken cancellationToken = default)
+    {
+        return _transactionRunner.ExecuteAsync(async ct =>
+        {
+            var link = await _shareLinkRepository.GetForUpdateAsync(shareLinkId, ct)
+                ?? throw new ApplicationErrorException(ErrorCodes.NotFound, "Share link was not found.");
+            var target = new PermissionResourceTarget(link.ResourceType, link.ResourceId, link.WorkspaceId);
+            var management = await EnsureCanManageLinkAsync(link, ct);
+            await _stepUpService.EnsureSatisfiedAsync(ct);
+            var actorId = await _scopedAccessService.GetRequiredUserIdAsync(ct);
+            if (!link.PausedAt.HasValue)
+            {
+                var before = ShareLinkSnapshot(link);
+                link.Pause(actorId, request?.Reason);
+                await _auditService.AddAsync(
+                    CreateAuditEvent(
+                        target,
+                        actorId,
+                        PermissionAuditActions.ShareLinkPaused,
+                        before,
+                        ShareLinkSnapshot(link),
+                        management,
+                        link,
+                        request?.Reason),
+                    ct);
+                await _unitOfWork.SaveChangesAsync(ct);
+            }
+
+            return await BuildManagementDtoAsync(link, ct)
+                ?? throw new ApplicationErrorException(ErrorCodes.Forbidden, "Workspace permission is insufficient.");
+        }, cancellationToken);
+    }
+
+    public Task<LinkManagementDto> ResumeShareLinkAsync(
+        Guid shareLinkId,
+        CancellationToken cancellationToken = default)
+    {
+        return _transactionRunner.ExecuteAsync(async ct =>
+        {
+            var link = await _shareLinkRepository.GetForUpdateAsync(shareLinkId, ct)
+                ?? throw new ApplicationErrorException(ErrorCodes.NotFound, "Share link was not found.");
+            var target = new PermissionResourceTarget(link.ResourceType, link.ResourceId, link.WorkspaceId);
+            var management = await EnsureCanManageLinkAsync(link, ct);
+            await _stepUpService.EnsureSatisfiedAsync(ct);
+            var actorId = await _scopedAccessService.GetRequiredUserIdAsync(ct);
+            if (link.RevokedAt.HasValue)
+            {
+                throw new ApplicationErrorException(ErrorCodes.ValidationError, "revoked share links cannot be resumed.");
+            }
+
+            if (link.PausedAt.HasValue)
+            {
+                var before = ShareLinkSnapshot(link);
+                link.Resume();
+                await _auditService.AddAsync(
+                    CreateAuditEvent(
+                        target,
+                        actorId,
+                        PermissionAuditActions.ShareLinkResumed,
+                        before,
+                        ShareLinkSnapshot(link),
+                        management,
+                        link),
+                    ct);
+                await _unitOfWork.SaveChangesAsync(ct);
+            }
+
+            return await BuildManagementDtoAsync(link, ct)
+                ?? throw new ApplicationErrorException(ErrorCodes.Forbidden, "Workspace permission is insufficient.");
+        }, cancellationToken);
+    }
+
+    public Task<CopyShareLinkResponse> CopyShareLinkAsync(
+        Guid shareLinkId,
+        ShareLinkCopyEventRequest? request,
+        CancellationToken cancellationToken = default)
+    {
+        return _transactionRunner.ExecuteAsync(async ct =>
+        {
+            var link = await _shareLinkRepository.GetForUpdateAsync(shareLinkId, ct)
+                ?? throw new ApplicationErrorException(ErrorCodes.NotFound, "Share link was not found.");
+            var target = new PermissionResourceTarget(link.ResourceType, link.ResourceId, link.WorkspaceId);
+            var management = await EnsureCanManageLinkAsync(link, ct);
+            if (link.RevokedAt.HasValue)
+            {
+                throw new ApplicationErrorException(ErrorCodes.ValidationError, "Revoked share links cannot be copied.");
+            }
+
+            var actorId = await _scopedAccessService.GetRequiredUserIdAsync(ct);
+            var reissued = false;
+            string token;
+            if (!string.IsNullOrWhiteSpace(link.TokenCiphertext))
+            {
+                token = _tokenProtector.Unprotect(link.TokenCiphertext);
+            }
+            else
+            {
+                token = _tokenService.GenerateToken();
+                link.ReplaceToken(_tokenService.HashToken(token), _tokenProtector.Protect(token));
+                reissued = true;
+            }
+
+            await _auditService.AddAsync(
+                CreateAuditEvent(
+                    target,
+                    actorId,
+                    PermissionAuditActions.ShareLinkCopyRequested,
+                    before: null,
+                    after: new
+                    {
+                        link.Id,
+                        link.WorkspaceId,
+                        link.ResourceType,
+                        link.ResourceId,
+                        link.Audience,
+                        link.RoleKey,
+                        copiedValueType = NormalizeCopiedValueType(request?.CopiedValueType),
+                        reissued
+                    },
+                    management,
+                    link,
+                    request?.Reason),
+                ct);
+            await _unitOfWork.SaveChangesAsync(ct);
+            return new CopyShareLinkResponse(link.Id.ToString(), BuildShareLinkResolveUrl(link.Audience, token), reissued);
+        }, cancellationToken);
+    }
+
+    public Task RecordCopyEventAsync(
+        Guid shareLinkId,
+        ShareLinkCopyEventRequest? request,
+        CancellationToken cancellationToken = default)
+    {
+        return _transactionRunner.ExecuteAsync(async ct =>
+        {
+            var link = await _shareLinkRepository.GetByIdAsync(shareLinkId, ct)
+                ?? throw new ApplicationErrorException(ErrorCodes.NotFound, "Share link was not found.");
+            var target = new PermissionResourceTarget(link.ResourceType, link.ResourceId, link.WorkspaceId);
+            var management = await EnsureCanManageLinkAsync(link, ct);
+            var actorId = await _scopedAccessService.GetRequiredUserIdAsync(ct);
+            await _auditService.AddAsync(
+                CreateAuditEvent(
+                    target,
+                    actorId,
+                    PermissionAuditActions.ShareLinkCopyRequested,
+                    before: null,
+                    after: new
+                    {
+                        link.Id,
+                        link.WorkspaceId,
+                        link.ResourceType,
+                        link.ResourceId,
+                        link.Audience,
+                        link.RoleKey,
+                        copiedValueType = NormalizeCopiedValueType(request?.CopiedValueType)
+                    },
+                    management,
+                    link,
+                    request?.Reason),
+                ct);
+            await _unitOfWork.SaveChangesAsync(ct);
+            return true;
+        }, cancellationToken);
+    }
+
     public async Task<ResolveShareLinkResponse> ResolveShareLinkAsync(
         string token,
         CancellationToken cancellationToken = default)
@@ -208,18 +545,34 @@ public sealed class ShareLinkService : IShareLinkService
             _tokenService.HashToken(token.Trim()),
             cancellationToken)
             ?? throw new ApplicationErrorException(ErrorCodes.NotFound, "Share link was not found.");
-        if (!link.IsActive(DateTimeOffset.UtcNow))
+        var now = DateTimeOffset.UtcNow;
+        if (!link.IsActive(now))
         {
+            await _shareLinkAccessAuditService.RecordResolveAsync(
+                token,
+                ShareLinkAccessResults.Fail,
+                GetInactiveFailureCategory(link, now),
+                cancellationToken);
             throw new ApplicationErrorException(ErrorCodes.NotFound, "Share link was not found.");
         }
 
         if (link.Audience == ShareLinkAudiences.Public)
         {
+            await _shareLinkAccessAuditService.RecordResolveAsync(
+                token,
+                ShareLinkAccessResults.Fail,
+                "audience_mismatch",
+                cancellationToken);
             throw new ApplicationErrorException(ErrorCodes.NotFound, "Share link was not found.");
         }
 
         if (!_currentUser.IsAuthenticated || _currentUser.UserId is null)
         {
+            await _shareLinkAccessAuditService.RecordResolveAsync(
+                token,
+                ShareLinkAccessResults.Fail,
+                "audience_mismatch",
+                cancellationToken);
             throw new ApplicationErrorException(ErrorCodes.Unauthorized, "Authentication is required.");
         }
 
@@ -230,9 +583,19 @@ public sealed class ShareLinkService : IShareLinkService
             cancellationToken);
         if (!await CanResolveLinkAsync(link, policy, _currentUser.UserId.Value, cancellationToken))
         {
+            await _shareLinkAccessAuditService.RecordResolveAsync(
+                token,
+                ShareLinkAccessResults.Fail,
+                policy is null || !PolicyMatchesAudience(link, policy) ? "policy_mismatch" : "forbidden",
+                cancellationToken);
             throw new ApplicationErrorException(ErrorCodes.Forbidden, "Workspace access is denied.");
         }
 
+        await _shareLinkAccessAuditService.RecordResolveAsync(
+            token,
+            ShareLinkAccessResults.Success,
+            null,
+            cancellationToken);
         return new ResolveShareLinkResponse(
             link.WorkspaceId.ToString(),
             link.ResourceType,
@@ -249,6 +612,12 @@ public sealed class ShareLinkService : IShareLinkService
         CancellationToken cancellationToken = default)
     {
         var link = await GetActivePublicLinkAsync(token, expectedResourceType: null, passwordProof, cancellationToken);
+        await _shareLinkAccessAuditService.RecordPublicAccessAsync(
+            token,
+            ShareLinkAccessEventTypes.Resolve,
+            ShareLinkAccessResults.Success,
+            null,
+            cancellationToken);
         return ToPublicResolveDto(link);
     }
 
@@ -261,6 +630,12 @@ public sealed class ShareLinkService : IShareLinkService
         var document = await _knowledgeQueryService.GetDocumentAsync(link.ResourceId, cancellationToken)
             ?? throw new ApplicationErrorException(ErrorCodes.NotFound, "Share link was not found.");
 
+        await _shareLinkAccessAuditService.RecordPublicAccessAsync(
+            token,
+            ShareLinkAccessEventTypes.Access,
+            ShareLinkAccessResults.Success,
+            null,
+            cancellationToken);
         return new PublicShareDocumentResponse(
             ToPublicResolveDto(link),
             ToPublicDocumentDto(document));
@@ -278,6 +653,12 @@ public sealed class ShareLinkService : IShareLinkService
             cancellationToken)
             ?? throw new ApplicationErrorException(ErrorCodes.NotFound, "Share link was not found.");
 
+        await _shareLinkAccessAuditService.RecordPublicAccessAsync(
+            token,
+            ShareLinkAccessEventTypes.Access,
+            ShareLinkAccessResults.Success,
+            null,
+            cancellationToken);
         return new PublicShareCollectionResponse(
             ToPublicResolveDto(link),
             collection);
@@ -329,6 +710,166 @@ public sealed class ShareLinkService : IShareLinkService
                 CreatePolicyAuditEvent(target, actorId, before, PolicySnapshot(policy), shareResult, shareLinkId),
                 cancellationToken);
         }
+    }
+
+    private async Task<IReadOnlyList<LinkManagementDto>> BuildManagementDtosAsync(
+        IReadOnlyList<ShareLink> links,
+        CancellationToken cancellationToken)
+    {
+        var authorized = new List<(ShareLink Link, EffectivePermissionResult Result, bool CanManage)>();
+        foreach (var link in links)
+        {
+            var access = await GetLinkManagementAccessAsync(link, cancellationToken);
+            if (access is not null)
+            {
+                authorized.Add((link, access.Value.Result, access.Value.CanManage));
+            }
+        }
+
+        if (authorized.Count == 0)
+        {
+            return Array.Empty<LinkManagementDto>();
+        }
+
+        var resourceGroups = authorized
+            .GroupBy(item => item.Link.WorkspaceId)
+            .ToArray();
+        var titles = new Dictionary<(Guid WorkspaceId, string ResourceType, Guid ResourceId), string>();
+        foreach (var group in resourceGroups)
+        {
+            var summaries = await _resourceDisplayResolver.GetDisplaySummariesAsync(
+                group.Key,
+                group
+                    .Select(item => new PermissionResourceReference(item.Link.ResourceType, item.Link.ResourceId))
+                    .Distinct()
+                    .ToArray(),
+                cancellationToken);
+            foreach (var summary in summaries)
+            {
+                titles[(group.Key, summary.ResourceType, summary.ResourceId)] = summary.Title;
+            }
+        }
+
+        var creatorIds = authorized
+            .Select(item => item.Link.CreatedBy)
+            .Where(id => id.HasValue)
+            .Select(id => id!.Value)
+            .Distinct()
+            .ToArray();
+        var creators = creatorIds.Length == 0
+            ? new Dictionary<Guid, PermissionUserIdentity>()
+            : await _userRepository.GetIdentitiesAsync(creatorIds, cancellationToken);
+        var analytics = await _shareLinkAccessRepository.GetSummaryRowsAsync(
+            authorized[0].Link.WorkspaceId,
+            authorized.Select(item => item.Link.Id).Distinct().ToArray(),
+            DateTimeOffset.UtcNow.AddDays(-7),
+            cancellationToken);
+
+        var rows = new List<LinkManagementDto>(authorized.Count);
+        foreach (var item in authorized)
+        {
+            var policy = await _permissionRepository.GetPolicyAsync(
+                item.Link.WorkspaceId,
+                item.Link.ResourceType,
+                item.Link.ResourceId,
+                cancellationToken);
+            titles.TryGetValue((item.Link.WorkspaceId, item.Link.ResourceType, item.Link.ResourceId), out var title);
+            var createdByDisplayName = item.Link.CreatedBy.HasValue &&
+                creators.TryGetValue(item.Link.CreatedBy.Value, out var creator)
+                    ? creator.DisplayName
+                    : null;
+            analytics.TryGetValue(item.Link.Id, out var summary);
+            rows.Add(ToManagementDto(item.Link, item.Result, item.CanManage, title, createdByDisplayName, policy, summary));
+        }
+
+        return rows;
+    }
+
+    private async Task<LinkManagementDto?> BuildManagementDtoAsync(
+        ShareLink link,
+        CancellationToken cancellationToken)
+    {
+        var access = await GetLinkManagementAccessAsync(link, cancellationToken);
+        if (access is null)
+        {
+            return null;
+        }
+
+        var summaries = await _resourceDisplayResolver.GetDisplaySummariesAsync(
+            link.WorkspaceId,
+            [new PermissionResourceReference(link.ResourceType, link.ResourceId)],
+            cancellationToken);
+        var creator = link.CreatedBy.HasValue
+            ? (await _userRepository.GetIdentitiesAsync([link.CreatedBy.Value], cancellationToken))
+                .GetValueOrDefault(link.CreatedBy.Value)
+            : null;
+        var policy = await _permissionRepository.GetPolicyAsync(
+            link.WorkspaceId,
+            link.ResourceType,
+            link.ResourceId,
+            cancellationToken);
+        var stats = await _shareLinkAccessRepository.GetStatsAsync(link.WorkspaceId, link.Id, cancellationToken);
+        var analytics = await _shareLinkAccessRepository.GetSummaryRowsAsync(
+            link.WorkspaceId,
+            [link.Id],
+            DateTimeOffset.UtcNow.AddDays(-7),
+            cancellationToken);
+        analytics.TryGetValue(link.Id, out var summary);
+        summary ??= stats is null
+            ? null
+            : new ShareLinkAccessSummaryRow(link.Id, stats.LastAccessedAt, stats.AccessCount, stats.UniqueVisitorCount, 0, 0);
+
+        return ToManagementDto(
+            link,
+            access.Value.Result,
+            access.Value.CanManage,
+            summaries.FirstOrDefault()?.Title,
+            creator?.DisplayName,
+            policy,
+            summary);
+    }
+
+    private async Task<EffectivePermissionResult> EnsureCanManageLinkAsync(
+        ShareLink link,
+        CancellationToken cancellationToken)
+    {
+        var access = await GetLinkManagementAccessAsync(link, cancellationToken);
+        if (access is null)
+        {
+            throw new ApplicationErrorException(ErrorCodes.Forbidden, "Workspace permission is insufficient.");
+        }
+
+        return access.Value.Result;
+    }
+
+    private async Task<LinkManagementAccess?> GetLinkManagementAccessAsync(
+        ShareLink link,
+        CancellationToken cancellationToken)
+    {
+        var userId = await _scopedAccessService.GetRequiredUserIdAsync(cancellationToken);
+        var manageAction = link.ResourceType == ResourceTypes.Document
+            ? PermissionActions.DocumentManagePermissions
+            : PermissionActions.CollectionManagePermissions;
+        var shareAction = link.ResourceType == ResourceTypes.Document
+            ? PermissionActions.DocumentShare
+            : PermissionActions.CollectionShare;
+        var manageResult = link.ResourceType == ResourceTypes.Document
+            ? await _effectivePermissionService.AuthorizeDocumentAsync(link.ResourceId, userId, manageAction, cancellationToken)
+            : await _effectivePermissionService.AuthorizeCollectionAsync(link.ResourceId, userId, manageAction, cancellationToken);
+        if (manageResult.Allowed)
+        {
+            return new LinkManagementAccess(manageResult, CanManage: true);
+        }
+
+        var shareResult = link.ResourceType == ResourceTypes.Document
+            ? await _effectivePermissionService.AuthorizeDocumentAsync(link.ResourceId, userId, shareAction, cancellationToken)
+            : await _effectivePermissionService.AuthorizeCollectionAsync(link.ResourceId, userId, shareAction, cancellationToken);
+        if (shareResult.Allowed && link.CreatedBy == userId)
+        {
+            return new LinkManagementAccess(shareResult, CanManage: false);
+        }
+
+        return null;
     }
 
     private async Task<EffectivePermissionResult> EnsureCanShareAsync(
@@ -509,6 +1050,207 @@ public sealed class ShareLinkService : IShareLinkService
             link.HasPassword);
     }
 
+    private static LinkManagementDto ToManagementDto(
+        ShareLink link,
+        EffectivePermissionResult managementResult,
+        bool canManage,
+        string? resourceTitle,
+        string? createdByDisplayName,
+        ResourceAccessPolicy? policy,
+        ShareLinkAccessSummaryRow? analytics)
+    {
+        var status = GetStatus(link, policy, DateTimeOffset.UtcNow);
+        return new LinkManagementDto(
+            link.Id.ToString(),
+            link.WorkspaceId.ToString(),
+            link.ResourceType,
+            link.ResourceId.ToString(),
+            resourceTitle,
+            link.RoleKey,
+            link.Audience,
+            link.SubjectEmail,
+            link.CreatedBy?.ToString(),
+            createdByDisplayName,
+            link.CreatedAt,
+            link.ExpiresAt,
+            link.RevokedAt,
+            link.PausedAt,
+            link.PausedBy?.ToString(),
+            link.PauseReason,
+            link.HasPassword,
+            status,
+            policy?.LinkMode,
+            GetPolicyState(link, policy),
+            analytics?.LastAccessedAt,
+            analytics?.AccessCount ?? 0,
+            analytics?.UniqueVisitorCount ?? 0,
+            analytics?.RecentFailCount ?? 0,
+            analytics?.ExternalOrPublicAccessCount ?? 0,
+            canManage,
+            canManage || link.CreatedBy.HasValue,
+            canManage || link.CreatedBy.HasValue,
+            canManage || link.CreatedBy.HasValue);
+    }
+
+    private static string GetStatus(ShareLink link, ResourceAccessPolicy? policy, DateTimeOffset now)
+    {
+        if (link.RevokedAt.HasValue)
+        {
+            return "revoked";
+        }
+
+        if (link.ExpiresAt.HasValue && link.ExpiresAt.Value <= now)
+        {
+            return "expired";
+        }
+
+        if (link.PausedAt.HasValue)
+        {
+            return "paused";
+        }
+
+        return PolicyMatchesAudience(link, policy) ? "active" : "policy_paused";
+    }
+
+    private static string GetPolicyState(ShareLink link, ResourceAccessPolicy? policy)
+    {
+        if (policy is null)
+        {
+            return "missing";
+        }
+
+        if (PolicyMatchesAudience(link, policy))
+        {
+            return "matching";
+        }
+
+        return policy.LinkMode == LinkModes.Disabled ? "disabled" : "mismatch";
+    }
+
+    private static bool PolicyMatchesAudience(ShareLink link, ResourceAccessPolicy? policy)
+    {
+        var expectedLinkMode = link.Audience switch
+        {
+            ShareLinkAudiences.Workspace => LinkModes.Internal,
+            ShareLinkAudiences.External => LinkModes.External,
+            ShareLinkAudiences.Public => LinkModes.Public,
+            _ => null
+        };
+
+        return expectedLinkMode is not null && policy?.LinkMode == expectedLinkMode;
+    }
+
+    private static string GetInactiveFailureCategory(ShareLink link, DateTimeOffset now)
+    {
+        if (link.RevokedAt.HasValue)
+        {
+            return "revoked";
+        }
+
+        if (link.PausedAt.HasValue)
+        {
+            return "paused";
+        }
+
+        if (link.ExpiresAt.HasValue && link.ExpiresAt.Value <= now)
+        {
+            return "expired";
+        }
+
+        return "forbidden";
+    }
+
+    private static bool MatchesSearch(LinkManagementDto row, string? q)
+    {
+        if (q is null)
+        {
+            return true;
+        }
+
+        return Contains(row.Id, q) ||
+            Contains(row.ResourceTitle, q) ||
+            Contains(row.ResourceId, q) ||
+            Contains(row.SubjectEmail, q) ||
+            Contains(row.CreatedByDisplayName, q);
+    }
+
+    private static bool Contains(string? value, string q)
+    {
+        return value?.Contains(q, StringComparison.OrdinalIgnoreCase) == true;
+    }
+
+    private static string? NormalizeAudienceFilter(string? audience)
+    {
+        if (string.IsNullOrWhiteSpace(audience))
+        {
+            return null;
+        }
+
+        var normalized = audience.Trim().ToLowerInvariant();
+        return ShareLinkAudiences.IsSupported(normalized)
+            ? normalized
+            : throw new ApplicationErrorException(ErrorCodes.ValidationError, "share link audience is invalid.");
+    }
+
+    private static string? NormalizeRoleFilter(string? roleKey)
+    {
+        if (string.IsNullOrWhiteSpace(roleKey))
+        {
+            return null;
+        }
+
+        return NormalizeLinkRole(roleKey);
+    }
+
+    private static string? NormalizeStatusFilter(string? status)
+    {
+        if (string.IsNullOrWhiteSpace(status))
+        {
+            return null;
+        }
+
+        var normalized = status.Trim().ToLowerInvariant();
+        return normalized is "active" or "expired" or "revoked" or "paused" or "policy_paused"
+            ? normalized
+            : throw new ApplicationErrorException(ErrorCodes.ValidationError, "share link status is invalid.");
+    }
+
+    private static DateTimeOffset? ReadOptionalExpiry(JsonElement element)
+    {
+        if (element.ValueKind == JsonValueKind.Null)
+        {
+            return null;
+        }
+
+        if (element.ValueKind == JsonValueKind.String &&
+            element.TryGetDateTimeOffset(out var expiresAt))
+        {
+            return expiresAt;
+        }
+
+        throw new ApplicationErrorException(ErrorCodes.ValidationError, "expiresAt is invalid.");
+    }
+
+    private static string NormalizeCopiedValueType(string? copiedValueType)
+    {
+        if (string.IsNullOrWhiteSpace(copiedValueType))
+        {
+            return "share_url";
+        }
+
+        var normalized = copiedValueType.Trim().ToLowerInvariant();
+        return normalized is "created_url" or "link_id" or "metadata" or "share_url"
+            ? normalized
+            : throw new ApplicationErrorException(ErrorCodes.ValidationError, "copiedValueType is invalid.");
+    }
+
+    private static string BuildShareLinkResolveUrl(string audience, string token)
+    {
+        return audience == ShareLinkAudiences.Public
+            ? $"/api/v1/public/share-links/{token}/resolve"
+            : $"/api/v1/share-links/{token}/resolve";
+    }
+
     private async Task<ShareLink> GetActivePublicLinkAsync(
         string token,
         string? expectedResourceType,
@@ -529,19 +1271,43 @@ public sealed class ShareLinkService : IShareLinkService
             _tokenService.HashToken(token.Trim()),
             cancellationToken);
         var now = DateTimeOffset.UtcNow;
-        if (link is null ||
-            !link.IsActive(now) ||
-            link.Audience != ShareLinkAudiences.Public ||
-            (expectedResourceType is not null && link.ResourceType != expectedResourceType) ||
-            (link.ResourceType != ResourceTypes.Document && link.ResourceType != ResourceTypes.Collection) ||
-            link.RoleKey != PermissionRole.Viewer ||
-            !string.IsNullOrWhiteSpace(link.SubjectEmail) ||
-            !link.ExpiresAt.HasValue)
+        if (link is null)
         {
             throw new ApplicationErrorException(ErrorCodes.NotFound, "Share link was not found.");
         }
 
-        EnsurePublicPasswordProof(link, passwordProof);
+        if (!link.IsActive(now))
+        {
+            await RecordPublicFailureAsync(token, GetInactiveFailureCategory(link, now), cancellationToken);
+            throw new ApplicationErrorException(ErrorCodes.NotFound, "Share link was not found.");
+        }
+
+        if (link.Audience != ShareLinkAudiences.Public)
+        {
+            await RecordPublicFailureAsync(token, "audience_mismatch", cancellationToken);
+            throw new ApplicationErrorException(ErrorCodes.NotFound, "Share link was not found.");
+        }
+
+        if ((expectedResourceType is not null && link.ResourceType != expectedResourceType) ||
+            (link.ResourceType != ResourceTypes.Document && link.ResourceType != ResourceTypes.Collection))
+        {
+            await RecordPublicFailureAsync(token, "resource_mismatch", cancellationToken);
+            throw new ApplicationErrorException(ErrorCodes.NotFound, "Share link was not found.");
+        }
+
+        if (link.RoleKey != PermissionRole.Viewer ||
+            !string.IsNullOrWhiteSpace(link.SubjectEmail) ||
+            !link.ExpiresAt.HasValue)
+        {
+            await RecordPublicFailureAsync(token, "policy_mismatch", cancellationToken);
+            throw new ApplicationErrorException(ErrorCodes.NotFound, "Share link was not found.");
+        }
+
+        if (!PublicPasswordProofIsValid(link, passwordProof))
+        {
+            await RecordPublicFailureAsync(token, "password_required_or_invalid", cancellationToken);
+            throw new ApplicationErrorException(ErrorCodes.NotFound, "Share link was not found.");
+        }
 
         var policy = await _permissionRepository.GetPolicyAsync(
             link.WorkspaceId,
@@ -550,27 +1316,35 @@ public sealed class ShareLinkService : IShareLinkService
             cancellationToken);
         if (policy?.LinkMode != LinkModes.Public)
         {
+            await RecordPublicFailureAsync(token, "policy_mismatch", cancellationToken);
             throw new ApplicationErrorException(ErrorCodes.NotFound, "Share link was not found.");
         }
 
         return link;
     }
 
-    private void EnsurePublicPasswordProof(ShareLink link, string? passwordProof)
+    private bool PublicPasswordProofIsValid(ShareLink link, string? passwordProof)
     {
         if (!link.HasPassword)
         {
-            return;
+            return true;
         }
 
-        if (string.IsNullOrWhiteSpace(passwordProof) ||
-            !_passwordHashService.VerifyPassword(
+        return !string.IsNullOrWhiteSpace(passwordProof) &&
+            _passwordHashService.VerifyPassword(
                 CreateShareLinkPasswordUser(),
                 link.PasswordHash!,
-                passwordProof.Trim()))
-        {
-            throw new ApplicationErrorException(ErrorCodes.NotFound, "Share link was not found.");
-        }
+                passwordProof.Trim());
+    }
+
+    private Task RecordPublicFailureAsync(string token, string failureCategory, CancellationToken cancellationToken)
+    {
+        return _shareLinkAccessAuditService.RecordPublicAccessAsync(
+            token,
+            ShareLinkAccessEventTypes.Resolve,
+            ShareLinkAccessResults.Fail,
+            failureCategory,
+            cancellationToken);
     }
 
     private static ResolvePublicShareLinkResponse ToPublicResolveDto(ShareLink link)
@@ -635,7 +1409,8 @@ public sealed class ShareLinkService : IShareLinkService
         object? before,
         object? after,
         EffectivePermissionResult shareResult,
-        ShareLink link)
+        ShareLink link,
+        string? reason = null)
     {
         return new PermissionAuditEvent(
             target.WorkspaceId,
@@ -656,7 +1431,8 @@ public sealed class ShareLinkService : IShareLinkService
                 link.Audience,
                 link.SubjectEmail,
                 link.HasPassword,
-                link.ExpiresAt
+                link.ExpiresAt,
+                reason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim()
             }, JsonOptions));
     }
 
@@ -713,7 +1489,10 @@ public sealed class ShareLinkService : IShareLinkService
             link.CreatedBy,
             link.CreatedAt,
             link.ExpiresAt,
-            link.RevokedAt
+            link.RevokedAt,
+            link.PausedAt,
+            link.PausedBy,
+            link.PauseReason
         };
     }
 
@@ -721,4 +1500,8 @@ public sealed class ShareLinkService : IShareLinkService
         string ResourceType,
         Guid ResourceId,
         Guid WorkspaceId);
+
+    private readonly record struct LinkManagementAccess(
+        EffectivePermissionResult Result,
+        bool CanManage);
 }

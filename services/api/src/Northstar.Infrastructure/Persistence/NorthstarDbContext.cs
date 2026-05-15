@@ -57,6 +57,8 @@ public sealed class NorthstarDbContext : DbContext, IUnitOfWork
     public DbSet<PermissionNotification> PermissionNotifications => Set<PermissionNotification>();
     public DbSet<PermissionNotificationPreference> PermissionNotificationPreferences => Set<PermissionNotificationPreference>();
     public DbSet<ShareLink> ShareLinks => Set<ShareLink>();
+    public DbSet<ShareLinkAccessEvent> ShareLinkAccessEvents => Set<ShareLinkAccessEvent>();
+    public DbSet<ShareLinkAccessStats> ShareLinkAccessStats => Set<ShareLinkAccessStats>();
     public DbSet<ResourceEmailInvite> ResourceEmailInvites => Set<ResourceEmailInvite>();
     public DbSet<EmailInviteDeliveryOutboxItem> EmailInviteDeliveryOutbox => Set<EmailInviteDeliveryOutboxItem>();
     public DbSet<ScimToken> ScimTokens => Set<ScimToken>();

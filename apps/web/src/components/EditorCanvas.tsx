@@ -1,5 +1,6 @@
 import { History, PanelRightClose, PanelRightOpen } from "lucide-react";
 import { AtlasIcon } from "./AtlasIcon";
+import { DocumentReaderSurface } from "./DocumentReaderSurface";
 import { DocumentMeta } from "./DocumentMeta";
 import { DocumentTitleEditor } from "./DocumentTitleEditor";
 import { TiptapEditor } from "./TiptapEditor";
@@ -176,16 +177,18 @@ export function EditorCanvas({
       />
 
       <div className="editor-scrollbar atlas-canvas-scroll min-h-0 flex-1 overflow-y-auto">
-        <article className="atlas-document-flow mx-auto min-h-full w-full max-w-[920px] px-8 pb-20 pt-12 sm:px-12 lg:px-[72px]">
-          <div className="atlas-document-header mb-5">
-            <div className="ns-kicker mb-3">{getFolderKicker(folderLabel)}</div>
-            <DocumentTitleEditor onChange={onTitleChange} value={title} />
-            <div className="atlas-compass-divider mt-4 text-[var(--ns-stone-300)]">
+        <DocumentReaderSurface
+          dividerIcon={
+            <>
               <AtlasIcon className="h-5 w-5 text-[var(--ns-stone-300)]" src={compassEmblemIcon} />
-            </div>
+            </>
+          }
+          kicker={getFolderKicker(folderLabel)}
+          metadata={
             <DocumentMeta tags={tags} updatedAtLabel={updatedAtLabel} version={version} />
-          </div>
-
+          }
+          titleNode={<DocumentTitleEditor onChange={onTitleChange} value={title} />}
+        >
           <div className="relative">
             <div className={["bg-transparent", isContentEmpty ? "pt-0" : ""].join(" ")}>
               <TiptapEditor
@@ -207,7 +210,7 @@ export function EditorCanvas({
               />
             </div>
           </div>
-        </article>
+        </DocumentReaderSurface>
       </div>
 
       <footer className="atlas-statusbar flex h-10 shrink-0 items-center gap-3 border-t border-[var(--ns-border)] bg-[rgba(251,248,241,0.88)] px-6 text-xs text-[var(--ns-slate-700)]">

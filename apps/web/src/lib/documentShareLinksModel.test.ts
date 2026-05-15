@@ -2,14 +2,26 @@ import { describe, expect, test } from "../test/harness";
 import { ApiClientError } from "./apiClient";
 import {
   createShareLinkRequest,
+  createAccessRequestReviewRequest,
+  getAvailableDocumentGrantRoles,
   createWorkspaceShareLinkRequest,
+  getDocumentShareLinkStatus,
+  getExistingShareLinkCopyCapability,
+  getGenericPolicyLinkModeOptions,
+  getIamManagedGroupState,
+  getInheritanceModeLabel,
+  getInheritedSourceLabel,
   getShareDrawerInviteDisabledReason,
   getShareDrawerLinkDisabledReason,
   getShareLinkCapability,
+  hasForbiddenAdvancedPermissionSecretFields,
   resolveShareTarget,
+  selectAllGrantIds,
+  summarizeBatchGrantRevoke,
   toAbsoluteShareUrl,
   toDocumentAdvancedRoleRows,
   toSharePermissionMutationError,
+  toggleBatchGrantSelection,
 } from "./documentShareLinksModel";
 
 describe("documentShareLinksModel", () => {
@@ -95,6 +107,22 @@ describe("documentShareLinksModel", () => {
 
     expect(
       createShareLinkRequest({
+        audience: "public",
+        expiresAt: "2026-06-01T00:00:00.000Z",
+        password: " open ",
+        roleKey: "commenter",
+        subjectEmail: "person@example.com",
+      }),
+    ).toEqual({
+      audience: "public",
+      expiresAt: "2026-06-01T00:00:00.000Z",
+      password: "open",
+      roleKey: "viewer",
+      subjectEmail: null,
+    });
+
+    expect(
+      createShareLinkRequest({
         audience: "external",
         expiresAt: "2026-06-01T00:00:00.000Z",
         roleKey: "commenter",
@@ -161,6 +189,52 @@ describe("documentShareLinksModel", () => {
     ).toBe("Public links require a future expiry time.");
   });
 
+  test("derives document share link row status without widening public access", () => {
+    const active = {
+      audience: "workspace" as const,
+      expiresAt: "2026-06-01T00:00:00.000Z",
+      revokedAt: null,
+    };
+
+    expect(getDocumentShareLinkStatus(active, "internal", new Date("2026-05-14T00:00:00.000Z"))).toBe("active");
+    expect(getDocumentShareLinkStatus(active, "disabled", new Date("2026-05-14T00:00:00.000Z"))).toBe("policy-paused");
+    expect(getDocumentShareLinkStatus({ ...active, expiresAt: "2026-05-01T00:00:00.000Z" }, "internal", new Date("2026-05-14T00:00:00.000Z"))).toBe("expired");
+    expect(getDocumentShareLinkStatus({ ...active, revokedAt: "2026-05-13T00:00:00.000Z" }, "internal", new Date("2026-05-14T00:00:00.000Z"))).toBe("revoked");
+    expect(getDocumentShareLinkStatus({ ...active, status: "paused" }, "internal", new Date("2026-05-14T00:00:00.000Z"))).toBe("paused");
+  });
+
+  test("allows existing link copy only through approved audited endpoint", () => {
+    expect(
+      getExistingShareLinkCopyCapability({
+        apiConfigured: true,
+        canManage: true,
+        copyEndpointAvailable: true,
+        operation: null,
+        status: "active",
+      }),
+    ).toBe(null);
+
+    expect(
+      getExistingShareLinkCopyCapability({
+        apiConfigured: true,
+        canManage: true,
+        copyEndpointAvailable: false,
+        operation: null,
+        status: "active",
+      }),
+    ).toContain("approved audited copy endpoint");
+
+    expect(
+      getExistingShareLinkCopyCapability({
+        apiConfigured: true,
+        canManage: true,
+        copyEndpointAvailable: true,
+        operation: null,
+        status: "expired",
+      }),
+    ).toBe("Expired links cannot be copied.");
+  });
+
   test("preserves Northstar API message before generic fallbacks", () => {
     expect(
       toSharePermissionMutationError(
@@ -199,5 +273,98 @@ describe("documentShareLinksModel", () => {
         roleKey: "viewer",
       },
     ]);
+  });
+
+  test("filters advanced grant roles to backend availableRoles only", () => {
+    expect(getAvailableDocumentGrantRoles([" viewer ", "commenter", "viewer", ""])).toEqual(["viewer", "commenter"]);
+    expect(toDocumentAdvancedRoleRows(["owner", "admin"]).map((row) => row.roleKey)).toEqual(["owner", "admin"]);
+  });
+
+  test("does not expose public as a generic policy link mode", () => {
+    expect(getGenericPolicyLinkModeOptions().map((option) => option.value)).toEqual(["disabled", "internal", "external"]);
+    expect(getGenericPolicyLinkModeOptions().some((option) => String(option.value) === "public")).toBe(false);
+  });
+
+  test("labels inheritance modes and inherited sources", () => {
+    expect(getInheritanceModeLabel("inherit")).toBe("Inherits workspace or folder access");
+    expect(getInheritanceModeLabel("restricted")).toBe("Restricted to direct document grants");
+    expect(getInheritedSourceLabel("workspace")).toBe("Workspace inheritance");
+    expect(getInheritedSourceLabel("collection")).toBe("Folder inheritance");
+    expect(getInheritedSourceLabel("none")).toBe("No inherited source");
+  });
+
+  test("marks IAM-managed groups as read-only with source metadata", () => {
+    expect(
+      getIamManagedGroupState({
+        externalProvider: "okta",
+        externalGroupId: "eng",
+        isArchived: false,
+        membersCount: 12,
+      }),
+    ).toEqual({
+      isArchived: false,
+      isManaged: true,
+      membersLabel: "12 members",
+      readOnlyReason: "IAM-managed group. Local member and group editing is disabled.",
+      source: "okta / eng",
+    });
+
+    expect(getIamManagedGroupState({ isArchived: true, membersCount: 1 }).readOnlyReason).toBe(null);
+  });
+
+  test("models batch selection and batch revoke summaries", () => {
+    const selected = toggleBatchGrantSelection(new Set<string>(), "grant-a");
+    expect(Array.from(selected)).toEqual(["grant-a"]);
+    expect(Array.from(toggleBatchGrantSelection(selected, "grant-a"))).toEqual([]);
+    expect(Array.from(selectAllGrantIds([{ id: "grant-a", roleKey: "viewer" }, { id: "grant-b", roleKey: "editor" }]))).toEqual([
+      "grant-a",
+      "grant-b",
+    ]);
+    expect(summarizeBatchGrantRevoke({ succeeded: ["grant-a"], failed: [] })).toBe("1 grant revoked.");
+  });
+
+  test("summarizes batch partial failures honestly", () => {
+    expect(
+      summarizeBatchGrantRevoke({
+        succeeded: ["grant-a"],
+        failed: [{ grantId: "grant-b", reason: "FORBIDDEN" }],
+      }),
+    ).toBe("1 revoked, 1 failed: grant-b: FORBIDDEN");
+  });
+
+  test("shapes access request approval role and expiry from availableRoles", () => {
+    expect(
+      createAccessRequestReviewRequest(
+        {
+          decision: "approve",
+          expiresAt: "2026-06-01T10:00:00.000Z",
+          requestedRole: "admin",
+          roleKey: "admin",
+        },
+        ["viewer", "commenter"],
+      ),
+    ).toEqual({
+      decision: "approve",
+      expiresAt: "2026-06-01T10:00:00.000Z",
+      reason: null,
+      roleKey: "viewer",
+    });
+
+    expect(
+      createAccessRequestReviewRequest(
+        {
+          decision: "deny",
+          expiresAt: "2026-06-01T10:00",
+          requestedRole: "viewer",
+        },
+        ["viewer"],
+      ).roleKey,
+    ).toBe(null);
+  });
+
+  test("detects token and password fields in advanced permission UI model data", () => {
+    expect(hasForbiddenAdvancedPermissionSecretFields({ token: "raw" })).toBe(true);
+    expect(hasForbiddenAdvancedPermissionSecretFields({ password_hash: "hash" })).toBe(true);
+    expect(hasForbiddenAdvancedPermissionSecretFields({ roleKey: "viewer", subjectId: "user-id" })).toBe(false);
   });
 });

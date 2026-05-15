@@ -23,6 +23,7 @@ public sealed class ShareLink
         DateTimeOffset? expiresAt = null,
         string? subjectEmail = null,
         string? passwordHash = null,
+        string? tokenCiphertext = null,
         Guid? id = null)
     {
         Id = id ?? Guid.NewGuid();
@@ -37,6 +38,7 @@ public sealed class ShareLink
         CreatedAt = DateTimeOffset.UtcNow;
         ExpiresAt = expiresAt;
         PasswordHash = NormalizeOptional(passwordHash);
+        TokenCiphertext = NormalizeOptional(tokenCiphertext);
     }
 
     public Guid Id { get; private set; }
@@ -44,6 +46,7 @@ public sealed class ShareLink
     public string ResourceType { get; private set; }
     public Guid ResourceId { get; private set; }
     public string TokenHash { get; private set; }
+    public string? TokenCiphertext { get; private set; }
     public string RoleKey { get; private set; }
     public string Audience { get; private set; }
     public string? SubjectEmail { get; private set; }
@@ -52,6 +55,9 @@ public sealed class ShareLink
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset? ExpiresAt { get; private set; }
     public DateTimeOffset? RevokedAt { get; private set; }
+    public DateTimeOffset? PausedAt { get; private set; }
+    public Guid? PausedBy { get; private set; }
+    public string? PauseReason { get; private set; }
     public bool HasPassword => !string.IsNullOrWhiteSpace(PasswordHash);
 
     public void Revoke()
@@ -66,7 +72,54 @@ public sealed class ShareLink
 
     public bool IsActive(DateTimeOffset now)
     {
-        return RevokedAt is null && (ExpiresAt is null || ExpiresAt > now);
+        return RevokedAt is null && PausedAt is null && (ExpiresAt is null || ExpiresAt > now);
+    }
+
+    public void UpdateRole(string roleKey)
+    {
+        RoleKey = ValidRole(roleKey);
+    }
+
+    public void UpdateExpiry(DateTimeOffset? expiresAt)
+    {
+        ExpiresAt = expiresAt;
+    }
+
+    public void ReplaceToken(string tokenHash, string tokenCiphertext)
+    {
+        TokenHash = ValidTokenHash(tokenHash);
+        TokenCiphertext = NormalizeOptional(tokenCiphertext)
+            ?? throw new DomainException(DomainErrorCodes.ValidationError, "token ciphertext is required.");
+    }
+
+    public void Pause(Guid actorId, string? reason)
+    {
+        if (RevokedAt.HasValue)
+        {
+            throw new DomainException(DomainErrorCodes.ValidationError, "revoked share links cannot be paused.");
+        }
+
+        if (PausedAt.HasValue)
+        {
+            PauseReason = NormalizeOptional(reason);
+            return;
+        }
+
+        PausedAt = DateTimeOffset.UtcNow;
+        PausedBy = actorId;
+        PauseReason = NormalizeOptional(reason);
+    }
+
+    public void Resume()
+    {
+        if (RevokedAt.HasValue)
+        {
+            throw new DomainException(DomainErrorCodes.ValidationError, "revoked share links cannot be resumed.");
+        }
+
+        PausedAt = null;
+        PausedBy = null;
+        PauseReason = null;
     }
 
     private static string ValidResourceType(string resourceType)

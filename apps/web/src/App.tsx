@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { DocumentSharePermissionsPage } from "./components/DocumentSharePermissionsPage";
+import { AccessSharingPage } from "./components/AccessSharingPage";
 import { KnowledgeEditorPage } from "./components/KnowledgeEditorPage";
 import { LibrariesPage } from "./components/LibrariesPage";
 import { NorthstarLoginPage } from "./components/NorthstarLoginPage";
+import { PublicSharePage } from "./components/PublicSharePage";
 import { SearchCommandPalette } from "./components/SearchCommandPalette";
 import { VersionHistoryComparePage } from "./components/VersionHistoryComparePage";
 import { WorkspaceHomePage } from "./components/WorkspaceHomePage";
@@ -11,9 +13,11 @@ import { WorkspaceUpdatesPage } from "./components/WorkspaceUpdatesPage";
 import { getStoredAccessToken, subscribeToAuthChanges } from "./lib/apiClient";
 import {
   createSearchHash,
+  createRouteHashFromLocation,
   getCanonicalHashRedirect,
   getEditorDocumentIdFromHash,
   getHashRoute,
+  getPublicShareTokenFromHash,
   getSearchFiltersFromHash,
   getSettingsRouteTarget,
 } from "./lib/hashRouting";
@@ -22,6 +26,7 @@ const protectedHashes = new Set([
   "#home",
   "#dashboard",
   "#libraries",
+  "#access-sharing",
   "#editor",
   "#search",
   "#discovery",
@@ -44,19 +49,21 @@ const protectedHashes = new Set([
 ]);
 
 export default function App() {
-  const [hash, setHash] = useState(window.location.hash);
+  const [hash, setHash] = useState(() => createRouteHashFromLocation(window.location));
   const [isAuthenticated, setIsAuthenticated] = useState(() => Boolean(getStoredAccessToken()));
   const [lastContentHash, setLastContentHash] = useState(() => getSearchContentHash(window.location.hash));
 
   useEffect(() => {
-    const syncHash = () => setHash(window.location.hash);
+    const syncHash = () => setHash(createRouteHashFromLocation(window.location));
     const syncAuthState = () => setIsAuthenticated(Boolean(getStoredAccessToken()));
 
     window.addEventListener("hashchange", syncHash);
+    window.addEventListener("popstate", syncHash);
     const unsubscribeFromAuthChanges = subscribeToAuthChanges(syncAuthState);
 
     return () => {
       window.removeEventListener("hashchange", syncHash);
+      window.removeEventListener("popstate", syncHash);
       unsubscribeFromAuthChanges();
     };
   }, []);
@@ -129,12 +136,20 @@ function renderPage(route: string, hash: string) {
     return <KnowledgeEditorPage requestedDocumentId={getEditorDocumentIdFromHash(hash)} />;
   }
 
+  if (route === "#public/share-links") {
+    return <PublicSharePage token={getPublicShareTokenFromHash(hash)} />;
+  }
+
   if (route === "#home" || route === "#dashboard") {
     return <WorkspaceHomePage />;
   }
 
   if (route === "#libraries") {
     return <LibrariesPage />;
+  }
+
+  if (route === "#access-sharing") {
+    return <AccessSharingPage />;
   }
 
   if (route === "#personal-settings") {

@@ -41,6 +41,10 @@ public sealed class ShareLinkConfiguration : IEntityTypeConfiguration<ShareLink>
             .HasColumnType("text")
             .IsRequired();
 
+        builder.Property(link => link.TokenCiphertext)
+            .HasColumnName("token_ciphertext")
+            .HasColumnType("text");
+
         builder.Property(link => link.RoleKey)
             .HasColumnName("role_key")
             .HasColumnType("text")
@@ -67,6 +71,11 @@ public sealed class ShareLinkConfiguration : IEntityTypeConfiguration<ShareLink>
 
         builder.Property(link => link.ExpiresAt).HasColumnName("expires_at");
         builder.Property(link => link.RevokedAt).HasColumnName("revoked_at");
+        builder.Property(link => link.PausedAt).HasColumnName("paused_at");
+        builder.Property(link => link.PausedBy).HasColumnName("paused_by");
+        builder.Property(link => link.PauseReason)
+            .HasColumnName("pause_reason")
+            .HasColumnType("text");
 
         builder.HasIndex(link => new { link.WorkspaceId, link.ResourceType, link.ResourceId })
             .HasDatabaseName("idx_share_links_resource");
@@ -91,6 +100,11 @@ public sealed class ShareLinkConfiguration : IEntityTypeConfiguration<ShareLink>
         builder.HasOne<User>()
             .WithMany()
             .HasForeignKey(link => link.CreatedBy)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        builder.HasOne<User>()
+            .WithMany()
+            .HasForeignKey(link => link.PausedBy)
             .OnDelete(DeleteBehavior.SetNull);
     }
 }

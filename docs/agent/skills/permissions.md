@@ -7,6 +7,7 @@
 - Use for effective permission service.
 - Use for resource policies/grants and group grants.
 - Use for share links, public links, email invites, and external authenticated links.
+- Use for link-management inventory, share-link access stats, share-link access audit, and copy/reveal/token-handling rules.
 - Use for access requests.
 - Use for permission notifications and audit events.
 - Use for token generation, storage, and display.
@@ -63,6 +64,8 @@ If exact docs are unknown, search exact terms:
   - anonymous public access uses only dedicated public share-link endpoints;
   - public collection links are summary-only;
   - protected APIs must not be widened.
+- Link-management follow-up rules are documented in `docs/PERMISSION_SYSTEM_CONTRACT.md` and `docs/agent/reports/link-management-product-rules-v1.md`. They are target rules, not implementation proof.
+- Under current token rules, raw share-link tokens are returned only once at create time. Existing link list/detail views must not reveal or reconstruct token-bearing URLs.
 - Notification preferences / watched-muted persistence, share-link/invite in-app notification fan-out, group grant notification fan-out, the workspace-scoped SCIM endpoint skeleton, the MFA/recent-auth backend state foundation, the real IdP login boundary, the production invite delivery provider boundary, dedicated SCIM bearer-token validation, minimal SCIM User/Group provisioning V1, SCIM Provisioning Compatibility Hardening V1.1, secure invite outbox/retry delivery, frontend permission mutation workflow V1 for document resource grants/policy settings, frontend permission admin surfaces V1 for workspace members and SCIM management, frontend public-link interaction hardening V1 for document public links, and backend TOTP MFA provider/enrollment/step-up enforcement are implemented.
 - Deferred/missing according to docs include SCIM bulk/complex-filter/enterprise/delete-deactivate behavior and broader compatibility beyond V1.1, full OIDC/SAML provider redirect/callback and secret management, WebAuthn/passkeys, SMS/email MFA providers, MFA recovery codes, and MFA recovery/reset/admin reset flows.
 - Deferred items are not V1 blockers and must not be marked implemented without an explicit future task.

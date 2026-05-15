@@ -1946,6 +1946,10 @@ namespace Northstar.Infrastructure.Persistence.Migrations
                         .HasColumnType("text")
                         .HasColumnName("token_hash");
 
+                    b.Property<string>("TokenCiphertext")
+                        .HasColumnType("text")
+                        .HasColumnName("token_ciphertext");
+
                     b.Property<Guid>("WorkspaceId")
                         .HasColumnType("uuid")
                         .HasColumnName("workspace_id");
@@ -2078,6 +2082,18 @@ namespace Northstar.Infrastructure.Persistence.Migrations
                         .HasColumnType("text")
                         .HasColumnName("password_hash");
 
+                    b.Property<string>("PauseReason")
+                        .HasColumnType("text")
+                        .HasColumnName("pause_reason");
+
+                    b.Property<DateTimeOffset?>("PausedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("paused_at");
+
+                    b.Property<Guid?>("PausedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("paused_by");
+
                     b.Property<Guid>("ResourceId")
                         .HasColumnType("uuid")
                         .HasColumnName("resource_id");
@@ -2117,6 +2133,8 @@ namespace Northstar.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("idx_share_links_expiry")
                         .HasFilter("revoked_at IS NULL");
 
+                    b.HasIndex("PausedBy");
+
                     b.HasIndex("TokenHash")
                         .IsUnique()
                         .HasDatabaseName("idx_share_links_token_hash");
@@ -2140,6 +2158,142 @@ namespace Northstar.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("share_links_role_key_check", "role_key IN ('viewer', 'commenter')");
                         });
+                });
+
+            modelBuilder.Entity("Northstar.Domain.Security.ShareLinkAccessEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<Guid?>("ActorUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_user_id");
+
+                    b.Property<string>("Audience")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("audience");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("event_type");
+
+                    b.Property<string>("FailureCategory")
+                        .HasColumnType("text")
+                        .HasColumnName("failure_category");
+
+                    b.Property<string>("Metadata")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("metadata")
+                        .HasDefaultValueSql("'{}'::jsonb");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("occurred_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<string>("RemoteIp")
+                        .HasColumnType("text")
+                        .HasColumnName("remote_ip");
+
+                    b.Property<Guid>("ResourceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("resource_id");
+
+                    b.Property<string>("ResourceType")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("resource_type");
+
+                    b.Property<string>("Result")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("result");
+
+                    b.Property<Guid>("ShareLinkId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("share_link_id");
+
+                    b.Property<string>("UserAgent")
+                        .HasColumnType("text")
+                        .HasColumnName("user_agent");
+
+                    b.Property<Guid>("WorkspaceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("workspace_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActorUserId");
+
+                    b.HasIndex("ShareLinkId");
+
+                    b.HasIndex("WorkspaceId", "OccurredAt")
+                        .IsDescending(false, true)
+                        .HasDatabaseName("idx_share_link_access_events_workspace_time");
+
+                    b.HasIndex("WorkspaceId", "ShareLinkId", "OccurredAt")
+                        .IsDescending(false, false, true)
+                        .HasDatabaseName("idx_share_link_access_events_link_time");
+
+                    b.HasIndex("WorkspaceId", "ResourceType", "ResourceId", "OccurredAt")
+                        .IsDescending(false, false, false, true)
+                        .HasDatabaseName("idx_share_link_access_events_resource_time");
+
+                    b.ToTable("share_link_access_events", null, t =>
+                        {
+                            t.HasCheckConstraint("share_link_access_events_audience_check", "audience IN ('workspace', 'external', 'public')");
+
+                            t.HasCheckConstraint("share_link_access_events_event_type_check", "event_type IN ('resolve', 'access', 'download')");
+
+                            t.HasCheckConstraint("share_link_access_events_resource_type_check", "resource_type IN ('collection', 'document')");
+
+                            t.HasCheckConstraint("share_link_access_events_result_check", "result IN ('success', 'fail')");
+                        });
+                });
+
+            modelBuilder.Entity("Northstar.Domain.Security.ShareLinkAccessStats", b =>
+                {
+                    b.Property<Guid>("ShareLinkId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("share_link_id");
+
+                    b.Property<long>("AccessCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(0L)
+                        .HasColumnName("access_count");
+
+                    b.Property<string>("LastAccessIp")
+                        .HasColumnType("text")
+                        .HasColumnName("last_access_ip");
+
+                    b.Property<DateTimeOffset?>("LastAccessedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_accessed_at");
+
+                    b.Property<long>("UniqueVisitorCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(0L)
+                        .HasColumnName("unique_visitor_count");
+
+                    b.Property<Guid>("WorkspaceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("workspace_id");
+
+                    b.HasKey("ShareLinkId");
+
+                    b.HasIndex("WorkspaceId");
+
+                    b.ToTable("share_link_access_stats", (string)null);
                 });
 
             modelBuilder.Entity("Northstar.Domain.Security.UserMfaMethod", b =>
@@ -3160,6 +3314,46 @@ namespace Northstar.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("CreatedBy")
                         .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Northstar.Domain.Users.User", null)
+                        .WithMany()
+                        .HasForeignKey("PausedBy")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Northstar.Domain.Workspaces.Workspace", null)
+                        .WithMany()
+                        .HasForeignKey("WorkspaceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Northstar.Domain.Security.ShareLinkAccessEvent", b =>
+                {
+                    b.HasOne("Northstar.Domain.Users.User", null)
+                        .WithMany()
+                        .HasForeignKey("ActorUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Northstar.Domain.Security.ShareLink", null)
+                        .WithMany()
+                        .HasForeignKey("ShareLinkId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Northstar.Domain.Workspaces.Workspace", null)
+                        .WithMany()
+                        .HasForeignKey("WorkspaceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Northstar.Domain.Security.ShareLinkAccessStats", b =>
+                {
+                    b.HasOne("Northstar.Domain.Security.ShareLink", null)
+                        .WithOne()
+                        .HasForeignKey("Northstar.Domain.Security.ShareLinkAccessStats", "ShareLinkId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.HasOne("Northstar.Domain.Workspaces.Workspace", null)
                         .WithMany()

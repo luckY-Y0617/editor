@@ -38,9 +38,18 @@ import {
 } from "../lib/appApi";
 import {
   createShareLinkRequest,
+  coerceDocumentGrantRole,
+  createAccessRequestReviewRequest,
   createWorkspaceShareLinkRequest,
+  getGenericPolicyLinkModeOptions,
+  getIamManagedGroupState,
+  getInheritanceModeLabel,
+  getInheritedSourceLabel,
   getShareLinkCapability,
   resolveShareTarget,
+  selectAllGrantIds,
+  summarizeBatchGrantRevoke,
+  toggleBatchGrantSelection,
   toAbsoluteShareUrl,
   toDocumentAdvancedRoleRows,
   toSharePermissionMutationError,
@@ -65,7 +74,7 @@ const sharePatternStyle = {
   "--share-topographic-pattern": `url(${topographicPatternUrl})`,
 } as CSSProperties;
 
-const shareTabs = ["User grants", "Group grants", "Access policy"] as const;
+const shareTabs = ["People grants", "Group grants", "Access policy", "Access requests"] as const;
 type SharePermissionsTab = (typeof shareTabs)[number];
 
 type PermissionApiStatus = "unconfigured" | "loading" | "ready" | "forbidden" | "error";
@@ -154,6 +163,25 @@ type AccessRequestsResponse = {
   requests: AccessRequestDto[];
 };
 
+type PermissionAuditEventDto = {
+  id: string;
+  workspaceId: string;
+  actorId: string | null;
+  action: string;
+  resourceType: string;
+  resourceId: string;
+  subjectType: string | null;
+  subjectId: string | null;
+  beforeJson: string | null;
+  afterJson: string | null;
+  metadata: string;
+  createdAt: string;
+};
+
+type PermissionAuditResponse = {
+  events: PermissionAuditEventDto[];
+};
+
 type EmailInviteDto = {
   id: string;
   workspaceId: string;
@@ -219,7 +247,8 @@ export function DocumentSharePermissionsPage() {
     reviewRequest,
     reviewingRequestId,
     status: requestStatus,
-  } = useResourceAccessRequests(permissionApiDocumentId);
+  } = useResourceAccessRequests(permissionApiDocumentId, permissions?.availableRoles);
+  const audit = usePermissionAudit(permissionApiWorkspaceId, permissionApiDocumentId);
   const requestAccess = useRequestAccess(permissionApiDocumentId);
   const permissionMutations = usePermissionMutations(permissionApiDocumentId, reloadPermissions);
   const shareLinks = useShareLinks(permissionApiDocumentId, reloadPermissions);
@@ -262,7 +291,7 @@ export function DocumentSharePermissionsPage() {
                       return;
                     }
 
-                    setActiveTab("User grants");
+                    setActiveTab("People grants");
                   }}
                   title={isForbidden ? "Request viewer access" : "Create a user or group document grant"}
                   type="button"
@@ -298,19 +327,28 @@ export function DocumentSharePermissionsPage() {
 
             <PermissionApiSummary permissions={permissions} status={status} />
 
-            {activeTab === "Group grants" ? (
-              <WorkspaceGroupsPanel
-                groups={groups}
-                groupStatus={groupStatus}
-                mutations={permissionMutations}
-                permissions={permissions}
-                permissionStatus={status}
-              />
-            ) : activeTab === "Access policy" ? (
-              <AccessSettingsPanel mutations={permissionMutations} permissions={permissions} status={status} />
-            ) : (
-              <UserGrantsPanel mutations={permissionMutations} permissions={permissions} status={status} />
-            )}
+              {activeTab === "Group grants" ? (
+                <WorkspaceGroupsPanel
+                  groups={groups}
+                  groupStatus={groupStatus}
+                  mutations={permissionMutations}
+                  permissions={permissions}
+                  permissionStatus={status}
+                />
+              ) : activeTab === "Access policy" ? (
+                <AccessSettingsPanel mutations={permissionMutations} permissions={permissions} status={status} />
+              ) : activeTab === "Access requests" ? (
+                <AccessRequestsPanel
+                  permissions={permissions}
+                  requests={accessRequests}
+                  requestStatus={requestStatus}
+                  reviewError={reviewError}
+                  reviewRequest={reviewRequest}
+                  reviewingRequestId={reviewingRequestId}
+                />
+              ) : (
+                <UserGrantsPanel mutations={permissionMutations} permissions={permissions} status={status} />
+              )}
           </div>
         </section>
         <ShareSettingsPanel
@@ -322,6 +360,7 @@ export function DocumentSharePermissionsPage() {
           reviewError={reviewError}
           reviewRequest={reviewRequest}
           reviewingRequestId={reviewingRequestId}
+          audit={audit}
           emailInvites={emailInvites}
           shareLinks={shareLinks}
           status={status}
@@ -596,24 +635,27 @@ function WorkspaceGroupsPanel({
           <div className="share-permissions-empty-state">No workspace groups</div>
         ) : (
           <div className="share-permissions-grants-list">
-            {groups.map((group) => (
-              <article className="share-permissions-grant-row" key={group.id}>
-                <span className="share-permissions-member-name">
-                  <Avatar initials={group.name.slice(0, 1).toUpperCase()} tone="green" />
-                  <strong>{group.name}</strong>
-                </span>
-                <span
-                  className={["share-permissions-access-badge", isExternalGroup(group) ? "is-manage" : "is-view"].join(" ")}
-                  title={group.externalProvider ? `Managed by ${group.externalProvider}` : "Local workspace group"}
-                >
-                  {group.externalProvider ?? formatPermissionValue(group.type)}
-                </span>
-                <span>{group.membersCount} members</span>
-                <span className="share-permissions-inline-status is-muted">
-                  {isExternalGroup(group) ? "IAM managed" : "Managed in Settings"}
-                </span>
-              </article>
-            ))}
+            {groups.map((group) => {
+              const groupState = getIamManagedGroupState(group);
+              return (
+                <article className="share-permissions-grant-row" key={group.id}>
+                  <span className="share-permissions-member-name">
+                    <Avatar initials={group.name.slice(0, 1).toUpperCase()} tone="green" />
+                    <strong>{group.name}</strong>
+                  </span>
+                  <span
+                    className={["share-permissions-access-badge", groupState.isManaged ? "is-manage" : "is-view"].join(" ")}
+                    title={groupState.readOnlyReason ?? "Local workspace group"}
+                  >
+                    {groupState.source}
+                  </span>
+                  <span>{groupState.membersLabel}</span>
+                  <span className="share-permissions-inline-status is-muted">
+                    {group.isArchived ? "Archived" : groupState.isManaged ? "IAM read-only" : "Managed in Settings"}
+                  </span>
+                </article>
+              );
+            })}
           </div>
         )}
       </section>
@@ -639,10 +681,6 @@ function WorkspaceGroupsPanel({
       </section>
     </>
   );
-}
-
-function isExternalGroup(group: WorkspaceGroupDto) {
-  return Boolean(group.externalProvider || group.externalGroupId);
 }
 
 function DocumentRoleReference({
@@ -694,8 +732,8 @@ function PermissionApiSummary({
   return (
     <section className="share-permissions-section">
       <div className="share-permissions-api-summary">
-        <PermissionMetric label="Policy" value={permissions?.policy.inheritanceMode ?? statusLabel(status)} />
-        <PermissionMetric label="Inherited From" value={permissions?.inheritedFrom ?? "workspace"} />
+        <PermissionMetric label="Policy" value={permissions ? getInheritanceModeLabel(permissions.policy.inheritanceMode) : statusLabel(status)} />
+        <PermissionMetric label="Inherited From" value={permissions ? getInheritedSourceLabel(permissions.inheritedFrom) : "Workspace inheritance"} />
         <PermissionMetric label="Effective Role" value={permissions?.effectiveAccess.effectiveRole ?? "unknown"} />
         <PermissionMetric label="Source" value={permissions?.effectiveAccess.source ?? "workspace"} />
       </div>
@@ -791,9 +829,11 @@ function AccessSettingsPanel({
                 }
                 value={draft.linkMode}
               >
-                <option value="disabled">Disabled</option>
-                <option value="internal">Internal</option>
-                <option value="external">External</option>
+                {getGenericPolicyLinkModeOptions().map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
               </select>
             </div>
             <div className="share-permissions-field-row">
@@ -819,6 +859,11 @@ function AccessSettingsPanel({
             </div>
           </div>
           <div className="share-permissions-action-row">
+            {draft.inheritanceMode === "restricted" && permissions?.policy.inheritanceMode !== "restricted" ? (
+              <span className="share-permissions-inline-status is-muted">
+                Restricted mode stops workspace or folder inheritance for this document; direct grants remain.
+              </span>
+            ) : null}
             <button
               className="share-permissions-inline-action"
               disabled={!canMutate || mutations.operation === "updating-policy"}
@@ -1034,8 +1079,11 @@ function ScopedGrantTable({
     reason: "",
   });
   const [confirmRevokeGrantId, setConfirmRevokeGrantId] = useState<string | null>(null);
+  const [selectedGrantIds, setSelectedGrantIds] = useState<Set<string>>(() => new Set());
+  const [confirmBatchRevoke, setConfirmBatchRevoke] = useState(false);
   const availableRoles = getAvailableRoles(permissions);
   const canMutate = status === "ready" && Boolean(permissions) && mutations.canUse;
+  const selectedCount = selectedGrantIds.size;
 
   if (!permissions) {
     return <div className="share-permissions-empty-state">{statusLabel(status)}</div>;
@@ -1048,9 +1096,10 @@ function ScopedGrantTable({
   const startEdit = (grant: PermissionGrantDto) => {
     setEditingGrantId(grant.id);
     setConfirmRevokeGrantId(null);
+    setConfirmBatchRevoke(false);
     setEditDraft({
       subjectId: grant.subjectId,
-      roleKey: grant.roleKey,
+      roleKey: coerceDocumentGrantRole(grant.roleKey, availableRoles),
       expiresAt: toDateTimeLocalValue(grant.expiresAt),
       reason: grant.reason ?? "",
     });
@@ -1082,14 +1131,79 @@ function ScopedGrantTable({
     void mutations.revokeGrant(grant.id, grant.reason).then((revoked) => {
       if (revoked) {
         setConfirmRevokeGrantId(null);
+        setSelectedGrantIds((current) => {
+          const next = new Set(current);
+          next.delete(grant.id);
+          return next;
+        });
       }
+    });
+  };
+
+  const batchRevoke = () => {
+    if (!canMutate || selectedGrantIds.size === 0) {
+      return;
+    }
+
+    if (!confirmBatchRevoke) {
+      setConfirmBatchRevoke(true);
+      setConfirmRevokeGrantId(null);
+      return;
+    }
+
+    void mutations.batchRevokeGrants(Array.from(selectedGrantIds), "Batch revoked from document advanced permissions.").then((result) => {
+      if (!result) {
+        return;
+      }
+
+      setConfirmBatchRevoke(false);
+      setSelectedGrantIds((current) => {
+        const next = new Set(current);
+        result.succeeded.forEach((grantId) => next.delete(grantId));
+        return next;
+      });
     });
   };
 
   return (
     <div className="share-permissions-grants-list">
+      <div className="share-permissions-batch-toolbar">
+        <span>{selectedCount} selected</span>
+        <button
+          className="share-permissions-inline-action"
+          disabled={!canMutate || grants.length === 0}
+          onClick={() => {
+            setSelectedGrantIds(selectAllGrantIds(grants));
+            setConfirmBatchRevoke(false);
+          }}
+          type="button"
+        >
+          Select rows
+        </button>
+        <button
+          className="share-permissions-inline-action"
+          disabled={selectedCount === 0 || mutations.operation === "batch-revoke"}
+          onClick={() => {
+            setSelectedGrantIds(new Set());
+            setConfirmBatchRevoke(false);
+          }}
+          type="button"
+        >
+          Clear selection
+        </button>
+        <button
+          className="share-permissions-inline-action is-danger"
+          disabled={!canMutate || selectedCount === 0 || mutations.operation === "batch-revoke"}
+          onClick={batchRevoke}
+          title={confirmBatchRevoke ? "Confirm batch revoke selected document grants" : "Batch revoke selected grants"}
+          type="button"
+        >
+          {mutations.operation === "batch-revoke" ? "Revoking" : confirmBatchRevoke ? `Confirm revoke ${selectedCount}` : "Batch revoke"}
+        </button>
+      </div>
       {grants.map((grant) => {
         const group = grant.subjectType === "group" ? groupsById?.get(grant.subjectId) : undefined;
+        const groupState = group ? getIamManagedGroupState(group) : null;
         const isEditing = editingGrantId === grant.id;
         const label = group?.name ?? grant.subjectId;
         const initials = grant.subjectType === "group" ? (group?.name ?? "G").slice(0, 1).toUpperCase() : "U";
@@ -1097,6 +1211,16 @@ function ScopedGrantTable({
         return (
           <article className={["share-permissions-grant-row", isEditing ? "is-editing" : ""].join(" ")} key={grant.id}>
             <span className="share-permissions-member-name">
+              <input
+                aria-label={`Select grant ${grant.id}`}
+                checked={selectedGrantIds.has(grant.id)}
+                disabled={!canMutate}
+                onChange={() => {
+                  setSelectedGrantIds((current) => toggleBatchGrantSelection(current, grant.id));
+                  setConfirmBatchRevoke(false);
+                }}
+                type="checkbox"
+              />
               <Avatar initials={initials} tone={grant.subjectType === "group" ? "green" : "blue"} />
               <strong title={label}>{label}</strong>
             </span>
@@ -1143,6 +1267,11 @@ function ScopedGrantTable({
               <>
                 <span>{formatPermissionValue(grant.roleKey)}</span>
                 <span>{grant.expiresAt ? formatDate(grant.expiresAt) : "No expiry"}</span>
+                <span className="share-permissions-inline-status is-muted" title={grant.reason ?? undefined}>
+                  {grant.subjectType === "group" && groupState
+                    ? `${groupState.source}; ${groupState.membersLabel}; ${group?.isArchived ? "archived" : "active"}; reason: ${grant.reason ?? "none"}`
+                    : `Granted ${formatDate(grant.grantedAt)} by ${grant.grantedBy ?? "unknown"}; reason: ${grant.reason ?? "none"}`}
+                </span>
                 <div className="share-permissions-row-actions">
                   <button
                     className="share-permissions-icon-button"
@@ -1172,8 +1301,99 @@ function ScopedGrantTable({
   );
 }
 
+function AccessRequestsPanel({
+  permissions,
+  requests,
+  requestStatus,
+  reviewError,
+  reviewRequest,
+  reviewingRequestId,
+}: {
+  permissions: ResourcePermissionsResponse | null;
+  requests: AccessRequestDto[] | null;
+  requestStatus: PermissionApiStatus;
+  reviewError: string | null;
+  reviewRequest: (request: AccessRequestDto, decision: "approve" | "deny", options?: { expiresAt?: string | null; roleKey?: string | null }) => void;
+  reviewingRequestId: string | null;
+}) {
+  const availableRoles = getAvailableRoles(permissions);
+  const pendingRequests = requests?.filter((request) => request.status === "pending") ?? [];
+  const [drafts, setDrafts] = useState<Record<string, { expiresAt: string; roleKey: string }>>({});
+
+  return (
+    <section className="share-permissions-section">
+      <div className="share-permissions-section-title">
+        <h2>Access Requests</h2>
+        <span>{pendingRequests.length}</span>
+      </div>
+      {!requests ? (
+        <div className="share-permissions-empty-state">{statusLabel(requestStatus)}</div>
+      ) : pendingRequests.length === 0 ? (
+        <div className="share-permissions-empty-state">No pending document access requests</div>
+      ) : (
+        <div className="share-permissions-grants-list">
+          {pendingRequests.map((request) => {
+            const draft = drafts[request.id] ?? {
+              expiresAt: "",
+              roleKey: coerceDocumentGrantRole(request.requestedRole, availableRoles),
+            };
+            const busy = reviewingRequestId === request.id;
+            return (
+              <article className="share-permissions-grant-row is-request" key={request.id}>
+                <span className="share-permissions-member-name">
+                  <Avatar initials="U" tone="blue" />
+                  <strong title={request.subjectId}>{request.subjectId}</strong>
+                </span>
+                <span>{formatPermissionValue(request.requestedRole)}</span>
+                <span>{request.reason ?? "No reason"}</span>
+                <span>{formatDate(request.createdAt)}</span>
+                <RoleSelect
+                  disabled={busy}
+                  id={`access-request-role-${request.id}`}
+                  onChange={(roleKey) => setDrafts((current) => ({ ...current, [request.id]: { ...draft, roleKey } }))}
+                  roles={availableRoles}
+                  value={draft.roleKey}
+                />
+                <div className="share-permissions-field-row is-compact">
+                  <label htmlFor={`access-request-expiry-${request.id}`}>Expiry</label>
+                  <input
+                    disabled={busy}
+                    id={`access-request-expiry-${request.id}`}
+                    onChange={(event) =>
+                      setDrafts((current) => ({ ...current, [request.id]: { ...draft, expiresAt: event.target.value } }))
+                    }
+                    type="datetime-local"
+                    value={draft.expiresAt}
+                  />
+                </div>
+                <div className="share-permissions-review-actions">
+                  <button
+                    disabled={busy}
+                    onClick={() => reviewRequest(request, "approve", { expiresAt: draft.expiresAt, roleKey: draft.roleKey })}
+                    type="button"
+                  >
+                    {busy ? "Reviewing" : "Approve"}
+                  </button>
+                  <button disabled={busy} onClick={() => reviewRequest(request, "deny")} type="button">
+                    Deny
+                  </button>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
+      <p className="share-permissions-muted-copy">
+        Approval creates or updates a direct document grant only. It does not create workspace membership.
+      </p>
+      {reviewError ? <div className="share-permissions-inline-status is-error">{reviewError}</div> : null}
+    </section>
+  );
+}
+
 function ShareSettingsPanel({
   accessRequests,
+  audit,
   documentId,
   permissions,
   requestAccess,
@@ -1186,12 +1406,13 @@ function ShareSettingsPanel({
   status,
 }: {
   accessRequests: AccessRequestDto[] | null;
+  audit: ReturnType<typeof usePermissionAudit>;
   documentId: string | null;
   permissions: ResourcePermissionsResponse | null;
   requestAccess: ReturnType<typeof useRequestAccess>;
   requestStatus: PermissionApiStatus;
   reviewError: string | null;
-  reviewRequest: (request: AccessRequestDto, decision: "approve" | "deny") => void;
+  reviewRequest: (request: AccessRequestDto, decision: "approve" | "deny", options?: { expiresAt?: string | null; roleKey?: string | null }) => void;
   reviewingRequestId: string | null;
   emailInvites: ReturnType<typeof useEmailInvites>;
   shareLinks: ReturnType<typeof useShareLinks>;
@@ -1325,9 +1546,27 @@ function ShareSettingsPanel({
         </Panel>
 
         <Panel title="Permission audit context" icon={<CalendarDays className="h-5 w-5" />}>
-          <div className="share-permissions-empty-state">
-            Permission audit rows are not connected on this page yet. Access and sharing notifications stay in Updates; ordinary document activity stays in the editor Activity panel.
-          </div>
+          {!audit.events ? (
+            <div className="share-permissions-empty-state">{statusLabel(audit.status)}</div>
+          ) : audit.events.length === 0 ? (
+            <div className="share-permissions-empty-state">No permission audit rows returned for this document.</div>
+          ) : (
+            <div className="share-permissions-recent-list">
+              {audit.events.slice(0, 5).map((event) => (
+                <div className="share-permissions-recent-row" key={event.id}>
+                  <Avatar initials="AU" tone="sand" />
+                  <span className="min-w-0 flex-1 truncate">
+                    <strong>{formatPermissionValue(event.action)}</strong>
+                    <small> {formatDate(event.createdAt)} / {event.actorId ?? "system"}</small>
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+          <p className="share-permissions-muted-copy">
+            This is immutable permission audit context, not access analytics. Token, password, hash, and secret values are not displayed.
+          </p>
+          {audit.error ? <div className="share-permissions-inline-status is-error">{audit.error}</div> : null}
         </Panel>
       </div>
     </aside>
@@ -1512,6 +1751,45 @@ function usePermissionMutations(documentId: string | null, reloadPermissions: ()
     );
   };
 
+  const batchRevokeGrants = async (grantIds: string[], reason: string | null = null) => {
+    if (!apiBaseUrl || !documentId || operation || grantIds.length === 0) {
+      return null;
+    }
+
+    setOperation("batch-revoke");
+    setError(null);
+    setMessage(null);
+
+    const result = {
+      failed: [] as Array<{ grantId: string; reason: string }>,
+      succeeded: [] as string[],
+    };
+
+    for (const grantId of grantIds) {
+      try {
+        const response = await fetch(`${apiBaseUrl}/permissions/resources/document/${documentId}/grants/${grantId}`, {
+          body: JSON.stringify({ reason }),
+          headers: createPermissionHeaders("application/json"),
+          method: "DELETE",
+        });
+
+        if (!response.ok) {
+          result.failed.push({ grantId, reason: response.status === 403 ? "FORBIDDEN" : `HTTP ${response.status}` });
+        } else {
+          result.succeeded.push(grantId);
+        }
+      } catch {
+        result.failed.push({ grantId, reason: "NETWORK" });
+      }
+    }
+
+    setMessage(result.failed.length === 0 ? summarizeBatchGrantRevoke(result) : null);
+    setError(result.failed.length > 0 ? summarizeBatchGrantRevoke(result) : null);
+    reloadPermissions();
+    setOperation(null);
+    return result;
+  };
+
   const updatePolicy = (request: {
     inheritanceMode: PermissionInheritanceMode;
     linkMode: PermissionLinkMode;
@@ -1535,6 +1813,7 @@ function usePermissionMutations(documentId: string | null, reloadPermissions: ()
 
   return {
     canUse,
+    batchRevokeGrants,
     createGrant,
     error,
     message,
@@ -1903,7 +2182,64 @@ function useEmailInvites(documentId: string | null, reloadPermissions?: () => Ab
   };
 }
 
-function useResourceAccessRequests(documentId: string | null) {
+function usePermissionAudit(workspaceId: string | null, documentId: string | null) {
+  const apiBaseUrl = useMemo(() => getConfiguredApiBaseUrl(), []);
+  const [events, setEvents] = useState<PermissionAuditEventDto[] | null>(null);
+  const [status, setStatus] = useState<PermissionApiStatus>(() =>
+    apiBaseUrl && workspaceId && documentId ? "loading" : "unconfigured",
+  );
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!apiBaseUrl || !workspaceId || !documentId) {
+      setEvents(null);
+      setStatus("unconfigured");
+      return;
+    }
+
+    const controller = new AbortController();
+    const params = new URLSearchParams({
+      workspaceId,
+      resourceType: "document",
+      resourceId: documentId,
+    });
+    setStatus("loading");
+    setError(null);
+    void fetch(`${apiBaseUrl}/permissions/audit?${params.toString()}`, {
+      headers: createPermissionHeaders(),
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (response.status === 401 || response.status === 403) {
+          setStatus("forbidden");
+          return;
+        }
+
+        if (!response.ok) {
+          throw new Error(`Permission audit API returned ${response.status}`);
+        }
+
+        const body = (await response.json()) as PermissionAuditResponse;
+        setEvents(body.events);
+        setStatus("ready");
+      })
+      .catch((errorValue: unknown) => {
+        if (errorValue instanceof DOMException && errorValue.name === "AbortError") {
+          return;
+        }
+
+        setEvents(null);
+        setError("Could not load permission audit context.");
+        setStatus("error");
+      });
+
+    return () => controller.abort();
+  }, [apiBaseUrl, documentId, workspaceId]);
+
+  return { error, events, status };
+}
+
+function useResourceAccessRequests(documentId: string | null, availableRoles?: string[] | null) {
   const apiBaseUrl = useMemo(() => getConfiguredApiBaseUrl(), []);
   const [requests, setRequests] = useState<AccessRequestDto[] | null>(null);
   const [status, setStatus] = useState<PermissionApiStatus>(() =>
@@ -1957,7 +2293,11 @@ function useResourceAccessRequests(documentId: string | null) {
     return () => controller?.abort();
   }, [apiBaseUrl, documentId]);
 
-  const reviewRequest = (request: AccessRequestDto, decision: "approve" | "deny") => {
+  const reviewRequest = (
+    request: AccessRequestDto,
+    decision: "approve" | "deny",
+    options: { expiresAt?: string | null; roleKey?: string | null } = {},
+  ) => {
     if (!apiBaseUrl) {
       return;
     }
@@ -1965,11 +2305,12 @@ function useResourceAccessRequests(documentId: string | null) {
     setReviewingRequestId(request.id);
     setReviewError(null);
     void fetch(`${apiBaseUrl}/permissions/access-requests/${request.id}/review`, {
-      body: JSON.stringify({
+      body: JSON.stringify(createAccessRequestReviewRequest({
         decision,
-        roleKey: decision === "approve" ? request.requestedRole : null,
-        reason: null,
-      }),
+        expiresAt: options.expiresAt ?? null,
+        requestedRole: request.requestedRole,
+        roleKey: options.roleKey ?? request.requestedRole,
+      }, availableRoles)),
       headers: createPermissionHeaders("application/json"),
       method: "POST",
     })

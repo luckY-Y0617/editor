@@ -1941,8 +1941,14 @@ public sealed class KnowledgeApiTests
         var listResponse = await client.GetAsync($"/api/v1/permissions/resources/document/{document.Id}/share-links");
         var listRaw = await listResponse.Content.ReadAsStringAsync();
         var links = JsonSerializer.Deserialize<ShareLinksResponse>(listRaw, JsonOptions);
+        var metadataResponse = await client.GetAsync($"/api/v1/permissions/share-links/{created.Link.Id}");
+        var metadataRaw = await metadataResponse.Content.ReadAsStringAsync();
+        var metadata = JsonSerializer.Deserialize<ShareLinkDto>(metadataRaw, JsonOptions);
         var persisted = await ReadShareLinkAsync(factory, Guid.Parse(created.Link.Id));
         var revoke = await client.DeleteAsync($"/api/v1/permissions/share-links/{created.Link.Id}");
+        var revokedMetadata = await client.GetFromJsonAsync<ShareLinkDto>(
+            $"/api/v1/permissions/share-links/{created.Link.Id}",
+            JsonOptions);
         var audit = await client.GetFromJsonAsync<PermissionAuditResponse>(
             $"/api/v1/permissions/audit?workspaceId={bootstrap!.Workspace.Id}&resourceType=document&resourceId={document.Id}");
         var auditRaw = JsonSerializer.Serialize(audit, JsonOptions);
@@ -1952,12 +1958,20 @@ public sealed class KnowledgeApiTests
         listResponse.EnsureSuccessStatusCode();
         Assert.NotNull(links);
         Assert.Single(links.Links);
+        metadataResponse.EnsureSuccessStatusCode();
+        Assert.NotNull(metadata);
+        Assert.Equal(created.Link.Id, metadata.Id);
+        Assert.Null(metadata.RevokedAt);
         Assert.DoesNotContain("tokenHash", listRaw, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(created.Token, listRaw, StringComparison.Ordinal);
+        Assert.DoesNotContain("tokenHash", metadataRaw, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(created.Token, metadataRaw, StringComparison.Ordinal);
         Assert.NotNull(persisted);
         Assert.NotEqual(created.Token, persisted.TokenHash);
         Assert.DoesNotContain(created.Token, auditRaw, StringComparison.Ordinal);
         Assert.Equal(HttpStatusCode.NoContent, revoke.StatusCode);
+        Assert.NotNull(revokedMetadata);
+        Assert.NotNull(revokedMetadata.RevokedAt);
         Assert.NotNull(audit);
         Assert.Contains(audit.Events, item => item.Action == PermissionAuditActions.ShareLinkCreated);
         Assert.Contains(audit.Events, item => item.Action == PermissionAuditActions.ShareLinkRevoked);
@@ -2020,8 +2034,355 @@ public sealed class KnowledgeApiTests
         Assert.Equal(HttpStatusCode.NoContent, mutedRevoke.StatusCode);
         Assert.Equal(2, await CountNotificationsAsync(factory, adminId, PermissionNotificationTypes.ShareLinkCreated));
         Assert.Equal(1, await CountNotificationsAsync(factory, adminId, PermissionNotificationTypes.ShareLinkRevoked));
-        Assert.Equal(0, await CountNotificationsAsync(factory, ownerId, PermissionNotificationTypes.ShareLinkCreated));
-        Assert.Equal(0, await CountNotificationsAsync(factory, ownerId, PermissionNotificationTypes.ShareLinkRevoked));
+        Assert.Equal(2, await CountNotificationsAsync(factory, ownerId, PermissionNotificationTypes.ShareLinkCreated));
+        Assert.Equal(2, await CountNotificationsAsync(factory, ownerId, PermissionNotificationTypes.ShareLinkRevoked));
+    }
+
+    [Fact]
+    public async Task LinkManagement_ListDetailPatchPauseResumeCopyAndRevokeAreTokenFree()
+    {
+        using var factory = new NorthstarApiFactory();
+        var client = factory.CreateClient();
+        var ownerTokens = await LoginOwnerAsync(client);
+        var bootstrap = await client.GetFromJsonAsync<BootstrapResponse>("/api/v1/bootstrap");
+        var document = FindDocument(bootstrap!, "Our Principles");
+
+        var created = await CreateShareLinkAsync(
+            client,
+            ResourceTypes.Document,
+            document.Id,
+            PermissionRole.Viewer,
+            DateTimeOffset.UtcNow.AddHours(2));
+        var listResponse = await client.GetAsync(
+            $"/api/v1/permissions/share-links?workspaceId={bootstrap!.Workspace.Id}&resourceType=document&resourceId={document.Id}&status=active&limit=10");
+        var listRaw = await listResponse.Content.ReadAsStringAsync();
+        var list = JsonSerializer.Deserialize<LinkManagementListResponse>(listRaw, JsonOptions);
+        var detailRaw = await client.GetStringAsync($"/api/v1/permissions/share-links/{created.Link.Id}");
+        var detail = JsonSerializer.Deserialize<LinkManagementDto>(detailRaw, JsonOptions);
+        var patch = await client.PatchAsJsonAsync(
+            $"/api/v1/permissions/share-links/{created.Link.Id}",
+            new UpdateShareLinkRequest(PermissionRole.Commenter, DateTimeOffset.UtcNow.AddHours(3), "tighten"));
+        var patched = await patch.Content.ReadFromJsonAsync<LinkManagementDto>();
+        var invalidRole = await client.PatchAsJsonAsync(
+            $"/api/v1/permissions/share-links/{created.Link.Id}",
+            new { roleKey = PermissionRole.Editor });
+        var pause = await client.PostAsJsonAsync(
+            $"/api/v1/permissions/share-links/{created.Link.Id}/pause",
+            new ShareLinkPauseRequest("incident"));
+        var paused = await pause.Content.ReadFromJsonAsync<LinkManagementDto>();
+        var pausedResolve = await client.GetAsync($"/api/v1/share-links/{created.Token}/resolve");
+        var resume = await client.PostAsync($"/api/v1/permissions/share-links/{created.Link.Id}/resume", null);
+        var resumed = await resume.Content.ReadFromJsonAsync<LinkManagementDto>();
+        var resumedResolve = await client.GetAsync($"/api/v1/share-links/{created.Token}/resolve");
+        var copy = await client.PostAsJsonAsync(
+            $"/api/v1/permissions/share-links/{created.Link.Id}/copy-events",
+            new ShareLinkCopyEventRequest("created_url", "copy"));
+        var copiedUrl = await client.PostAsJsonAsync(
+            $"/api/v1/permissions/share-links/{created.Link.Id}/copy",
+            new ShareLinkCopyEventRequest("share_url", "copy-url"));
+        var copiedUrlBody = await copiedUrl.Content.ReadFromJsonAsync<CopyShareLinkResponse>();
+        var firstRevoke = await client.DeleteAsync($"/api/v1/permissions/share-links/{created.Link.Id}");
+        var revokeCount = await CountAuditEventsAsync(factory, PermissionAuditActions.ShareLinkRevoked);
+        var secondRevoke = await client.DeleteAsync($"/api/v1/permissions/share-links/{created.Link.Id}");
+        var secondRevokeCount = await CountAuditEventsAsync(factory, PermissionAuditActions.ShareLinkRevoked);
+        var audit = await client.GetFromJsonAsync<PermissionAuditResponse>(
+            $"/api/v1/permissions/audit?workspaceId={bootstrap.Workspace.Id}&resourceType=document&resourceId={document.Id}");
+        var auditRaw = JsonSerializer.Serialize(audit, JsonOptions);
+
+        listResponse.EnsureSuccessStatusCode();
+        Assert.NotNull(list);
+        Assert.Contains(list.Links, link => link.Id == created.Link.Id && link.Status == "active");
+        Assert.NotNull(detail);
+        Assert.Equal(document.Title, detail.ResourceTitle);
+        Assert.True(detail.CanManage);
+        Assert.DoesNotContain(created.Token, listRaw, StringComparison.Ordinal);
+        Assert.DoesNotContain("tokenHash", listRaw, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("passwordHash", detailRaw, StringComparison.OrdinalIgnoreCase);
+        patch.EnsureSuccessStatusCode();
+        Assert.NotNull(patched);
+        Assert.Equal(PermissionRole.Commenter, patched.RoleKey);
+        Assert.Equal(HttpStatusCode.BadRequest, invalidRole.StatusCode);
+        pause.EnsureSuccessStatusCode();
+        Assert.NotNull(paused);
+        Assert.Equal("paused", paused.Status);
+        Assert.Equal(HttpStatusCode.NotFound, pausedResolve.StatusCode);
+        resume.EnsureSuccessStatusCode();
+        Assert.NotNull(resumed);
+        Assert.Equal("active", resumed.Status);
+        resumedResolve.EnsureSuccessStatusCode();
+        Assert.Equal(HttpStatusCode.NoContent, copy.StatusCode);
+        copiedUrl.EnsureSuccessStatusCode();
+        Assert.NotNull(copiedUrlBody);
+        Assert.Equal(created.Link.Id, copiedUrlBody.LinkId);
+        Assert.False(copiedUrlBody.Reissued);
+        Assert.StartsWith("/api/v1/share-links/", copiedUrlBody.Url, StringComparison.Ordinal);
+        Assert.Equal(HttpStatusCode.NoContent, firstRevoke.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, secondRevoke.StatusCode);
+        Assert.Equal(revokeCount, secondRevokeCount);
+        Assert.Contains(audit!.Events, item => item.Action == PermissionAuditActions.ShareLinkCopyRequested);
+        Assert.Contains(audit.Events, item => item.Action == PermissionAuditActions.ShareLinkPaused);
+        Assert.Contains(audit.Events, item => item.Action == PermissionAuditActions.ShareLinkResumed);
+        Assert.Contains(audit.Events, item => item.Action == PermissionAuditActions.ShareLinkRoleUpdated);
+        Assert.Contains(audit.Events, item => item.Action == PermissionAuditActions.ShareLinkExpiryUpdated);
+        Assert.DoesNotContain(created.Token, auditRaw, StringComparison.Ordinal);
+        Assert.DoesNotContain("tokenHash", auditRaw, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task LinkManagement_PublicPatchRulesPolicyStatusAndProtectedBoundaryHold()
+    {
+        using var factory = new NorthstarApiFactory(PublicShareEnabledConfiguration());
+        var client = factory.CreateClient();
+        var ownerTokens = await LoginOwnerAsync(client);
+        var bootstrap = await client.GetFromJsonAsync<BootstrapResponse>("/api/v1/bootstrap");
+        var document = FindDocument(bootstrap!, "Our Principles");
+
+        var created = await CreateShareLinkAsync(
+            client,
+            ResourceTypes.Document,
+            document.Id,
+            PermissionRole.Viewer,
+            DateTimeOffset.UtcNow.AddHours(2),
+            ShareLinkAudiences.Public);
+        var commenter = await client.PatchAsJsonAsync(
+            $"/api/v1/permissions/share-links/{created.Link.Id}",
+            new { roleKey = PermissionRole.Commenter });
+        var clearExpiry = await client.PatchAsJsonAsync(
+            $"/api/v1/permissions/share-links/{created.Link.Id}",
+            new { expiresAt = (DateTimeOffset?)null });
+        var tooLong = await client.PatchAsJsonAsync(
+            $"/api/v1/permissions/share-links/{created.Link.Id}",
+            new UpdateShareLinkRequest(null, DateTimeOffset.UtcNow.AddDays(30), null));
+        var validExpiry = await client.PatchAsJsonAsync(
+            $"/api/v1/permissions/share-links/{created.Link.Id}",
+            new UpdateShareLinkRequest(null, DateTimeOffset.UtcNow.AddHours(4), "extend"));
+        var disablePolicy = await client.PatchAsJsonAsync(
+            $"/api/v1/permissions/resources/document/{document.Id}/policy",
+            new UpdateResourcePolicyRequest(InheritanceModes.Inherit, LinkModes.Disabled, PermissionRole.Viewer));
+        var detail = await client.GetFromJsonAsync<LinkManagementDto>(
+            $"/api/v1/permissions/share-links/{created.Link.Id}");
+        client.DefaultRequestHeaders.Authorization = null;
+        var protectedListWithToken = await client.GetAsync(
+            $"/api/v1/permissions/share-links?workspaceId={bootstrap!.Workspace.Id}&shareToken={Uri.EscapeDataString(created.Token)}");
+
+        Assert.Equal(HttpStatusCode.BadRequest, commenter.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, clearExpiry.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, tooLong.StatusCode);
+        validExpiry.EnsureSuccessStatusCode();
+        disablePolicy.EnsureSuccessStatusCode();
+        Assert.NotNull(detail);
+        Assert.Equal("policy_paused", detail.Status);
+        Assert.Equal("disabled", detail.PolicyState);
+        Assert.Equal(HttpStatusCode.Unauthorized, protectedListWithToken.StatusCode);
+    }
+
+    [Fact]
+    public async Task LinkManagement_UnauthorizedUsersCannotReadListOrDetail()
+    {
+        using var factory = new NorthstarApiFactory();
+        var client = factory.CreateClient();
+        var ownerTokens = await LoginOwnerAsync(client);
+        var bootstrap = await client.GetFromJsonAsync<BootstrapResponse>("/api/v1/bootstrap");
+        var viewerTokens = await RegisterAndAddMemberAsync(client, ownerTokens, bootstrap!.Workspace.Id, "viewer");
+        var document = FindDocument(bootstrap, "Our Principles");
+
+        Authorize(client, ownerTokens);
+        var created = await CreateShareLinkAsync(
+            client,
+            ResourceTypes.Document,
+            document.Id,
+            PermissionRole.Viewer,
+            DateTimeOffset.UtcNow.AddHours(2));
+
+        Authorize(client, viewerTokens);
+        var list = await client.GetAsync($"/api/v1/permissions/share-links?workspaceId={bootstrap.Workspace.Id}");
+        var detail = await client.GetAsync($"/api/v1/permissions/share-links/{created.Link.Id}");
+
+        Assert.Equal(HttpStatusCode.Forbidden, list.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, detail.StatusCode);
+    }
+
+    [Fact]
+    public void ShareLinkAccessAnalytics_MigrationDefinesTokenFreeSchema()
+    {
+        var migration = ReadMigrationFile("AddShareLinkAccessAnalyticsV1.cs");
+
+        Assert.Contains("share_link_access_events", migration, StringComparison.Ordinal);
+        Assert.Contains("share_link_access_stats", migration, StringComparison.Ordinal);
+        Assert.Contains("share_link_access_events_resource_type_check", migration, StringComparison.Ordinal);
+        Assert.Contains("share_link_access_events_audience_check", migration, StringComparison.Ordinal);
+        Assert.Contains("share_link_access_events_event_type_check", migration, StringComparison.Ordinal);
+        Assert.Contains("share_link_access_events_result_check", migration, StringComparison.Ordinal);
+        Assert.Contains("idx_share_link_access_events_link_time", migration, StringComparison.Ordinal);
+        Assert.Contains("idx_share_link_access_events_resource_time", migration, StringComparison.Ordinal);
+        Assert.Contains("idx_share_link_access_events_workspace_time", migration, StringComparison.Ordinal);
+        Assert.DoesNotContain("token_hash", migration, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("password_hash", migration, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("password_proof", migration, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ShareLinkAccessAnalytics_InternalResolveAndAccessWriteStatsAndManagerQueries()
+    {
+        using var factory = new NorthstarApiFactory();
+        var client = factory.CreateClient();
+        var ownerTokens = await LoginOwnerAsync(client);
+        var bootstrap = await client.GetFromJsonAsync<BootstrapResponse>("/api/v1/bootstrap");
+        var memberTokens = await RegisterAndAddMemberAsync(client, ownerTokens, bootstrap!.Workspace.Id, "viewer");
+        Authorize(client, ownerTokens);
+        var document = FindDocument(bootstrap, "Our Principles");
+        await SetResourcePolicyAsync(client, ResourceTypes.Document, document.Id, InheritanceModes.Restricted, LinkModes.Disabled);
+        var link = await CreateShareLinkAsync(client, ResourceTypes.Document, document.Id, PermissionRole.Viewer);
+
+        Authorize(client, memberTokens);
+        var resolve = await client.GetAsync($"/api/v1/share-links/{link.Token}/resolve");
+        var documentAccess = await client.GetAsync($"/api/v1/documents/{document.Id}?shareToken={link.Token}");
+
+        Authorize(client, ownerTokens);
+        var statsRaw = await client.GetStringAsync($"/api/v1/permissions/share-links/{link.Link.Id}/stats");
+        var stats = JsonSerializer.Deserialize<ShareLinkAccessStatsResponse>(statsRaw, JsonOptions);
+        var eventsRaw = await client.GetStringAsync($"/api/v1/permissions/share-links/{link.Link.Id}/access-events?limit=10");
+        var events = JsonSerializer.Deserialize<ShareLinkAccessEventsResponse>(eventsRaw, JsonOptions);
+
+        resolve.EnsureSuccessStatusCode();
+        documentAccess.EnsureSuccessStatusCode();
+        Assert.NotNull(stats);
+        Assert.Equal(link.Link.Id, stats.ShareLinkId);
+        Assert.True(stats.AccessCount >= 2);
+        Assert.Equal(1, stats.UniqueVisitorCount);
+        Assert.Contains(stats.Trend, item => item.SuccessCount >= 2);
+        Assert.Contains(stats.SourceBreakdown, item => item.Source == "workspace_member" && item.Count >= 2);
+        Assert.NotNull(events);
+        Assert.Contains(events.Events, item => item.EventType == "resolve" && item.Result == "success");
+        Assert.Contains(events.Events, item => item.EventType == "access" && item.Result == "success");
+        Assert.DoesNotContain(link.Token, statsRaw, StringComparison.Ordinal);
+        Assert.DoesNotContain("tokenHash", eventsRaw, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("passwordHash", eventsRaw, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ShareLinkAccessAnalytics_KnownFailuresAreRecordedButUnknownTokenIsNot()
+    {
+        using var factory = new NorthstarApiFactory();
+        var client = factory.CreateClient();
+        var ownerTokens = await LoginOwnerAsync(client);
+        var bootstrap = await client.GetFromJsonAsync<BootstrapResponse>("/api/v1/bootstrap");
+        var memberTokens = await RegisterAndAddMemberAsync(client, ownerTokens, bootstrap!.Workspace.Id, "viewer");
+        Authorize(client, ownerTokens);
+        var document = FindDocument(bootstrap, "Our Principles");
+        var active = await CreateShareLinkAsync(client, ResourceTypes.Document, document.Id, PermissionRole.Viewer);
+        var paused = await CreateShareLinkAsync(client, ResourceTypes.Document, document.Id, PermissionRole.Viewer);
+        var expiredToken = await SeedShareLinkAsync(
+            factory,
+            Guid.Parse(bootstrap.Workspace.Id),
+            ResourceTypes.Document,
+            Guid.Parse(document.Id),
+            PermissionRole.Viewer,
+            DateTimeOffset.UtcNow.AddMinutes(-5));
+        var pause = await client.PostAsJsonAsync(
+            $"/api/v1/permissions/share-links/{paused.Link.Id}/pause",
+            new ShareLinkPauseRequest("incident"));
+        var revoke = await client.DeleteAsync($"/api/v1/permissions/share-links/{active.Link.Id}");
+
+        var beforeUnknown = await CountShareLinkAccessEventsAsync(factory);
+        Authorize(client, memberTokens);
+        var unknown = await client.GetAsync($"/api/v1/share-links/{Guid.NewGuid():N}/resolve");
+        var afterUnknown = await CountShareLinkAccessEventsAsync(factory);
+        var expired = await client.GetAsync($"/api/v1/share-links/{expiredToken}/resolve");
+        var revoked = await client.GetAsync($"/api/v1/share-links/{active.Token}/resolve");
+        var pausedResolve = await client.GetAsync($"/api/v1/share-links/{paused.Token}/resolve");
+        var events = await ReadShareLinkAccessEventsAsync(factory);
+
+        pause.EnsureSuccessStatusCode();
+        Assert.Equal(HttpStatusCode.NoContent, revoke.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, unknown.StatusCode);
+        Assert.Equal(beforeUnknown, afterUnknown);
+        Assert.Equal(HttpStatusCode.NotFound, expired.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, revoked.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, pausedResolve.StatusCode);
+        Assert.Contains(events, item => item.Result == "fail" && item.FailureCategory == "expired");
+        Assert.Contains(events, item => item.Result == "fail" && item.FailureCategory == "revoked");
+        Assert.Contains(events, item => item.Result == "fail" && item.FailureCategory == "paused");
+    }
+
+    [Fact]
+    public async Task ShareLinkAccessAnalytics_PublicPasswordFailureAndDocumentCollectionAccessAreRecordedSafely()
+    {
+        using var factory = new NorthstarApiFactory(PublicShareEnabledConfiguration());
+        var client = factory.CreateClient();
+        var ownerTokens = await LoginOwnerAsync(client);
+        var bootstrap = await client.GetFromJsonAsync<BootstrapResponse>("/api/v1/bootstrap");
+        Authorize(client, ownerTokens);
+        var document = FindDocument(bootstrap!, "Our Principles");
+        var documentLink = await CreateShareLinkAsync(
+            client,
+            ResourceTypes.Document,
+            document.Id,
+            PermissionRole.Viewer,
+            DateTimeOffset.UtcNow.AddHours(2),
+            ShareLinkAudiences.Public,
+            password: "correct horse");
+        var collectionLink = await CreateShareLinkAsync(
+            client,
+            ResourceTypes.Collection,
+            document.FolderId,
+            PermissionRole.Viewer,
+            DateTimeOffset.UtcNow.AddHours(2),
+            ShareLinkAudiences.Public);
+
+        client.DefaultRequestHeaders.Authorization = null;
+        var wrongPassword = await GetPublicShareAsync(
+            client,
+            $"/api/v1/public/share-links/{documentLink.Token}/document",
+            "wrong");
+        var publicDocument = await GetPublicShareAsync(
+            client,
+            $"/api/v1/public/share-links/{documentLink.Token}/document",
+            "correct horse");
+        var publicCollection = await client.GetAsync($"/api/v1/public/share-links/{collectionLink.Token}/collection");
+        var protectedWithPublicToken = await client.GetAsync($"/api/v1/documents/{document.Id}?shareToken={documentLink.Token}");
+
+        Authorize(client, ownerTokens);
+        var documentEvents = await client.GetFromJsonAsync<ShareLinkAccessEventsResponse>(
+            $"/api/v1/permissions/share-links/{documentLink.Link.Id}/access-events?limit=10");
+        var collectionStats = await client.GetFromJsonAsync<ShareLinkAccessStatsResponse>(
+            $"/api/v1/permissions/share-links/{collectionLink.Link.Id}/stats");
+
+        Assert.Equal(HttpStatusCode.NotFound, wrongPassword.StatusCode);
+        publicDocument.EnsureSuccessStatusCode();
+        publicCollection.EnsureSuccessStatusCode();
+        Assert.Equal(HttpStatusCode.Unauthorized, protectedWithPublicToken.StatusCode);
+        Assert.NotNull(documentEvents);
+        Assert.Contains(documentEvents.Events, item => item.Result == "fail" && item.FailureCategory == "password_required_or_invalid");
+        Assert.Contains(documentEvents.Events, item => item.Result == "success" && item.ActorType == "public_visitor");
+        Assert.NotNull(collectionStats);
+        Assert.True(collectionStats.AccessCount >= 1);
+        Assert.Contains(collectionStats.SourceBreakdown, item => item.Source == "public_visitor");
+    }
+
+    [Fact]
+    public async Task ShareLinkAccessAnalytics_UnauthorizedAndOtherWorkspaceManagersCannotRead()
+    {
+        using var factory = new NorthstarApiFactory();
+        var client = factory.CreateClient();
+        var ownerTokens = await LoginOwnerAsync(client);
+        var bootstrap = await client.GetFromJsonAsync<BootstrapResponse>("/api/v1/bootstrap");
+        var viewerTokens = await RegisterAndAddMemberAsync(client, ownerTokens, bootstrap!.Workspace.Id, "viewer");
+        var otherOwnerTokens = await RegisterAsync(client, $"other-owner-{Guid.NewGuid():N}@northstar.local");
+        Authorize(client, ownerTokens);
+        var document = FindDocument(bootstrap, "Our Principles");
+        var link = await CreateShareLinkAsync(client, ResourceTypes.Document, document.Id, PermissionRole.Viewer);
+
+        Authorize(client, viewerTokens);
+        var viewerStats = await client.GetAsync($"/api/v1/permissions/share-links/{link.Link.Id}/stats");
+        var viewerEvents = await client.GetAsync($"/api/v1/permissions/share-links/{link.Link.Id}/access-events");
+
+        Authorize(client, otherOwnerTokens);
+        var otherWorkspaceStats = await client.GetAsync($"/api/v1/permissions/share-links/{link.Link.Id}/stats");
+
+        Assert.Equal(HttpStatusCode.Forbidden, viewerStats.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, viewerEvents.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, otherWorkspaceStats.StatusCode);
     }
 
     [Fact]
@@ -7390,6 +7751,45 @@ public sealed class KnowledgeApiTests
         return await dbContext.ShareLinks
             .AsNoTracking()
             .SingleOrDefaultAsync(link => link.Id == shareLinkId);
+    }
+
+    private static async Task<int> CountShareLinkAccessEventsAsync(NorthstarApiFactory factory)
+    {
+        using var scope = factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<NorthstarDbContext>();
+        return await dbContext.ShareLinkAccessEvents.CountAsync();
+    }
+
+    private static async Task<IReadOnlyList<ShareLinkAccessEvent>> ReadShareLinkAccessEventsAsync(
+        NorthstarApiFactory factory)
+    {
+        using var scope = factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<NorthstarDbContext>();
+        return await dbContext.ShareLinkAccessEvents
+            .AsNoTracking()
+            .OrderBy(accessEvent => accessEvent.OccurredAt)
+            .ToListAsync();
+    }
+
+    private static string ReadMigrationFile(string suffix)
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            var candidate = Path.Combine(directory.FullName, "src", "Northstar.Infrastructure", "Persistence", "Migrations");
+            if (Directory.Exists(candidate))
+            {
+                var match = Directory.GetFiles(candidate, $"*{suffix}").SingleOrDefault();
+                if (match is not null)
+                {
+                    return File.ReadAllText(match);
+                }
+            }
+
+            directory = directory.Parent;
+        }
+
+        throw new FileNotFoundException($"Migration ending with '{suffix}' was not found.");
     }
 
     private static async Task<ScimToken?> ReadScimTokenAsync(

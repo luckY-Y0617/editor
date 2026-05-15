@@ -1,0 +1,62 @@
+
+> knowledge-editor-shell@0.1.0 dev
+> node scripts/run-vite-dev.mjs --port 5176 --strictPort
+
+
+  [32m[1mVITE[22m v4.5.14[39m  [2mready in [0m[1m182[22m[2m[0m ms[22m
+
+  [32m➜[39m  [1mLocal[22m:   [36mhttp://localhost:[1m5176[22m/[39m
+  [32m➜[39m  [1mNetwork[22m: [36mhttp://192.168.1.5:[1m5176[22m/[39m
+[2m18:43:36[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/WorkspaceLinkManagementPanel.tsx, /src/index.css[22m
+[2m18:43:52[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/WorkspaceLinkManagementPanel.tsx, /src/index.css[22m
+[2m18:44:04[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/WorkspaceLinkManagementPanel.tsx, /src/index.css[22m
+[2m19:34:10[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/DocumentSharePermissionsPage.tsx, /src/components/DocumentShareDrawer.tsx[22m
+[2m19:34:32[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/lib/documentShareLinksModel.test.ts[22m
+[2m19:34:40[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/DocumentShareDrawer.tsx, /src/index.css[22m
+[2m19:37:24[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/DocumentShareDrawer.tsx, /src/index.css[22m
+[2m19:37:45[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m19:39:17[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/DocumentShareDrawer.tsx, /src/index.css[22m
+[2m19:39:26[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/DocumentShareDrawer.tsx, /src/index.css[22m
+[2m19:58:45[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/App.tsx, /src/index.css, /src/components/NorthstarLoginPage.tsx, /src/components/SearchCommandPalette.tsx, /src/components/WorkspaceHomePage.tsx, /src/components/KnowledgeEditorPage.tsx, /src/components/LibrariesPage.tsx, /src/components/DocumentSharePermissionsPage.tsx, /src/components/WorkspaceSettingsPage.tsx, /src/components/WorkspaceHomeTopBar.tsx, /src/components/DocumentShareDrawer.tsx, /src/components/WorkspaceUpdatesPage.tsx[22m
+[2m19:58:56[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/lib/hashRouting.test.ts[22m
+[2m19:59:14[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/AccessSharingPage.tsx, /src/components/SearchCommandPalette.tsx, /src/components/VersionHistoryComparePage.tsx, /src/components/WorkspaceHomePage.tsx, /src/components/KnowledgeEditorPage.tsx, /src/components/LibrariesPage.tsx, /src/components/WorkspaceUpdatesPage.tsx, /src/components/DocumentSharePermissionsPage.tsx, /src/components/WorkspaceSettingsPage.tsx, /src/components/WorkspaceLinkManagementPanel.tsx, /src/components/OutlinePanel.tsx, /src/components/ImageBlockNodeView.tsx, /src/components/DocumentShareDrawer.tsx[22m
+[2m20:00:53[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/App.tsx, /src/index.css[22m
+[2m20:02:20[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m20:25:10[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/WorkspaceLinkManagementPanel.tsx[22m
+[2m20:25:40[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/WorkspaceLinkManagementPanel.tsx, /src/index.css[22m
+[2m20:25:58[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/WorkspaceLinkManagementPanel.tsx, /src/index.css[22m
+[2m20:26:16[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/WorkspaceLinkManagementPanel.tsx[22m
+[2m20:26:23[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/WorkspaceLinkManagementPanel.tsx, /src/index.css[22m
+[2m20:26:29[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m20:26:39[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/lib/linkManagementModel.test.ts[22m
+[2m20:48:41[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/DocumentShareDrawer.tsx, /src/index.css[22m
+[2m20:49:00[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/WorkspaceLinkManagementPanel.tsx[22m
+[2m20:49:13[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/WorkspaceLinkManagementPanel.tsx, /src/index.css[22m
+[2m20:49:28[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/WorkspaceLinkManagementPanel.tsx, /src/index.css[22m
+[2m20:49:40[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/App.tsx, /src/index.css, /src/components/NorthstarLoginPage.tsx, /src/components/SearchCommandPalette.tsx, /src/components/WorkspaceHomePage.tsx, /src/components/KnowledgeEditorPage.tsx, /src/components/LibrariesPage.tsx, /src/components/DocumentSharePermissionsPage.tsx, /src/components/WorkspaceSettingsPage.tsx, /src/components/WorkspaceHomeTopBar.tsx, /src/components/DocumentShareDrawer.tsx, /src/components/WorkspaceUpdatesPage.tsx[22m
+[2m20:50:30[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/lib/linkManagementModel.test.ts[22m
+[2m20:50:38[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/lib/hashRouting.test.ts[22m
+[2m21:00:23[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/DocumentSharePermissionsPage.tsx, /src/components/DocumentShareDrawer.tsx[22m
+[2m21:00:48[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/lib/documentShareLinksModel.test.ts[22m
+[2m21:00:56[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/lib/documentShareLinksModel.test.ts[22m
+[2m21:01:04[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/DocumentSharePermissionsPage.tsx, /src/index.css[22m
+[2m21:01:13[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/DocumentSharePermissionsPage.tsx, /src/index.css[22m
+[2m21:01:24[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/DocumentSharePermissionsPage.tsx, /src/index.css[22m
+[2m21:01:57[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/DocumentSharePermissionsPage.tsx, /src/index.css[22m
+[2m21:02:25[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/DocumentSharePermissionsPage.tsx, /src/index.css[22m
+[2m21:02:35[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/DocumentSharePermissionsPage.tsx, /src/index.css[22m
+[2m21:02:47[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/DocumentSharePermissionsPage.tsx, /src/index.css[22m
+[2m21:03:40[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/DocumentSharePermissionsPage.tsx, /src/index.css[22m
+[2m21:03:53[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/DocumentSharePermissionsPage.tsx, /src/index.css[22m
+[2m21:04:03[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/DocumentSharePermissionsPage.tsx, /src/index.css[22m
+[2m21:04:18[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/DocumentSharePermissionsPage.tsx, /src/index.css[22m
+[2m21:04:30[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/DocumentSharePermissionsPage.tsx, /src/index.css[22m
+[2m21:04:37[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/DocumentSharePermissionsPage.tsx, /src/index.css[22m
+[2m21:04:45[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/DocumentSharePermissionsPage.tsx, /src/components/DocumentShareDrawer.tsx[22m
+[2m21:05:31[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m21:05:59[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/lib/documentShareLinksModel.test.ts[22m
+[2m21:06:53[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/DocumentSharePermissionsPage.tsx, /src/index.css[22m
+[2m21:41:31[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/EditorCanvas.tsx, /src/index.css[22m
+[2m21:42:02[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m21:42:20[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m21:42:52[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m

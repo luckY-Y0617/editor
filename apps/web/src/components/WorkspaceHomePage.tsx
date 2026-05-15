@@ -243,7 +243,7 @@ function MobileHomeNav({ locale }: { locale: DisplayLocale }) {
         {t(locale, "nav.home")}
       </a>
       <a href="#libraries">{t(locale, "nav.libraries")}</a>
-      <a href="#updates">{t(locale, "nav.updates")}</a>
+      <a href="#access-sharing">{t(locale, "nav.updates")}</a>
       <a href="#settings">{t(locale, "nav.settings")}</a>
     </div>
   );

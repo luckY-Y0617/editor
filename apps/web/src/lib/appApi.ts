@@ -530,6 +530,8 @@ export type OrganizationMembersResponse = {
 export type ShareLinkRole = "commenter" | "viewer";
 
 export type ShareLinkAudience = "external" | "public" | "workspace";
+export type PublicShareResourceType = "collection" | "document";
+export type LinkManagementStatus = "active" | "expired" | "paused" | "policy_paused" | "revoked" | string;
 export type PermissionGrantRole = "admin" | "commenter" | "editor" | "owner" | "viewer";
 export type PermissionGrantSubjectType = "group" | "user";
 
@@ -584,6 +586,188 @@ export type ShareLinkDto = {
 
 export type ShareLinksResponse = {
   links: ShareLinkDto[];
+};
+
+export type ResolvePublicShareLinkResponse = {
+  audience: "public";
+  expiresAt: string;
+  hasPassword: boolean;
+  resourceId: string;
+  resourceType: PublicShareResourceType;
+  roleKey: "viewer";
+  workspaceId: string;
+};
+
+export type PublicShareDocumentDto = {
+  content: JSONContent;
+  id: string;
+  revision: number;
+  status: "archived" | "draft" | "published" | string;
+  tags: string[];
+  title: string;
+  updatedAt: string;
+};
+
+export type PublicShareDocumentResponse = {
+  document: PublicShareDocumentDto;
+  link: ResolvePublicShareLinkResponse;
+};
+
+export type PublicShareCollectionDocumentDto = {
+  id: string;
+  sortOrder: number;
+  status: "draft" | "published" | string;
+  tags: string[];
+  title: string;
+  updatedAt: string;
+};
+
+export type PublicShareCollectionDto = {
+  documents: PublicShareCollectionDocumentDto[];
+  id: string;
+  sortOrder: number;
+  title: string;
+  updatedAt: string;
+};
+
+export type PublicShareCollectionResponse = {
+  collection: PublicShareCollectionDto;
+  link: ResolvePublicShareLinkResponse;
+};
+
+export type PublicShareRequestOptions = {
+  apiBaseUrl?: string;
+  fetchFn?: typeof fetch;
+  password?: string | null;
+  signal?: AbortSignal;
+};
+
+export type LinkManagementDto = {
+  id: string;
+  workspaceId: string;
+  resourceType: string;
+  resourceId: string;
+  resourceTitle: string | null;
+  roleKey: ShareLinkRole;
+  audience: ShareLinkAudience;
+  subjectEmail: string | null;
+  createdBy: string | null;
+  createdByDisplayName: string | null;
+  createdAt: string;
+  expiresAt: string | null;
+  revokedAt: string | null;
+  pausedAt: string | null;
+  pausedBy: string | null;
+  pauseReason: string | null;
+  hasPassword: boolean;
+  status: LinkManagementStatus;
+  linkMode: string | null;
+  policyState: string | null;
+  lastAccessedAt: string | null;
+  accessCount: number;
+  uniqueVisitorCount: number;
+  recentFailCount: number;
+  externalOrPublicAccessCount: number;
+  canManage: boolean;
+  canUpdate: boolean;
+  canPause: boolean;
+  canRevoke: boolean;
+};
+
+export type LinkManagementListResponse = {
+  links: LinkManagementDto[];
+  offset: number;
+  limit: number;
+  totalCount: number;
+  hasMore: boolean;
+};
+
+export type LinkManagementListQuery = {
+  audience?: ShareLinkAudience | null;
+  limit?: number | null;
+  offset?: number | null;
+  q?: string | null;
+  resourceId?: string | null;
+  resourceType?: string | null;
+  roleKey?: ShareLinkRole | null;
+  status?: string | null;
+  workspaceId?: string | null;
+};
+
+export type UpdateShareLinkRequest = {
+  roleKey?: ShareLinkRole | null;
+  expiresAt?: string | null;
+  reason?: string | null;
+};
+
+export type ShareLinkPauseRequest = {
+  reason?: string | null;
+};
+
+export type ShareLinkCopyEventRequest = {
+  copiedValueType?: "share_url" | "link_id" | string | null;
+  reason?: string | null;
+};
+
+export type CopyShareLinkResponse = {
+  linkId: string;
+  url: string;
+  reissued: boolean;
+};
+
+export type ShareLinkAccessTrendPointDto = {
+  date: string;
+  successCount: number;
+  failCount: number;
+};
+
+export type ShareLinkSourceBreakdownDto = {
+  source: string;
+  count: number;
+  percentage: number;
+};
+
+export type ShareLinkAccessStatsResponse = {
+  shareLinkId: string;
+  lastAccessedAt: string | null;
+  accessCount: number;
+  uniqueVisitorCount: number;
+  lastAccessIp: string | null;
+  recentWindowDays: number;
+  trend: ShareLinkAccessTrendPointDto[];
+  sourceBreakdown: ShareLinkSourceBreakdownDto[];
+};
+
+export type ShareLinkAccessEventDto = {
+  id: string;
+  shareLinkId: string;
+  accessedBy: string | null;
+  actorUserId: string | null;
+  actorDisplayName: string | null;
+  actorType: string;
+  accessedAt: string;
+  occurredAt: string;
+  ip: string | null;
+  userAgent: string | null;
+  deviceSummary: string | null;
+  eventType: string;
+  result: string;
+  failureCategory: string | null;
+};
+
+export type ShareLinkAccessEventsResponse = {
+  events: ShareLinkAccessEventDto[];
+  offset: number;
+  limit: number;
+  totalCount: number;
+  hasMore: boolean;
+};
+
+export type ShareLinkAccessEventsQuery = {
+  eventType?: string | null;
+  limit?: number | null;
+  offset?: number | null;
+  result?: string | null;
 };
 
 export type CreateShareLinkRequest = {
@@ -1012,6 +1196,135 @@ export function getResourceShareLinks(resourceType: string, resourceId: string, 
   );
 }
 
+export function getShareLink(shareLinkId: string, signal?: AbortSignal) {
+  return apiFetch<ShareLinkDto>(`/permissions/share-links/${encodeURIComponent(shareLinkId)}`, { signal });
+}
+
+export function resolvePublicShareLink(token: string, options: PublicShareRequestOptions = {}) {
+  return apiFetch<ResolvePublicShareLinkResponse>(buildPublicSharePath(token, "resolve"), createPublicShareRequestOptions(options));
+}
+
+export function getPublicShareDocument(token: string, options: PublicShareRequestOptions = {}) {
+  return apiFetch<PublicShareDocumentResponse>(buildPublicSharePath(token, "document"), createPublicShareRequestOptions(options));
+}
+
+export function getPublicShareCollection(token: string, options: PublicShareRequestOptions = {}) {
+  return apiFetch<PublicShareCollectionResponse>(buildPublicSharePath(token, "collection"), createPublicShareRequestOptions(options));
+}
+
+export function buildShareLinkManagementListPath(query: LinkManagementListQuery = {}) {
+  const params = new URLSearchParams();
+  setOptionalQueryParam(params, "workspaceId", query.workspaceId);
+  setOptionalQueryParam(params, "resourceType", query.resourceType);
+  setOptionalQueryParam(params, "resourceId", query.resourceId);
+  setOptionalQueryParam(params, "audience", query.audience);
+  setOptionalQueryParam(params, "roleKey", query.roleKey);
+  setOptionalQueryParam(params, "status", query.status);
+  setOptionalQueryParam(params, "q", query.q);
+  setOptionalNumberQueryParam(params, "offset", query.offset);
+  setOptionalNumberQueryParam(params, "limit", query.limit);
+
+  return `/permissions/share-links${params.size ? `?${params.toString()}` : ""}`;
+}
+
+export function buildShareLinkManagementDetailPath(shareLinkId: string) {
+  return `/permissions/share-links/${encodeURIComponent(shareLinkId)}`;
+}
+
+export function buildShareLinkAccessStatsPath(shareLinkId: string) {
+  return `${buildShareLinkManagementDetailPath(shareLinkId)}/stats`;
+}
+
+export function buildShareLinkAccessEventsPath(shareLinkId: string, query: ShareLinkAccessEventsQuery = {}) {
+  const params = new URLSearchParams();
+  setOptionalNumberQueryParam(params, "offset", query.offset);
+  setOptionalNumberQueryParam(params, "limit", query.limit);
+  setOptionalQueryParam(params, "result", query.result);
+  setOptionalQueryParam(params, "eventType", query.eventType);
+
+  return `${buildShareLinkManagementDetailPath(shareLinkId)}/access-events${params.size ? `?${params.toString()}` : ""}`;
+}
+
+export function buildShareLinkCopyPath(shareLinkId: string) {
+  return `${buildShareLinkManagementDetailPath(shareLinkId)}/copy`;
+}
+
+export function listShareLinkManagement(query: LinkManagementListQuery = {}, signal?: AbortSignal) {
+  return apiFetch<LinkManagementListResponse>(buildShareLinkManagementListPath(query), { signal });
+}
+
+export function getShareLinkManagementDetail(shareLinkId: string, signal?: AbortSignal) {
+  return apiFetch<LinkManagementDto>(buildShareLinkManagementDetailPath(shareLinkId), { signal });
+}
+
+export function getShareLinkStats(shareLinkId: string, signal?: AbortSignal) {
+  return apiFetch<ShareLinkAccessStatsResponse>(buildShareLinkAccessStatsPath(shareLinkId), { signal });
+}
+
+export function getShareLinkAccessEvents(
+  shareLinkId: string,
+  query: ShareLinkAccessEventsQuery = {},
+  signal?: AbortSignal,
+) {
+  return apiFetch<ShareLinkAccessEventsResponse>(buildShareLinkAccessEventsPath(shareLinkId, query), { signal });
+}
+
+export function updateShareLinkManagement(
+  shareLinkId: string,
+  request: UpdateShareLinkRequest,
+  signal?: AbortSignal,
+) {
+  return apiFetch<LinkManagementDto>(buildShareLinkManagementDetailPath(shareLinkId), {
+    body: request,
+    method: "PATCH",
+    signal,
+  });
+}
+
+export function pauseShareLinkManagement(
+  shareLinkId: string,
+  request: ShareLinkPauseRequest = {},
+  signal?: AbortSignal,
+) {
+  return apiFetch<LinkManagementDto>(`${buildShareLinkManagementDetailPath(shareLinkId)}/pause`, {
+    body: request,
+    method: "POST",
+    signal,
+  });
+}
+
+export function resumeShareLinkManagement(shareLinkId: string, signal?: AbortSignal) {
+  return apiFetch<LinkManagementDto>(`${buildShareLinkManagementDetailPath(shareLinkId)}/resume`, {
+    body: {},
+    method: "POST",
+    signal,
+  });
+}
+
+export function copyShareLinkManagementUrl(
+  shareLinkId: string,
+  request: ShareLinkCopyEventRequest = { copiedValueType: "share_url" },
+  signal?: AbortSignal,
+) {
+  return apiFetch<CopyShareLinkResponse>(buildShareLinkCopyPath(shareLinkId), {
+    body: request,
+    method: "POST",
+    signal,
+  });
+}
+
+export function recordShareLinkCopyEvent(
+  shareLinkId: string,
+  request: ShareLinkCopyEventRequest = { copiedValueType: "link_id" },
+  signal?: AbortSignal,
+) {
+  return apiFetch<void>(`${buildShareLinkManagementDetailPath(shareLinkId)}/copy-events`, {
+    body: request,
+    method: "POST",
+    signal,
+  });
+}
+
 export function getDocumentResourcePermissions(documentId: string, signal?: AbortSignal) {
   return apiFetch<ResourcePermissionsResponse>(`/permissions/resources/document/${documentId}`, { signal });
 }
@@ -1200,4 +1513,26 @@ function setOptionalNumberQueryParam(params: URLSearchParams, key: string, value
   if (typeof value === "number" && Number.isFinite(value)) {
     params.set(key, String(value));
   }
+}
+
+function buildPublicSharePath(token: string, action: "collection" | "document" | "resolve") {
+  return `/public/share-links/${encodeURIComponent(token)}/${action}`;
+}
+
+function createPublicShareRequestOptions(options: PublicShareRequestOptions) {
+  const headers = new Headers();
+  const password = options.password?.trim();
+
+  if (password) {
+    headers.set("X-Share-Link-Password", password);
+  }
+
+  return {
+    apiBaseUrl: options.apiBaseUrl,
+    auth: false,
+    fetchFn: options.fetchFn,
+    headers,
+    signal: options.signal,
+    skipAuthRefresh: true,
+  };
 }

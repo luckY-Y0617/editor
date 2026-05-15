@@ -58,12 +58,13 @@ For schema changes:
 - Run focused frontend tests for frontend/comment/editor changes when available.
 - Report Vite large-chunk warning as warning, not failure, if build otherwise passes and docs already note it.
 
-## Browser QA Fallback
+## Browser QA
 
 - Run browser QA only when the user requests or allows it.
-- Prefer the configured in-app Browser workflow when it is available.
-- If the in-app Browser connection times out or cannot initialize, use a local headless browser screenshot for localhost visual QA when a local browser executable is available.
-- Report the fallback explicitly, including the screenshot path and why the in-app Browser was not used.
+- Do not use in-browser or in-app Browser automation for this repository.
+- Use a local headless browser, Chrome DevTools Protocol, or Playwright-style workflow against the local target when a local browser executable is available.
+- Report the browser QA tool explicitly, including screenshot paths when screenshots are captured.
+- If no local browser executable or automation path is available, report browser QA as not run and include the environment gap.
 - Do not treat headless screenshot QA as a substitute for interactive workflows that require clicks, keyboard behavior, uploads, or permission prompts unless those interactions were actually performed.
 
 ## Required Final Validation Report

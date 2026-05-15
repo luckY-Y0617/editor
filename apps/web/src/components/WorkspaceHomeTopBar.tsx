@@ -12,7 +12,7 @@ import compassEmblemIcon from "../assets/svg/brand/compass-emblem.svg";
 import searchIcon from "../assets/svg/icons/search.svg";
 
 type WorkspaceHomeTopBarProps = {
-  activeItem?: "updates";
+  activeItem?: "sharing" | "updates";
   canExportJson?: boolean;
   canImportJson?: boolean;
   contextHref?: string;
@@ -197,9 +197,9 @@ export function WorkspaceHomeTopBar({
         <a
           className={[
             "workspace-home-topbar-link hidden h-9 items-center gap-2 border-l border-white/[0.14] px-3 text-sm font-semibold text-[#f5efe4] transition hover:bg-white/[0.07] md:inline-flex",
-            activeItem === "updates" ? "is-active" : "",
+            activeItem === "sharing" || activeItem === "updates" ? "is-active" : "",
           ].join(" ")}
-          href="#updates"
+          href="#access-sharing"
           title={t(locale, "nav.updates")}
         >
           <Bell className="h-4 w-4 text-[#dfe8f3]" />

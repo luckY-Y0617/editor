@@ -125,6 +125,15 @@ Explicitly not included in comment v1:
   - public share-link creation may internally set resource policy `LinkMode = public`;
   - anonymous public access is limited to dedicated `/api/v1/public/share-links/...` endpoints;
   - protected APIs must not be widened by public links.
+- Link-management implementation and readiness rules are documented in
+  `docs/agent/reports/link-management-product-rules-v1.md` and
+  `docs/PERMISSION_SYSTEM_CONTRACT.md`; current code must still be verified
+  before future edits.
+- Current token rule for link management: list/detail/audit/stat surfaces remain
+  raw-token-free and token-hash-free. Existing-link full URL copy is supported
+  only through the authenticated audited copy endpoint backed by protected
+  `share_links.token_ciphertext`; legacy links without ciphertext are reissued
+  on copy.
 - Implemented according to contract:
   - workspace RBAC
   - scoped document/collection permissions
@@ -152,8 +161,11 @@ Explicitly not included in comment v1:
   - frontend permission mutation workflow V1 for document resource grants and policy settings
   - frontend permission admin surfaces V1 for workspace members and SCIM management
   - frontend public-link interaction hardening V1 for document public links
+  - frontend public reader visual convergence with shared readonly document reader surface
   - backend TOTP MFA provider/enrollment/verification/disable flow
   - backend step-up enforcement for high-risk permission mutations
+  - workspace link-management inventory, pause/resume, access analytics, and
+    audited copy with token ciphertext
 - Conflict status:
   - public collection links and public `linkMode` source conflicts are resolved by approved architecture decision in `docs/agent/reports/public-link-architecture-decision.md`;
   - conflict history remains preserved in `docs/agent/02-conflict-register.md`.
@@ -175,7 +187,7 @@ Explicitly not included in comment v1:
   - MFA recovery codes
   - MFA recovery/reset/admin reset flows
   - PostgreSQL smoke from the agent process when the env var is visible
-  - Browser QA / frontend public-link browser acceptance after Node runtime upgrade
+  - Browser QA / frontend public-link browser acceptance using non-in-browser local automation when allowed
 
 ## Files State
 

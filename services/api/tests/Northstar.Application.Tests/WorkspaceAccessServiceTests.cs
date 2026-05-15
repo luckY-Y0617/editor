@@ -407,11 +407,26 @@ public sealed class WorkspaceAccessServiceTests
             return Task.FromResult<Northstar.Domain.Security.ShareLink?>(null);
         }
 
+        public Task<Northstar.Domain.Security.ShareLink?> GetByIdAsync(
+            Guid shareLinkId,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<Northstar.Domain.Security.ShareLink?>(null);
+        }
+
         public Task<Northstar.Domain.Security.ShareLink?> GetForUpdateAsync(
             Guid shareLinkId,
             CancellationToken cancellationToken = default)
         {
             return Task.FromResult<Northstar.Domain.Security.ShareLink?>(null);
+        }
+
+        public Task<IReadOnlyList<Northstar.Domain.Security.ShareLink>> SearchAsync(
+            ShareLinkSearchQuery query,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<Northstar.Domain.Security.ShareLink>>(
+                Array.Empty<Northstar.Domain.Security.ShareLink>());
         }
 
         public Task AddAsync(

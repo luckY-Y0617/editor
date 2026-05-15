@@ -137,6 +137,7 @@ public URL is stored or returned.
 - `PATCH /api/v1/permissions/resources/{resourceType}/{resourceId}/grants/{grantId}`
 - `DELETE /api/v1/permissions/resources/{resourceType}/{resourceId}/grants/{grantId}`
 - `GET /api/v1/permissions/resources/{resourceType}/{resourceId}/share-links`
+- `GET /api/v1/permissions/share-links/{shareLinkId}`
 - `POST /api/v1/permissions/resources/{resourceType}/{resourceId}/share-links`
 - `DELETE /api/v1/permissions/share-links/{shareLinkId}`
 - `GET /api/v1/share-links/{token}/resolve`

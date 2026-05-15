@@ -5,10 +5,13 @@ import {
   createLibrariesHash,
   createOrganizationSettingsHash,
   createPersonalSettingsHash,
+  createPublicShareHash,
+  createRouteHashFromLocation,
   createSearchHash,
   createSettingsHash,
   createShareHash,
   createWorkspaceIntegrationsHash,
+  createWorkspaceLinkManagementHash,
   createWorkspaceMembersHash,
   createWorkspacePermissionsHash,
   createWorkspaceUpdatesHash,
@@ -18,6 +21,7 @@ import {
   getLibrariesFiltersFromHash,
   getOrganizationSettingsPanelFromHash,
   getPostLoginRedirectHash,
+  getPublicShareTokenFromHash,
   getSearchFiltersFromHash,
   getSettingsFiltersFromHash,
   getSettingsRouteTarget,
@@ -65,6 +69,22 @@ describe("hashRouting", () => {
     expect(getShareDocumentIdFromHash("#share?documentId=not-a-uuid")).toBe(null);
   });
 
+  test("creates and parses public share hashes without treating tokens as protected document ids", () => {
+    expect(createPublicShareHash("public-token_123")).toBe("#public/share-links/public-token_123");
+    expect(createPublicShareHash("bad token")).toBe("#public/share-links");
+    expect(getHashRoute("#public/share-links/public-token_123")).toBe("#public/share-links");
+    expect(getPublicShareTokenFromHash("#public/share-links/public-token_123")).toBe("public-token_123");
+    expect(getPublicShareTokenFromHash("https://app.example.com/#public/share-links/public-token_123")).toBe("public-token_123");
+    expect(getHashRoute("https://app.example.com/#public/share-links/public-token_123")).toBe("#public/share-links");
+    expect(getPublicShareTokenFromHash("#/public/share-links/public-token_123")).toBe("public-token_123");
+    expect(getPublicShareTokenFromHash("/public/share-links/public-token_123")).toBe("public-token_123");
+    expect(getPublicShareTokenFromHash("https://app.example.com/public/share-links/public-token_123")).toBe("public-token_123");
+    expect(getPublicShareTokenFromHash("#public/share-links/bad%20token")).toBe(null);
+    expect(createRouteHashFromLocation({ hash: "", pathname: "/public/share-links/public-token_123", search: "" })).toBe(
+      "/public/share-links/public-token_123",
+    );
+  });
+
   test("creates and parses folder search hashes", () => {
     const hash = createSearchHash({ folderId: documentId, folderTitle: "Foundations", libraryId, q: "mission" });
 
@@ -102,6 +122,7 @@ describe("hashRouting", () => {
     expect(createSettingsHash()).toBe("#settings");
     expect(createWorkspaceMembersHash()).toBe("#settings?scope=workspace&tab=members");
     expect(createWorkspacePermissionsHash()).toBe("#settings?scope=workspace&tab=permissions");
+    expect(createWorkspaceLinkManagementHash()).toBe("#access-sharing");
     expect(createWorkspaceIntegrationsHash()).toBe("#settings?scope=workspace&tab=integrations");
     expect(createWorkspaceUpdatesHash()).toBe("#updates");
     expect(createWorkspaceUpdatesHash({ tab: "access" })).toBe("#updates?tab=access");
@@ -242,6 +263,9 @@ describe("hashRouting", () => {
     expect(getCanonicalHashRedirect("#settings?panel=workspace-access-identity")).toBe("#settings?scope=workspace&tab=permissions");
     expect(getCanonicalHashRedirect("#settings?panel=deferred-plan")).toBe("#settings?scope=workspace");
     expect(getCanonicalHashRedirect("#settings?scope=workspace&tab=developer")).toBe("#settings?scope=workspace");
+    expect(getCanonicalHashRedirect("#settings?scope=workspace&tab=links")).toBe("#access-sharing");
+    expect(getCanonicalHashRedirect("#links")).toBe("#access-sharing");
+    expect(getCanonicalHashRedirect("#sharing")).toBe("#access-sharing");
     expect(getCanonicalHashRedirect(`#discovery?libraryId=${libraryId}&folderId=${collectionId}&folderTitle=Foundations&q=risk`)).toBe(
       `#search?libraryId=${libraryId}&folderId=${collectionId}&folderTitle=Foundations&q=risk`,
     );
@@ -256,6 +280,9 @@ describe("hashRouting", () => {
     expect(getPostLoginRedirectHash("#scim")).toBe("#settings?scope=workspace&tab=integrations");
     expect(getPostLoginRedirectHash("#discovery?q=risk")).toBe("#search?q=risk");
     expect(getPostLoginRedirectHash("#settings?panel=workspace-access-identity")).toBe("#settings?scope=workspace&tab=permissions");
+    expect(getPostLoginRedirectHash("#settings?scope=workspace&tab=links")).toBe("#access-sharing");
+    expect(getPostLoginRedirectHash("#access-sharing")).toBe("#access-sharing");
+    expect(getPostLoginRedirectHash("#links")).toBe("#access-sharing");
     expect(getPostLoginRedirectHash("#personal-settings")).toBe("#personal-settings");
     expect(getPostLoginRedirectHash("#organization-settings?panel=profile")).toBe("#organization-settings?panel=profile");
     expect(getPostLoginRedirectHash(`#settings?tab=notifications&spaceId=${libraryId}`)).toBe(
