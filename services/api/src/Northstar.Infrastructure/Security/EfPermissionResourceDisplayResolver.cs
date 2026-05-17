@@ -34,8 +34,13 @@ public sealed class EfPermissionResourceDisplayResolver : IPermissionResourceDis
             .Select(resource => resource.ResourceId)
             .Distinct()
             .ToArray();
+        var libraryIds = resources
+            .Where(resource => resource.ResourceType == ResourceTypes.Library)
+            .Select(resource => resource.ResourceId)
+            .Distinct()
+            .ToArray();
 
-        var summaries = new List<PermissionResourceDisplaySummary>(documentIds.Length + collectionIds.Length);
+        var summaries = new List<PermissionResourceDisplaySummary>(documentIds.Length + collectionIds.Length + libraryIds.Length);
 
         if (documentIds.Length > 0)
         {
@@ -82,6 +87,28 @@ public sealed class EfPermissionResourceDisplayResolver : IPermissionResourceDis
                 collection.Id,
                 collection.Title,
                 collection.Title)));
+        }
+
+        if (libraryIds.Length > 0)
+        {
+            var libraries = await _dbContext.Spaces
+                .AsNoTracking()
+                .Where(space =>
+                    space.WorkspaceId == workspaceId &&
+                    space.DeletedAt == null &&
+                    libraryIds.Contains(space.Id))
+                .Select(space => new
+                {
+                    space.Id,
+                    space.Name
+                })
+                .ToListAsync(cancellationToken);
+
+            summaries.AddRange(libraries.Select(library => new PermissionResourceDisplaySummary(
+                ResourceTypes.Library,
+                library.Id,
+                library.Name,
+                library.Name)));
         }
 
         return summaries;

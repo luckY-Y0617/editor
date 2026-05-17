@@ -1,20 +1,30 @@
-import { AlertCircle, FileText, Folder, LockKeyhole, ShieldCheck } from "lucide-react";
-import { FormEvent, type ReactNode, useCallback, useEffect, useState } from "react";
+import { AlertCircle, ChevronLeft, ChevronRight, FileText, Folder, LockKeyhole, ShieldCheck } from "lucide-react";
+import { FormEvent, type CSSProperties, type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { DocumentReaderSurface, ReadonlyDocumentContent } from "./DocumentReaderSurface";
 import {
   getPublicShareCollection,
   getPublicShareDocument,
+  getPublicShareTree,
+  getScopedPublicShareDocument,
   resolvePublicShareLink,
   type PublicShareCollectionResponse,
   type PublicShareDocumentResponse,
+  type PublicShareTreeNodeDto,
+  type PublicShareTreeResponse,
   type ResolvePublicShareLinkResponse,
 } from "../lib/appApi";
 import {
   getPublicShareReadEndpoint,
+  getContentProtectionLabels,
+  derivePublicShareKnowledgeBaseState,
+  getPublicShareScopeLabel,
+  getPublicShareTreeDepth,
   getPublicShareSafeStatusLabel,
+  normalizeContentProtection,
   publicShareUnavailableMessage,
   toPublicShareFailureState,
 } from "../lib/publicShareModel";
+import type { ShareLinkContentProtectionDto } from "../lib/appApi";
 
 type PublicSharePageProps = {
   token: string | null;
@@ -25,6 +35,7 @@ type PublicShareLoadState =
   | { status: "loading" }
   | { response: PublicShareCollectionResponse; status: "collection" }
   | { response: PublicShareDocumentResponse; status: "document" }
+  | { document: PublicShareDocumentResponse | null; status: "scope"; tree: PublicShareTreeResponse }
   | { link: ResolvePublicShareLinkResponse; status: "password" };
 
 export function PublicSharePage({ token }: PublicSharePageProps) {
@@ -51,16 +62,18 @@ export function PublicSharePage({ token }: PublicSharePageProps) {
         }
 
         const readEndpoint = getPublicShareReadEndpoint(link.resourceType);
-        const response =
-          readEndpoint === "collection"
-            ? await getPublicShareCollection(token, requestOptions)
-            : await getPublicShareDocument(token, requestOptions);
+        if (readEndpoint === "tree") {
+          const tree = await getPublicShareTree(token, requestOptions);
+          const firstDocument = tree.nodes.find((node) => node.type === "document");
+          const document = firstDocument
+            ? await getScopedPublicShareDocument(token, firstDocument.id, requestOptions)
+            : null;
+          setLoadState({ document, status: "scope", tree });
+          return;
+        }
 
-        setLoadState(
-          link.resourceType === "collection"
-            ? { response: response as PublicShareCollectionResponse, status: "collection" }
-            : { response: response as PublicShareDocumentResponse, status: "document" },
-        );
+        const response = await getPublicShareDocument(token, requestOptions);
+        setLoadState({ response, status: "document" });
       } catch {
         const failure = toPublicShareFailureState({
           hasPassword: true,
@@ -90,6 +103,17 @@ export function PublicSharePage({ token }: PublicSharePageProps) {
 
   if (loadState.status === "collection") {
     return <PublicShareCollectionPage response={loadState.response} />;
+  }
+
+  if (loadState.status === "scope") {
+    return (
+      <PublicShareScopePage
+        initialDocument={loadState.document}
+        passwordProof={passwordAttempt}
+        token={token}
+        tree={loadState.tree}
+      />
+    );
   }
 
   const showPasswordForm = loadState.status === "password" || (loadState.status === "failed" && loadState.canRetryWithPassword);
@@ -139,9 +163,10 @@ export function PublicSharePage({ token }: PublicSharePageProps) {
 
 function PublicShareDocumentPage({ response }: { response: PublicShareDocumentResponse }) {
   const { document } = response;
+  const protection = normalizeContentProtection(response.link.contentProtection);
 
   return (
-    <PublicShareShell>
+    <PublicShareShell protection={protection} scopeLabel="Document" scopeTitle={document.title}>
       <DocumentReaderSurface
         bodyClassName="public-share-document-body"
         kicker="Public read-only document"
@@ -158,7 +183,9 @@ function PublicShareDocumentPage({ response }: { response: PublicShareDocumentRe
           <FileText aria-hidden="true" />
           <span>Document</span>
         </div>
-        <ReadonlyDocumentContent content={document.content} />
+        <PublicShareProtectedContent protection={protection}>
+          <ReadonlyDocumentContent content={document.content} />
+        </PublicShareProtectedContent>
       </DocumentReaderSurface>
     </PublicShareShell>
   );
@@ -166,10 +193,11 @@ function PublicShareDocumentPage({ response }: { response: PublicShareDocumentRe
 
 function PublicShareCollectionPage({ response }: { response: PublicShareCollectionResponse }) {
   const { collection } = response;
+  const protection = normalizeContentProtection(response.link.contentProtection);
   const documents = [...collection.documents].sort((left, right) => left.sortOrder - right.sortOrder || left.title.localeCompare(right.title));
 
   return (
-    <PublicShareShell>
+    <PublicShareShell protection={protection} scopeLabel="Collection" scopeTitle={collection.title}>
       <DocumentReaderSurface
         bodyClassName="public-share-collection-body"
         kicker="Public read-only folder"
@@ -207,19 +235,267 @@ function PublicShareCollectionPage({ response }: { response: PublicShareCollecti
   );
 }
 
-function PublicShareShell({ children }: { children: ReactNode }) {
+function PublicShareScopePage({
+  initialDocument,
+  passwordProof,
+  token,
+  tree,
+}: {
+  initialDocument: PublicShareDocumentResponse | null;
+  passwordProof: string | null;
+  token: string | null;
+  tree: PublicShareTreeResponse;
+}) {
+  const [selectedDocumentId, setSelectedDocumentId] = useState(initialDocument?.document.id ?? "");
+  const [documentResponse, setDocumentResponse] = useState<PublicShareDocumentResponse | null>(initialDocument);
+  const [isLoadingDocument, setIsLoadingDocument] = useState(false);
+  const [treeOpen, setTreeOpen] = useState(true);
+  const [collapsedCollections, setCollapsedCollections] = useState<ReadonlySet<string>>(() => new Set());
+  const model = useMemo(
+    () => derivePublicShareKnowledgeBaseState(tree, selectedDocumentId || initialDocument?.document.id),
+    [initialDocument?.document.id, selectedDocumentId, tree],
+  );
+  const protection = normalizeContentProtection(tree.contentProtection ?? initialDocument?.link.contentProtection);
+
+  const openDocument = async (documentId: string) => {
+    if (!token || documentId === selectedDocumentId) {
+      return;
+    }
+
+    setSelectedDocumentId(documentId);
+    setIsLoadingDocument(true);
+    try {
+      setDocumentResponse(await getScopedPublicShareDocument(token, documentId, { password: passwordProof }));
+    } catch {
+      setDocumentResponse(null);
+    } finally {
+      setIsLoadingDocument(false);
+    }
+  };
+
+  const visibleNodes = model.orderedNodes.filter((node) => {
+    if (!node.parentId) {
+      return true;
+    }
+
+    const parents = model.breadcrumb.map((item) => item.id);
+    if (parents.includes(node.id)) {
+      return true;
+    }
+
+    let parentId: string | null = node.parentId;
+    while (parentId) {
+      if (collapsedCollections.has(parentId)) {
+        return false;
+      }
+      const parent = model.orderedNodes.find((item) => item.id === parentId);
+      parentId = parent?.parentId ?? null;
+    }
+
+    return true;
+  });
+
+  const toggleCollection = (collectionId: string) => {
+    setCollapsedCollections((current) => {
+      const next = new Set(current);
+      if (next.has(collectionId)) {
+        next.delete(collectionId);
+      } else {
+        next.add(collectionId);
+      }
+      return next;
+    });
+  };
+
   return (
-    <main className="public-share-page">
+    <PublicShareShell protection={protection} scopeLabel={model.scopeLabel} scopeTitle={model.scopeTitle}>
+      <div className="public-share-scope-layout">
+        <aside className={`public-share-tree${treeOpen ? " is-open" : ""}`} aria-label="Shared public directory">
+          <button className="public-share-tree-heading" onClick={() => setTreeOpen((current) => !current)} type="button">
+            <Folder aria-hidden="true" />
+            <div>
+              <strong>{model.scopeTitle}</strong>
+              <span>{model.scopeLabel} public knowledge base</span>
+            </div>
+          </button>
+          <div className="public-share-tree-list">
+            {visibleNodes.length ? (
+              visibleNodes.map((node) =>
+                node.type === "document" ? (
+                  <button
+                    className={node.id === selectedDocumentId ? "is-active" : ""}
+                    key={node.id}
+                    onClick={() => void openDocument(node.id)}
+                    style={{ "--public-share-tree-depth": getPublicShareTreeDepth(model.orderedNodes, node) } as CSSProperties}
+                    type="button"
+                  >
+                    <FileText aria-hidden="true" />
+                    <span>{node.title}</span>
+                  </button>
+                ) : (
+                  <button
+                    className="public-share-tree-folder"
+                    key={node.id}
+                    onClick={() => toggleCollection(node.id)}
+                    style={{ "--public-share-tree-depth": getPublicShareTreeDepth(model.orderedNodes, node) } as CSSProperties}
+                    type="button"
+                  >
+                    <Folder aria-hidden="true" />
+                    <span>{node.title}</span>
+                    <span className="public-share-tree-toggle">{collapsedCollections.has(node.id) ? "Show" : "Hide"}</span>
+                  </button>
+                ),
+              )
+            ) : (
+              <p>{model.emptyState === "empty-scope" ? "This public knowledge base is empty." : "No readable documents are visible."}</p>
+            )}
+          </div>
+        </aside>
+        {documentResponse ? (
+          <PublicShareDocumentArticle
+            breadcrumb={model.breadcrumb}
+            nextDocument={model.nextDocument}
+            onNavigate={(documentId) => void openDocument(documentId)}
+            previousDocument={model.previousDocument}
+            response={documentResponse}
+            scopeLabel={model.scopeLabel}
+            scopeProtection={protection}
+          />
+        ) : (
+          <section className="public-share-empty public-share-scope-empty">
+            {isLoadingDocument
+              ? "Opening document..."
+              : model.documentOrder.length
+                ? publicShareUnavailableMessage
+                : model.emptyState === "empty-scope"
+                  ? "This public knowledge base is empty."
+                  : "No readable documents are visible in this shared scope."}
+          </section>
+        )}
+      </div>
+    </PublicShareShell>
+  );
+}
+
+function PublicShareDocumentArticle({
+  breadcrumb = [],
+  nextDocument,
+  onNavigate,
+  previousDocument,
+  response,
+  scopeLabel,
+  scopeProtection,
+}: {
+  breadcrumb?: PublicShareTreeNodeDto[];
+  nextDocument?: PublicShareTreeNodeDto | null;
+  onNavigate?: (documentId: string) => void;
+  previousDocument?: PublicShareTreeNodeDto | null;
+  response: PublicShareDocumentResponse;
+  scopeLabel?: string;
+  scopeProtection?: ShareLinkContentProtectionDto;
+}) {
+  const { document } = response;
+  const protection = normalizeContentProtection(response.link.contentProtection ?? scopeProtection);
+  const label = scopeLabel ?? getPublicShareScopeLabel(response.link.resourceType);
+
+  return (
+    <DocumentReaderSurface
+      bodyClassName="public-share-document-body"
+      className="public-share-scope-document"
+      kicker={`Public read-only ${label.toLowerCase()}`}
+      metadata={
+        <PublicShareMetadata
+          status={document.status}
+          tags={document.tags}
+          updatedAt={document.updatedAt}
+        />
+      }
+      title={document.title}
+    >
+      {breadcrumb.length ? (
+        <nav className="public-share-breadcrumb" aria-label="Public breadcrumb">
+          {breadcrumb.map((item, index) => (
+            <span key={`${item.id}:${index}`}>{item.title}</span>
+          ))}
+        </nav>
+      ) : null}
+      <div className="public-share-resource-type">
+        <FileText aria-hidden="true" />
+        <span>Document</span>
+      </div>
+      <PublicShareProtectedContent protection={protection}>
+        <ReadonlyDocumentContent content={document.content} />
+      </PublicShareProtectedContent>
+      {onNavigate ? (
+        <nav className="public-share-prev-next" aria-label="Previous and next public documents">
+          <button disabled={!previousDocument} onClick={() => previousDocument && onNavigate(previousDocument.id)} type="button">
+            <ChevronLeft aria-hidden="true" />
+            <span>{previousDocument?.title ?? "No previous document"}</span>
+          </button>
+          <button disabled={!nextDocument} onClick={() => nextDocument && onNavigate(nextDocument.id)} type="button">
+            <span>{nextDocument?.title ?? "No next document"}</span>
+            <ChevronRight aria-hidden="true" />
+          </button>
+        </nav>
+      ) : null}
+    </DocumentReaderSurface>
+  );
+}
+
+function PublicShareProtectedContent({ children, protection }: { children: ReactNode; protection: ShareLinkContentProtectionDto }) {
+  return (
+    <div
+      className={protection.disableCopy ? "public-share-copy-limited" : undefined}
+      onCopy={protection.disableCopy ? (event) => event.preventDefault() : undefined}
+    >
+      {children}
+    </div>
+  );
+}
+
+function PublicShareWatermark({ protection }: { protection: ShareLinkContentProtectionDto }) {
+  if (!protection.watermarkEnabled) {
+    return null;
+  }
+
+  return <div aria-hidden="true" className="public-share-watermark">{protection.watermarkText}</div>;
+}
+
+function PublicShareShell({
+  children,
+  protection,
+  scopeLabel = "Document",
+  scopeTitle = "Shared content",
+}: {
+  children: ReactNode;
+  protection?: ShareLinkContentProtectionDto;
+  scopeLabel?: string;
+  scopeTitle?: string;
+}) {
+  const normalizedProtection = normalizeContentProtection(protection);
+  return (
+    <main className={[
+      "public-share-page",
+      normalizedProtection.disablePrint ? "is-print-limited" : "",
+    ].filter(Boolean).join(" ")}>
+      <PublicShareWatermark protection={normalizedProtection} />
       <header className="public-share-topbar">
         <div>
-          <strong>Northstar Atlas Library</strong>
-          <span>Public read-only share</span>
+          <strong title={scopeTitle}>{scopeTitle}</strong>
+          <span>{scopeLabel} public read-only share</span>
         </div>
         <span className="public-share-boundary">
           <ShieldCheck aria-hidden="true" />
           View only
         </span>
       </header>
+      {getContentProtectionLabels(normalizedProtection).length ? (
+        <div className="public-share-protection-strip" aria-label="Content protection policy">
+          {getContentProtectionLabels(normalizedProtection).map((label) => (
+            <span key={label}>{label}</span>
+          ))}
+        </div>
+      ) : null}
       <div className="public-share-scroll editor-scrollbar">{children}</div>
     </main>
   );

@@ -19,6 +19,19 @@ public static class PermissionResourceNormalizer
             : throw new ApplicationErrorException(ErrorCodes.ValidationError, "Resource type is invalid.");
     }
 
+    public static string NormalizeShareableResourceType(string? resourceType)
+    {
+        if (string.IsNullOrWhiteSpace(resourceType))
+        {
+            throw new ApplicationErrorException(ErrorCodes.ValidationError, "Resource type is required.");
+        }
+
+        var normalized = resourceType.Trim().ToLowerInvariant();
+        return ResourceTypes.IsShareableResource(normalized)
+            ? normalized
+            : throw new ApplicationErrorException(ErrorCodes.ValidationError, "Resource type is invalid.");
+    }
+
     public static string NormalizeSupportedResourceType(string? resourceType)
     {
         if (string.IsNullOrWhiteSpace(resourceType))

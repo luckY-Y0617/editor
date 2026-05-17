@@ -14,10 +14,10 @@ public sealed class ShareLinkConfiguration : IEntityTypeConfiguration<ShareLink>
             "share_links",
             table =>
             {
-                table.HasCheckConstraint("share_links_resource_type_check", "resource_type IN ('collection', 'document')");
+                table.HasCheckConstraint("share_links_resource_type_check", "resource_type IN ('library', 'collection', 'document')");
                 table.HasCheckConstraint("share_links_role_key_check", "role_key IN ('viewer', 'commenter')");
                 table.HasCheckConstraint("share_links_audience_check", "audience IN ('workspace', 'external', 'public')");
-                table.HasCheckConstraint("share_links_public_viewer_expiry_check", "audience <> 'public' OR (resource_type IN ('document', 'collection') AND role_key = 'viewer' AND subject_email IS NULL AND expires_at IS NOT NULL)");
+                table.HasCheckConstraint("share_links_public_viewer_expiry_check", "audience <> 'public' OR (resource_type IN ('document', 'collection', 'library') AND role_key = 'viewer' AND subject_email IS NULL AND expires_at IS NOT NULL)");
                 table.HasCheckConstraint("share_links_password_public_check", "password_hash IS NULL OR audience = 'public'");
             });
 
@@ -62,6 +62,10 @@ public sealed class ShareLinkConfiguration : IEntityTypeConfiguration<ShareLink>
         builder.Property(link => link.PasswordHash)
             .HasColumnName("password_hash")
             .HasColumnType("text");
+
+        builder.Property(link => link.ContentProtectionJson)
+            .HasColumnName("content_protection_json")
+            .HasColumnType("jsonb");
 
         builder.Property(link => link.CreatedBy).HasColumnName("created_by");
 

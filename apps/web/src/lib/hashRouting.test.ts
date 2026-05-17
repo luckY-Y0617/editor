@@ -3,6 +3,7 @@ import {
   createEditorHash,
   createDocumentAdvancedPermissionsHash,
   createLibrariesHash,
+  createMembersTeamsHash,
   createOrganizationSettingsHash,
   createPersonalSettingsHash,
   createPublicShareHash,
@@ -19,6 +20,7 @@ import {
   getHashRoute,
   getCanonicalHashRedirect,
   getLibrariesFiltersFromHash,
+  getMembersTeamsTabFromHash,
   getOrganizationSettingsPanelFromHash,
   getPostLoginRedirectHash,
   getPublicShareTokenFromHash,
@@ -120,7 +122,16 @@ describe("hashRouting", () => {
 
   test("creates and parses workspace settings hashes", () => {
     expect(createSettingsHash()).toBe("#settings");
-    expect(createWorkspaceMembersHash()).toBe("#settings?scope=workspace&tab=members");
+    expect(createMembersTeamsHash()).toBe("#members");
+    expect(createMembersTeamsHash({ tab: "teams" })).toBe("#groups");
+    expect(createMembersTeamsHash({ tab: "directory" })).toBe("#members?tab=directory");
+    expect(createMembersTeamsHash({ tab: "summary" })).toBe("#members?tab=summary");
+    expect(getMembersTeamsTabFromHash("#members")).toBe("members");
+    expect(getMembersTeamsTabFromHash("#members?tab=teams")).toBe("teams");
+    expect(getMembersTeamsTabFromHash("#members?tab=groups")).toBe("teams");
+    expect(getMembersTeamsTabFromHash("#members?tab=scim")).toBe("directory");
+    expect(getMembersTeamsTabFromHash("#members?tab=permissions")).toBe("summary");
+    expect(createWorkspaceMembersHash()).toBe("#members");
     expect(createWorkspacePermissionsHash()).toBe("#settings?scope=workspace&tab=permissions");
     expect(createWorkspaceLinkManagementHash()).toBe("#access-sharing");
     expect(createWorkspaceIntegrationsHash()).toBe("#settings?scope=workspace&tab=integrations");
@@ -142,6 +153,7 @@ describe("hashRouting", () => {
     expect(createSettingsHash({ scope: "organization", tab: "members" })).toBe("#settings?scope=organization&tab=members");
     expect(createSettingsHash({ scope: "organization", tab: "assessment" })).toBe("#settings?scope=organization&tab=assessment");
     expect(createSettingsHash({ panel: "workspace-notifications" })).toBe("#settings?panel=workspace-notifications");
+    expect(createSettingsHash({ panel: "workspace-members" })).toBe("#members");
     expect(createSettingsHash({ panel: "workspace-access-identity" })).toBe("#settings?scope=workspace&tab=permissions");
     expect(createSettingsHash({ panel: "deferred-plan" })).toBe("#settings?scope=workspace");
     expect(getSettingsFiltersFromHash("#settings?panel=workspace-notifications")).toEqual({
@@ -232,12 +244,12 @@ describe("hashRouting", () => {
   });
 
   test("normalizes action urls to safe internal hashes only", () => {
-    expect(normalizeInternalActionHash("#workspace-members")).toBe("#settings?scope=workspace&tab=members");
-    expect(normalizeInternalActionHash("#members")).toBe("#settings?scope=workspace&tab=members");
-    expect(normalizeInternalActionHash("#permission-admin")).toBe("#settings?scope=workspace&tab=permissions");
-    expect(normalizeInternalActionHash("#workspace-groups")).toBe("#settings?scope=workspace&tab=permissions");
-    expect(normalizeInternalActionHash("#groups")).toBe("#settings?scope=workspace&tab=permissions");
-    expect(normalizeInternalActionHash("#scim")).toBe("#settings?scope=workspace&tab=integrations");
+    expect(normalizeInternalActionHash("#workspace-members")).toBe("#members");
+    expect(normalizeInternalActionHash("#members")).toBe("#members");
+    expect(normalizeInternalActionHash("#permission-admin")).toBe("#groups");
+    expect(normalizeInternalActionHash("#workspace-groups")).toBe("#groups");
+    expect(normalizeInternalActionHash("#groups")).toBe("#groups");
+    expect(normalizeInternalActionHash("#scim")).toBe("#members?tab=directory");
     expect(normalizeInternalActionHash("#permissions")).toBe("#settings?scope=workspace&tab=permissions");
     expect(normalizeInternalActionHash("#share")).toBe("#settings?scope=workspace&tab=permissions");
     expect(normalizeInternalActionHash(`#share?documentId=${documentId}`)).toBe(`#share?documentId=${documentId}`);
@@ -253,12 +265,14 @@ describe("hashRouting", () => {
   });
 
   test("canonicalizes legacy permission and member routes", () => {
-    expect(getCanonicalHashRedirect("#workspace-members")).toBe("#settings?scope=workspace&tab=members");
-    expect(getCanonicalHashRedirect("#members")).toBe("#settings?scope=workspace&tab=members");
-    expect(getCanonicalHashRedirect("#permission-admin")).toBe("#settings?scope=workspace&tab=permissions");
-    expect(getCanonicalHashRedirect("#workspace-groups")).toBe("#settings?scope=workspace&tab=permissions");
-    expect(getCanonicalHashRedirect("#groups")).toBe("#settings?scope=workspace&tab=permissions");
-    expect(getCanonicalHashRedirect("#scim")).toBe("#settings?scope=workspace&tab=integrations");
+    expect(getCanonicalHashRedirect("#workspace-members")).toBe("#members");
+    expect(getCanonicalHashRedirect("#members")).toBe(null);
+    expect(getCanonicalHashRedirect("#permission-admin")).toBe("#groups");
+    expect(getCanonicalHashRedirect("#workspace-groups")).toBe("#groups");
+    expect(getCanonicalHashRedirect("#groups")).toBe(null);
+    expect(getCanonicalHashRedirect("#scim")).toBe("#members?tab=directory");
+    expect(getCanonicalHashRedirect("#settings?scope=workspace&tab=members")).toBe("#members");
+    expect(getCanonicalHashRedirect("#settings?panel=workspace-members")).toBe("#members");
     expect(getCanonicalHashRedirect("#share")).toBe("#settings?scope=workspace&tab=permissions");
     expect(getCanonicalHashRedirect("#settings?panel=workspace-access-identity")).toBe("#settings?scope=workspace&tab=permissions");
     expect(getCanonicalHashRedirect("#settings?panel=deferred-plan")).toBe("#settings?scope=workspace");
@@ -275,9 +289,10 @@ describe("hashRouting", () => {
 
   test("preserves safe protected target after login", () => {
     expect(getPostLoginRedirectHash("#settings")).toBe("#settings");
-    expect(getPostLoginRedirectHash("#workspace-members")).toBe("#settings?scope=workspace&tab=members");
-    expect(getPostLoginRedirectHash("#permission-admin")).toBe("#settings?scope=workspace&tab=permissions");
-    expect(getPostLoginRedirectHash("#scim")).toBe("#settings?scope=workspace&tab=integrations");
+    expect(getPostLoginRedirectHash("#workspace-members")).toBe("#members");
+    expect(getPostLoginRedirectHash("#members")).toBe("#members");
+    expect(getPostLoginRedirectHash("#permission-admin")).toBe("#groups");
+    expect(getPostLoginRedirectHash("#scim")).toBe("#members?tab=directory");
     expect(getPostLoginRedirectHash("#discovery?q=risk")).toBe("#search?q=risk");
     expect(getPostLoginRedirectHash("#settings?panel=workspace-access-identity")).toBe("#settings?scope=workspace&tab=permissions");
     expect(getPostLoginRedirectHash("#settings?scope=workspace&tab=links")).toBe("#access-sharing");

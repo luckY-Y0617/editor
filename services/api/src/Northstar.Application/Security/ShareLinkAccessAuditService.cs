@@ -52,9 +52,10 @@ public sealed class ShareLinkAccessAuditService : IShareLinkAccessAuditService
         string eventType,
         string result,
         string? failureCategory,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? metadata = null)
     {
-        await RecordKnownTokenAsync(token, eventType, result, failureCategory, cancellationToken);
+        await RecordKnownTokenAsync(token, eventType, result, failureCategory, cancellationToken, metadata);
     }
 
     public async Task RecordProtectedResourceAccessAsync(
@@ -101,6 +102,7 @@ public sealed class ShareLinkAccessAuditService : IShareLinkAccessAuditService
             .AddDays(-(RecentWindowDays - 1));
         var trend = await _accessRepository.GetTrendAsync(link.WorkspaceId, link.Id, from, cancellationToken);
         var sources = await _accessRepository.GetSourceBreakdownAsync(link.WorkspaceId, link.Id, cancellationToken);
+        var categories = await _accessRepository.GetCategorySummaryAsync(link.WorkspaceId, link.Id, cancellationToken);
         var total = sources.Sum(source => source.Count);
 
         return new ShareLinkAccessStatsResponse(
@@ -109,6 +111,11 @@ public sealed class ShareLinkAccessAuditService : IShareLinkAccessAuditService
             stats?.AccessCount ?? 0,
             stats?.UniqueVisitorCount ?? 0,
             stats?.LastAccessIp,
+            categories.TreeViewCount,
+            categories.DocumentViewCount,
+            categories.ScopeDeniedCount,
+            categories.PasswordFailedCount,
+            categories.LatestEventCategory,
             RecentWindowDays,
             trend
                 .OrderBy(row => row.Date)
@@ -176,7 +183,12 @@ public sealed class ShareLinkAccessAuditService : IShareLinkAccessAuditService
                     accessEvent.UserAgent,
                     accessEvent.EventType,
                     accessEvent.Result,
-                    accessEvent.FailureCategory);
+                    accessEvent.FailureCategory,
+                    GetEventCategory(accessEvent),
+                    ReadMetadataString(accessEvent.Metadata, "scopeType"),
+                    ReadMetadataString(accessEvent.Metadata, "resourceType") ?? accessEvent.ResourceType,
+                    ReadMetadataString(accessEvent.Metadata, "resourceId") ?? accessEvent.ResourceId.ToString(),
+                    ReadMetadataString(accessEvent.Metadata, "documentId"));
             }).ToArray(),
             normalizedOffset,
             normalizedLimit,
@@ -196,10 +208,14 @@ public sealed class ShareLinkAccessAuditService : IShareLinkAccessAuditService
         var userId = _currentUser.UserId.Value;
         var action = link.ResourceType == ResourceTypes.Document
             ? PermissionActions.DocumentManagePermissions
-            : PermissionActions.CollectionManagePermissions;
+            : link.ResourceType == ResourceTypes.Collection
+                ? PermissionActions.CollectionManagePermissions
+                : PermissionActions.WorkspaceManagePermissions;
         var result = link.ResourceType == ResourceTypes.Document
             ? await _effectivePermissionService.AuthorizeDocumentAsync(link.ResourceId, userId, action, cancellationToken)
-            : await _effectivePermissionService.AuthorizeCollectionAsync(link.ResourceId, userId, action, cancellationToken);
+            : link.ResourceType == ResourceTypes.Collection
+                ? await _effectivePermissionService.AuthorizeCollectionAsync(link.ResourceId, userId, action, cancellationToken)
+                : await _effectivePermissionService.AuthorizeWorkspaceAsync(link.WorkspaceId, userId, action, cancellationToken);
         if (!result.Allowed)
         {
             throw new ApplicationErrorException(ErrorCodes.Forbidden, "Workspace permission is insufficient.");
@@ -213,7 +229,8 @@ public sealed class ShareLinkAccessAuditService : IShareLinkAccessAuditService
         string eventType,
         string result,
         string? failureCategory,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? metadata = null)
     {
         var link = await GetKnownLinkAsync(token, cancellationToken);
         if (link is null)
@@ -221,7 +238,7 @@ public sealed class ShareLinkAccessAuditService : IShareLinkAccessAuditService
             return;
         }
 
-        await RecordAsync(link, eventType, result, failureCategory, cancellationToken);
+        await RecordAsync(link, eventType, result, failureCategory, cancellationToken, metadata);
     }
 
     private async Task<ShareLink?> GetKnownLinkAsync(string token, CancellationToken cancellationToken)
@@ -241,7 +258,8 @@ public sealed class ShareLinkAccessAuditService : IShareLinkAccessAuditService
         string eventType,
         string result,
         string? failureCategory,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? metadata = null)
     {
         var accessEvent = new ShareLinkAccessEvent(
             link.WorkspaceId,
@@ -254,7 +272,8 @@ public sealed class ShareLinkAccessAuditService : IShareLinkAccessAuditService
             result,
             failureCategory,
             _requestContext.IpAddress,
-            _requestContext.UserAgent);
+            _requestContext.UserAgent,
+            metadata);
         await _accessRepository.AddEventAndUpdateStatsAsync(accessEvent, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
@@ -335,5 +354,53 @@ public sealed class ShareLinkAccessAuditService : IShareLinkAccessAuditService
             ShareLinkAudiences.Public when actorUserId is null => "public_visitor",
             _ => "unknown"
         };
+    }
+
+    private static string GetEventCategory(ShareLinkAccessEvent accessEvent)
+    {
+        if (accessEvent.FailureCategory == "scope_denied")
+        {
+            return "scope_denied";
+        }
+
+        if (accessEvent.FailureCategory is "password_failed" or "password_required_or_invalid")
+        {
+            return "password_failed";
+        }
+
+        var metadataCategory = ReadMetadataString(accessEvent.Metadata, "category");
+        if (!string.IsNullOrWhiteSpace(metadataCategory))
+        {
+            return metadataCategory!;
+        }
+
+        if (accessEvent.EventType == ShareLinkAccessEventTypes.Resolve)
+        {
+            return "resolve";
+        }
+
+        return accessEvent.Result == ShareLinkAccessResults.Fail ? "denied" : accessEvent.EventType;
+    }
+
+    private static string? ReadMetadataString(string metadata, string propertyName)
+    {
+        if (string.IsNullOrWhiteSpace(metadata))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var document = System.Text.Json.JsonDocument.Parse(metadata);
+            return document.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object &&
+                document.RootElement.TryGetProperty(propertyName, out var property) &&
+                property.ValueKind == System.Text.Json.JsonValueKind.String
+                    ? property.GetString()
+                    : null;
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return null;
+        }
     }
 }

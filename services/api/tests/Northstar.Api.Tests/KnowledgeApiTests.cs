@@ -28,6 +28,9 @@ using Northstar.Contracts.Security;
 using Northstar.Contracts.Workspaces;
 using Northstar.Domain.Files;
 using Northstar.Domain.Knowledge.Activity;
+using Northstar.Domain.Knowledge.Collections;
+using Northstar.Domain.Knowledge.Documents;
+using Northstar.Domain.Knowledge.Spaces;
 using Northstar.Domain.Organizations;
 using Northstar.Domain.Security;
 using Northstar.Domain.Users;
@@ -2255,6 +2258,7 @@ public sealed class KnowledgeApiTests
         Assert.NotNull(events);
         Assert.Contains(events.Events, item => item.EventType == "resolve" && item.Result == "success");
         Assert.Contains(events.Events, item => item.EventType == "access" && item.Result == "success");
+        Assert.Contains(events.Events, item => item.EventCategory == "resolve");
         Assert.DoesNotContain(link.Token, statsRaw, StringComparison.Ordinal);
         Assert.DoesNotContain("tokenHash", eventsRaw, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("passwordHash", eventsRaw, StringComparison.OrdinalIgnoreCase);
@@ -2314,6 +2318,7 @@ public sealed class KnowledgeApiTests
         var bootstrap = await client.GetFromJsonAsync<BootstrapResponse>("/api/v1/bootstrap");
         Authorize(client, ownerTokens);
         var document = FindDocument(bootstrap!, "Our Principles");
+        _ = await PublishDocumentAsync(client, document.Id, "public-analytics");
         var documentLink = await CreateShareLinkAsync(
             client,
             ResourceTypes.Document,
@@ -2353,10 +2358,11 @@ public sealed class KnowledgeApiTests
         publicCollection.EnsureSuccessStatusCode();
         Assert.Equal(HttpStatusCode.Unauthorized, protectedWithPublicToken.StatusCode);
         Assert.NotNull(documentEvents);
-        Assert.Contains(documentEvents.Events, item => item.Result == "fail" && item.FailureCategory == "password_required_or_invalid");
-        Assert.Contains(documentEvents.Events, item => item.Result == "success" && item.ActorType == "public_visitor");
+        Assert.Contains(documentEvents.Events, item => item.Result == "fail" && item.FailureCategory == "password_failed" && item.EventCategory == "password_failed");
+        Assert.Contains(documentEvents.Events, item => item.Result == "success" && item.ActorType == "public_visitor" && item.EventCategory == "document_view");
         Assert.NotNull(collectionStats);
         Assert.True(collectionStats.AccessCount >= 1);
+        Assert.True(collectionStats.TreeViewCount >= 1);
         Assert.Contains(collectionStats.SourceBreakdown, item => item.Source == "public_visitor");
     }
 
@@ -2828,6 +2834,26 @@ public sealed class KnowledgeApiTests
     }
 
     [Fact]
+    public async Task PublicShareLinks_LibraryScopeIsRejectedWhenPolicyDisabled()
+    {
+        using var factory = new NorthstarApiFactory(PublicShareEnabledConfiguration());
+        var client = factory.CreateClient();
+        await LoginOwnerAsync(client);
+        var bootstrap = await client.GetFromJsonAsync<BootstrapResponse>("/api/v1/bootstrap");
+        Assert.NotNull(bootstrap);
+
+        var response = await client.PostAsJsonAsync(
+            $"/api/v1/permissions/resources/library/{bootstrap.ActiveSpaceId}/share-links",
+            new CreateShareLinkRequest(
+                PermissionRole.Viewer,
+                ShareLinkAudiences.Public,
+                DateTimeOffset.UtcNow.AddHours(1)));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("PUBLIC_SHARE_SCOPE_DISABLED", await ReadErrorReasonAsync(response));
+    }
+
+    [Fact]
     public async Task PublicShareLinks_CreateResolveReadAndDoNotBroadenProtectedPaths()
     {
         using var factory = new NorthstarApiFactory(PublicShareEnabledConfiguration());
@@ -2839,6 +2865,7 @@ public sealed class KnowledgeApiTests
         Authorize(client, ownerTokens);
         var document = FindDocument(bootstrap, "Our Principles");
         await SetDocumentPolicyAsync(client, document.Id, InheritanceModes.Restricted);
+        _ = await PublishDocumentAsync(client, document.Id, "public-document-scope");
 
         var link = await CreateShareLinkAsync(
             client,
@@ -2859,6 +2886,12 @@ public sealed class KnowledgeApiTests
             $"/api/v1/public/share-links/{link.Token}/resolve");
         var publicDocument = await client.GetFromJsonAsync<PublicShareDocumentResponse>(
             $"/api/v1/public/share-links/{link.Token}/document");
+        var publicTree = await client.GetFromJsonAsync<PublicShareTreeResponse>(
+            $"/api/v1/public/share-links/{link.Token}/tree");
+        var scopedDocument = await client.GetFromJsonAsync<PublicShareDocumentResponse>(
+            $"/api/v1/public/share-links/{link.Token}/documents/{document.Id}");
+        var otherDocument = bootstrap.Documents.First(item => item.Id != document.Id);
+        var scopedOther = await client.GetAsync($"/api/v1/public/share-links/{link.Token}/documents/{otherDocument.Id}");
         var anonymousProtectedGet = await client.GetAsync($"/api/v1/documents/{document.Id}?shareToken={link.Token}");
 
         Authorize(client, outsiderTokens);
@@ -2885,6 +2918,13 @@ public sealed class KnowledgeApiTests
         Assert.NotNull(publicDocument);
         Assert.Equal(document.Id, publicDocument.Document.Id);
         Assert.Equal(document.Title, publicDocument.Document.Title);
+        Assert.NotNull(publicTree);
+        Assert.Equal(ResourceTypes.Document, publicTree.ScopeType);
+        Assert.Single(publicTree.Nodes);
+        Assert.Equal(document.Id, publicTree.Nodes[0].Id);
+        Assert.NotNull(scopedDocument);
+        Assert.Equal(document.Id, scopedDocument.Document.Id);
+        Assert.Equal(HttpStatusCode.NotFound, scopedOther.StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, anonymousProtectedGet.StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, legacyResolve.StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, protectedGet.StatusCode);
@@ -2903,6 +2943,109 @@ public sealed class KnowledgeApiTests
         Assert.NotNull(audit);
         Assert.Contains(audit.Events, item => item.Action == PermissionAuditActions.ShareLinkCreated);
         Assert.DoesNotContain(link.Token, auditRaw, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task PublicShareLinks_StoreAndReturnContentProtectionMetadata()
+    {
+        using var factory = new NorthstarApiFactory(PublicShareEnabledConfiguration(new Dictionary<string, string?>
+        {
+            ["Permissions:PublicShareLinks:RequireWatermarkForCollection"] = "true"
+        }));
+        var client = factory.CreateClient();
+        await LoginOwnerAsync(client);
+        var bootstrap = await client.GetFromJsonAsync<BootstrapResponse>("/api/v1/bootstrap");
+        Assert.NotNull(bootstrap);
+        var document = FindDocument(bootstrap, "Our Principles");
+        var collectionId = document.FolderId;
+        var protection = new ShareLinkContentProtectionDto(
+            DisableDownload: true,
+            DisablePrint: true,
+            DisableCopy: true,
+            WatermarkEnabled: true,
+            WatermarkText: "Shared via Northstar");
+
+        var created = await client.PostAsJsonAsync(
+            $"/api/v1/permissions/resources/collection/{collectionId}/share-links",
+            new CreateShareLinkRequest(
+                PermissionRole.Viewer,
+                ShareLinkAudiences.Public,
+                DateTimeOffset.UtcNow.AddHours(1),
+                null,
+                null,
+                protection));
+        created.EnsureSuccessStatusCode();
+        var link = await created.Content.ReadFromJsonAsync<CreateShareLinkResponse>();
+        Assert.NotNull(link);
+        var persisted = await ReadShareLinkAsync(factory, Guid.Parse(link.Link.Id));
+
+        client.DefaultRequestHeaders.Authorization = null;
+        var resolve = await client.GetFromJsonAsync<ResolvePublicShareLinkResponse>(
+            $"/api/v1/public/share-links/{link.Token}/resolve");
+        var tree = await client.GetFromJsonAsync<PublicShareTreeResponse>(
+            $"/api/v1/public/share-links/{link.Token}/tree");
+
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", (await LoginOwnerAsync(client)).AccessToken);
+        var management = await client.GetFromJsonAsync<LinkManagementDto>(
+            $"/api/v1/permissions/share-links/{link.Link.Id}");
+        var list = await client.GetFromJsonAsync<ShareLinksResponse>(
+            $"/api/v1/permissions/resources/collection/{collectionId}/share-links");
+        var rawList = JsonSerializer.Serialize(list, JsonOptions);
+
+        Assert.NotNull(persisted);
+        Assert.Contains("disableCopy", persisted.ContentProtectionJson, StringComparison.Ordinal);
+        Assert.DoesNotContain("token", persisted.ContentProtectionJson, StringComparison.OrdinalIgnoreCase);
+        Assert.NotNull(resolve);
+        Assert.True(resolve.ContentProtection.DisableDownload);
+        Assert.True(resolve.ContentProtection.DisablePrint);
+        Assert.True(resolve.ContentProtection.DisableCopy);
+        Assert.True(resolve.ContentProtection.WatermarkEnabled);
+        Assert.Equal("Shared via Northstar", resolve.ContentProtection.WatermarkText);
+        Assert.NotNull(tree);
+        Assert.True(tree.ContentProtection.WatermarkEnabled);
+        Assert.NotNull(management);
+        Assert.True(management.ContentProtection.DisableCopy);
+        Assert.NotNull(list);
+        Assert.Contains(list.Links, item => item.ContentProtection.WatermarkEnabled);
+        Assert.DoesNotContain(link.Token, rawList, StringComparison.Ordinal);
+        Assert.DoesNotContain("passwordHash", rawList, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task PublicShareLinks_ContentProtectionPolicyUsesSafeReasons()
+    {
+        using var factory = new NorthstarApiFactory(PublicShareEnabledConfiguration(new Dictionary<string, string?>
+        {
+            ["Permissions:PublicShareLinks:DisallowDownloadForPublicLinks"] = "true",
+            ["Permissions:PublicShareLinks:RequireWatermarkForCollection"] = "true"
+        }));
+        var client = factory.CreateClient();
+        await LoginOwnerAsync(client);
+        var bootstrap = await client.GetFromJsonAsync<BootstrapResponse>("/api/v1/bootstrap");
+        Assert.NotNull(bootstrap);
+        var document = FindDocument(bootstrap, "Our Principles");
+
+        var downloadAllowed = await client.PostAsJsonAsync(
+            $"/api/v1/permissions/resources/document/{document.Id}/share-links",
+            new CreateShareLinkRequest(
+                PermissionRole.Viewer,
+                ShareLinkAudiences.Public,
+                DateTimeOffset.UtcNow.AddHours(1),
+                null,
+                null,
+                new ShareLinkContentProtectionDto(false, false, false, false, "Public link")));
+        var collectionWithoutWatermark = await client.PostAsJsonAsync(
+            $"/api/v1/permissions/resources/collection/{document.FolderId}/share-links",
+            new CreateShareLinkRequest(
+                PermissionRole.Viewer,
+                ShareLinkAudiences.Public,
+                DateTimeOffset.UtcNow.AddHours(1),
+                null,
+                null,
+                new ShareLinkContentProtectionDto(true, false, false, false, "Public link")));
+
+        Assert.Equal("PUBLIC_SHARE_DOWNLOAD_DISABLED_REQUIRED", await ReadErrorReasonAsync(downloadAllowed));
+        Assert.Equal("PUBLIC_SHARE_WATERMARK_REQUIRED", await ReadErrorReasonAsync(collectionWithoutWatermark));
     }
 
     [Fact]
@@ -2947,6 +3090,86 @@ public sealed class KnowledgeApiTests
     }
 
     [Fact]
+    public async Task PublicShareLinks_EnforceConfigurablePolicyWithTokenSafeReasons()
+    {
+        using var factory = new NorthstarApiFactory(PublicShareEnabledConfiguration(new Dictionary<string, string?>
+        {
+            ["Permissions:PublicShareLinks:RequirePassword"] = "true",
+            ["Permissions:PublicShareLinks:RequirePasswordForCollection"] = "true",
+            ["Permissions:PublicShareLinks:MaxExpiryDays"] = "3"
+        }));
+        var client = factory.CreateClient();
+        await LoginOwnerAsync(client);
+        var bootstrap = await client.GetFromJsonAsync<BootstrapResponse>("/api/v1/bootstrap");
+        Assert.NotNull(bootstrap);
+        var document = FindDocument(bootstrap, "Our Principles");
+        var collectionId = document.FolderId;
+
+        var missingPassword = await client.PostAsJsonAsync(
+            $"/api/v1/permissions/resources/document/{document.Id}/share-links",
+            new CreateShareLinkRequest(PermissionRole.Viewer, ShareLinkAudiences.Public, DateTimeOffset.UtcNow.AddHours(1)));
+        var longExpiry = await client.PostAsJsonAsync(
+            $"/api/v1/permissions/resources/document/{document.Id}/share-links",
+            new CreateShareLinkRequest(PermissionRole.Viewer, ShareLinkAudiences.Public, DateTimeOffset.UtcNow.AddDays(4), null, "open"));
+        var accepted = await client.PostAsJsonAsync(
+            $"/api/v1/permissions/resources/document/{document.Id}/share-links",
+            new CreateShareLinkRequest(PermissionRole.Viewer, ShareLinkAudiences.Public, DateTimeOffset.UtcNow.AddHours(1), null, "open"));
+        var collectionMissingPassword = await client.PostAsJsonAsync(
+            $"/api/v1/permissions/resources/collection/{collectionId}/share-links",
+            new CreateShareLinkRequest(PermissionRole.Viewer, ShareLinkAudiences.Public, DateTimeOffset.UtcNow.AddHours(1)));
+        var collectionAccepted = await client.PostAsJsonAsync(
+            $"/api/v1/permissions/resources/collection/{collectionId}/share-links",
+            new CreateShareLinkRequest(PermissionRole.Viewer, ShareLinkAudiences.Public, DateTimeOffset.UtcNow.AddHours(1), null, "open"));
+        var missingPasswordRaw = await missingPassword.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.BadRequest, missingPassword.StatusCode);
+        Assert.Equal("PUBLIC_SHARE_PASSWORD_REQUIRED", await ReadErrorReasonAsync(missingPassword));
+        Assert.Equal(HttpStatusCode.BadRequest, longExpiry.StatusCode);
+        Assert.Equal("PUBLIC_SHARE_EXPIRY_TOO_LONG", await ReadErrorReasonAsync(longExpiry));
+        accepted.EnsureSuccessStatusCode();
+        Assert.Equal(HttpStatusCode.BadRequest, collectionMissingPassword.StatusCode);
+        Assert.Equal("PUBLIC_SHARE_PASSWORD_REQUIRED", await ReadErrorReasonAsync(collectionMissingPassword));
+        collectionAccepted.EnsureSuccessStatusCode();
+        Assert.DoesNotContain("open", missingPasswordRaw, StringComparison.Ordinal);
+        Assert.DoesNotContain("token", missingPasswordRaw, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("hash", missingPasswordRaw, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("proof", missingPasswordRaw, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task PublicShareLinks_EnforceScopePolicyReasons()
+    {
+        using var factory = new NorthstarApiFactory(PublicShareEnabledConfiguration(new Dictionary<string, string?>
+        {
+            ["Permissions:PublicShareLinks:AllowDocumentScope"] = "false",
+            ["Permissions:PublicShareLinks:AllowCollectionScope"] = "false"
+        }));
+        var client = factory.CreateClient();
+        await LoginOwnerAsync(client);
+        var bootstrap = await client.GetFromJsonAsync<BootstrapResponse>("/api/v1/bootstrap");
+        Assert.NotNull(bootstrap);
+        var document = FindDocument(bootstrap, "Our Principles");
+
+        var documentResponse = await client.PostAsJsonAsync(
+            $"/api/v1/permissions/resources/document/{document.Id}/share-links",
+            new CreateShareLinkRequest(PermissionRole.Viewer, ShareLinkAudiences.Public, DateTimeOffset.UtcNow.AddHours(1)));
+        var collectionResponse = await client.PostAsJsonAsync(
+            $"/api/v1/permissions/resources/collection/{document.FolderId}/share-links",
+            new CreateShareLinkRequest(PermissionRole.Viewer, ShareLinkAudiences.Public, DateTimeOffset.UtcNow.AddHours(1)));
+        var libraryResponse = await client.PostAsJsonAsync(
+            $"/api/v1/permissions/resources/library/{bootstrap.ActiveSpaceId}/share-links",
+            new CreateShareLinkRequest(PermissionRole.Viewer, ShareLinkAudiences.Public, DateTimeOffset.UtcNow.AddHours(1)));
+        var workspaceResponse = await client.PostAsJsonAsync(
+            $"/api/v1/permissions/resources/workspace/{Guid.NewGuid()}/share-links",
+            new CreateShareLinkRequest(PermissionRole.Viewer, ShareLinkAudiences.Public, DateTimeOffset.UtcNow.AddHours(1)));
+
+        Assert.Equal("PUBLIC_SHARE_SCOPE_DISABLED", await ReadErrorReasonAsync(documentResponse));
+        Assert.Equal("PUBLIC_SHARE_SCOPE_DISABLED", await ReadErrorReasonAsync(collectionResponse));
+        Assert.Equal("PUBLIC_SHARE_SCOPE_DISABLED", await ReadErrorReasonAsync(libraryResponse));
+        Assert.Equal("PUBLIC_SHARE_WORKSPACE_UNSUPPORTED", await ReadErrorReasonAsync(workspaceResponse));
+    }
+
+    [Fact]
     public async Task PublicShareLinks_RejectPolicyMismatchRevokedExpiredAndUnknownTokens()
     {
         using var factory = new NorthstarApiFactory(PublicShareEnabledConfiguration());
@@ -2956,6 +3179,7 @@ public sealed class KnowledgeApiTests
         Assert.NotNull(bootstrap);
         Authorize(client, ownerTokens);
         var document = FindDocument(bootstrap, "Our Principles");
+        _ = await PublishDocumentAsync(client, document.Id, "public-rejection-status");
         var missingPolicyToken = await SeedShareLinkAsync(
             factory,
             Guid.Parse(bootstrap.Workspace.Id),
@@ -3030,6 +3254,155 @@ public sealed class KnowledgeApiTests
     }
 
     [Fact]
+    public async Task PublicLibraryShareLinks_CreateTreeScopedReadsPolicyAndAnalytics()
+    {
+        using var factory = new NorthstarApiFactory(PublicShareEnabledConfiguration(new Dictionary<string, string?>
+        {
+            ["Permissions:PublicShareLinks:AllowLibraryScope"] = "true",
+            ["Permissions:PublicShareLinks:RequirePasswordForLibrary"] = "true",
+            ["Permissions:PublicShareLinks:RequireWatermarkForLibrary"] = "true",
+            ["Permissions:PublicShareLinks:MaxExpiryDaysForLibrary"] = "3"
+        }));
+        var client = factory.CreateClient();
+        var ownerTokens = await LoginOwnerAsync(client);
+        var bootstrap = await client.GetFromJsonAsync<BootstrapResponse>("/api/v1/bootstrap");
+        Assert.NotNull(bootstrap);
+        Authorize(client, ownerTokens);
+        var visible = await CreateDocumentAsync(client, bootstrap.Folders[0].Id, "Library public visible child");
+        var restricted = await CreateDocumentAsync(client, bootstrap.Folders[0].Id, "Library public restricted child");
+        var unpublished = await CreateDocumentAsync(client, bootstrap.Folders[0].Id, "Library public unpublished child");
+        _ = await PublishDocumentAsync(client, visible.Document.Id, "library-visible");
+        _ = await PublishDocumentAsync(client, restricted.Document.Id, "library-restricted");
+        await SetResourcePolicyAsync(client, ResourceTypes.Document, restricted.Document.Id, InheritanceModes.Restricted, LinkModes.Disabled);
+        var sibling = await SeedSiblingLibraryDocumentAsync(factory, Guid.Parse(bootstrap.Workspace.Id));
+
+        var missingPassword = await client.PostAsJsonAsync(
+            $"/api/v1/permissions/resources/library/{bootstrap.ActiveSpaceId}/share-links",
+            new CreateShareLinkRequest(
+                PermissionRole.Viewer,
+                ShareLinkAudiences.Public,
+                DateTimeOffset.UtcNow.AddHours(1),
+                null,
+                null,
+                new ShareLinkContentProtectionDto(true, false, false, true, "Library")));
+        var missingWatermark = await client.PostAsJsonAsync(
+            $"/api/v1/permissions/resources/library/{bootstrap.ActiveSpaceId}/share-links",
+            new CreateShareLinkRequest(
+                PermissionRole.Viewer,
+                ShareLinkAudiences.Public,
+                DateTimeOffset.UtcNow.AddHours(1),
+                null,
+                "open",
+                new ShareLinkContentProtectionDto(true, false, false, false, "Library")));
+        var tooLong = await client.PostAsJsonAsync(
+            $"/api/v1/permissions/resources/library/{bootstrap.ActiveSpaceId}/share-links",
+            new CreateShareLinkRequest(
+                PermissionRole.Viewer,
+                ShareLinkAudiences.Public,
+                DateTimeOffset.UtcNow.AddDays(4),
+                null,
+                "open",
+                new ShareLinkContentProtectionDto(true, false, false, true, "Library")));
+        var commenter = await client.PostAsJsonAsync(
+            $"/api/v1/permissions/resources/library/{bootstrap.ActiveSpaceId}/share-links",
+            new CreateShareLinkRequest(
+                PermissionRole.Commenter,
+                ShareLinkAudiences.Public,
+                DateTimeOffset.UtcNow.AddHours(1),
+                null,
+                "open",
+                new ShareLinkContentProtectionDto(true, false, false, true, "Library")));
+        var created = await client.PostAsJsonAsync(
+            $"/api/v1/permissions/resources/library/{bootstrap.ActiveSpaceId}/share-links",
+            new CreateShareLinkRequest(
+                PermissionRole.Viewer,
+                ShareLinkAudiences.Public,
+                DateTimeOffset.UtcNow.AddHours(1),
+                null,
+                "open",
+                new ShareLinkContentProtectionDto(true, true, true, true, "Library")));
+        created.EnsureSuccessStatusCode();
+        var link = await created.Content.ReadFromJsonAsync<CreateShareLinkResponse>();
+        Assert.NotNull(link);
+        var persisted = await ReadShareLinkAsync(factory, Guid.Parse(link.Link.Id));
+        var policy = await ReadResourcePolicyAsync(
+            factory,
+            Guid.Parse(bootstrap.Workspace.Id),
+            ResourceTypes.Library,
+            Guid.Parse(bootstrap.ActiveSpaceId));
+
+        client.DefaultRequestHeaders.Authorization = null;
+        var resolveResponse = await GetPublicShareAsync(client, $"/api/v1/public/share-links/{link.Token}/resolve", "open");
+        var resolve = await resolveResponse.Content.ReadFromJsonAsync<ResolvePublicShareLinkResponse>();
+        var treeResponse = await GetPublicShareAsync(client, $"/api/v1/public/share-links/{link.Token}/tree", "open");
+        var treeRaw = await treeResponse.Content.ReadAsStringAsync();
+        var tree = JsonSerializer.Deserialize<PublicShareTreeResponse>(treeRaw, JsonOptions);
+        var scopedVisibleResponse = await GetPublicShareAsync(client, $"/api/v1/public/share-links/{link.Token}/documents/{visible.Document.Id}", "open");
+        var scopedVisibleRaw = await scopedVisibleResponse.Content.ReadAsStringAsync();
+        var scopedVisible = JsonSerializer.Deserialize<PublicShareDocumentResponse>(scopedVisibleRaw, JsonOptions);
+        var scopedRestricted = await GetPublicShareAsync(client, $"/api/v1/public/share-links/{link.Token}/documents/{restricted.Document.Id}", "open");
+        var scopedUnpublished = await GetPublicShareAsync(client, $"/api/v1/public/share-links/{link.Token}/documents/{unpublished.Document.Id}", "open");
+        var scopedSibling = await GetPublicShareAsync(client, $"/api/v1/public/share-links/{link.Token}/documents/{sibling.DocumentId}", "open");
+        var wrongPassword = await GetPublicShareAsync(client, $"/api/v1/public/share-links/{link.Token}/tree", "wrong");
+        var documentEndpoint = await GetPublicShareAsync(client, $"/api/v1/public/share-links/{link.Token}/document", "open");
+
+        Authorize(client, ownerTokens);
+        var management = await client.GetFromJsonAsync<LinkManagementDto>($"/api/v1/permissions/share-links/{link.Link.Id}");
+        var managementRaw = JsonSerializer.Serialize(management, JsonOptions);
+        var stats = await client.GetFromJsonAsync<ShareLinkAccessStatsResponse>($"/api/v1/permissions/share-links/{link.Link.Id}/stats");
+        var accessEvents = await ReadShareLinkAccessEventsAsync(factory);
+
+        Assert.Equal("PUBLIC_SHARE_PASSWORD_REQUIRED", await ReadErrorReasonAsync(missingPassword));
+        Assert.Equal("PUBLIC_SHARE_WATERMARK_REQUIRED", await ReadErrorReasonAsync(missingWatermark));
+        Assert.Equal("PUBLIC_SHARE_EXPIRY_TOO_LONG", await ReadErrorReasonAsync(tooLong));
+        Assert.Equal("PUBLIC_SHARE_ROLE_NOT_ALLOWED", await ReadErrorReasonAsync(commenter));
+        Assert.NotNull(persisted);
+        Assert.Equal(ResourceTypes.Library, persisted.ResourceType);
+        Assert.True(persisted.HasPassword);
+        Assert.NotEqual("open", persisted.PasswordHash);
+        Assert.NotNull(policy);
+        Assert.Equal(LinkModes.Public, policy.LinkMode);
+        resolveResponse.EnsureSuccessStatusCode();
+        Assert.NotNull(resolve);
+        Assert.Equal(ResourceTypes.Library, resolve.ResourceType);
+        Assert.Equal(PermissionRole.Viewer, resolve.RoleKey);
+        Assert.True(resolve.HasPassword);
+        treeResponse.EnsureSuccessStatusCode();
+        Assert.NotNull(tree);
+        Assert.Equal(ResourceTypes.Library, tree.ScopeType);
+        Assert.Contains(tree.Nodes, item => item.Type == ResourceTypes.Collection && item.Id == bootstrap.Folders[0].Id);
+        Assert.Contains(tree.Nodes, item => item.Type == ResourceTypes.Document && item.Id == visible.Document.Id);
+        Assert.DoesNotContain(tree.Nodes, item => item.Id == restricted.Document.Id);
+        Assert.DoesNotContain(tree.Nodes, item => item.Id == unpublished.Document.Id);
+        Assert.DoesNotContain(tree.Nodes, item => item.Id == sibling.DocumentId.ToString());
+        Assert.DoesNotContain("token", treeRaw, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("passwordHash", treeRaw, StringComparison.OrdinalIgnoreCase);
+        scopedVisibleResponse.EnsureSuccessStatusCode();
+        Assert.NotNull(scopedVisible);
+        Assert.Equal(visible.Document.Id, scopedVisible.Document.Id);
+        Assert.DoesNotContain("token", scopedVisibleRaw, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("passwordHash", scopedVisibleRaw, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(HttpStatusCode.NotFound, scopedRestricted.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, scopedUnpublished.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, scopedSibling.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, wrongPassword.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, documentEndpoint.StatusCode);
+        Assert.NotNull(management);
+        Assert.Equal(ResourceTypes.Library, management.ResourceType);
+        Assert.Equal("Atlas Library", management.ResourceTitle);
+        Assert.DoesNotContain(link.Token, managementRaw, StringComparison.Ordinal);
+        Assert.DoesNotContain("passwordHash", managementRaw, StringComparison.OrdinalIgnoreCase);
+        Assert.NotNull(stats);
+        Assert.True(stats.TreeViewCount >= 1);
+        Assert.True(stats.DocumentViewCount >= 1);
+        Assert.True(stats.ScopeDeniedCount >= 1);
+        Assert.True(stats.PasswordFailedCount >= 1);
+        Assert.Contains(accessEvents, item => item.ResourceType == ResourceTypes.Library && item.Metadata.Contains("\"scopeType\":\"library\"", StringComparison.Ordinal));
+        Assert.Contains(accessEvents, item => item.FailureCategory == "password_failed");
+        Assert.Contains(accessEvents, item => item.FailureCategory == "scope_denied" && item.Metadata.Contains("\"denialReason\":\"scope_denied\"", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task PublicCollectionShareLinks_ListOnlyUnrestrictedChildrenAndDoNotBroadenProtectedPaths()
     {
         using var factory = new NorthstarApiFactory(PublicShareEnabledConfiguration());
@@ -3042,8 +3415,12 @@ public sealed class KnowledgeApiTests
         var collectionId = bootstrap.Folders[0].Id;
         var visible = await CreateDocumentAsync(client, collectionId, "Phase 11 public collection visible child");
         var restricted = await CreateDocumentAsync(client, collectionId, "Phase 11 public collection restricted child");
+        var unpublished = await CreateDocumentAsync(client, collectionId, "Phase 11 public collection unpublished child");
         var archived = await CreateDocumentAsync(client, collectionId, "Phase 11 public collection archived child");
         var deleted = await CreateDocumentAsync(client, collectionId, "Phase 11 public collection deleted child");
+        _ = await PublishDocumentAsync(client, visible.Document.Id, "public-collection-visible");
+        _ = await PublishDocumentAsync(client, restricted.Document.Id, "public-collection-restricted");
+        _ = await PublishDocumentAsync(client, archived.Document.Id, "public-collection-archived");
         await SetResourcePolicyAsync(client, ResourceTypes.Document, restricted.Document.Id, InheritanceModes.Restricted, LinkModes.Disabled);
         var archive = await client.PatchAsync($"/api/v1/documents/{archived.Document.Id}/archive", null);
         var delete = await client.DeleteAsync($"/api/v1/documents/{deleted.Document.Id}");
@@ -3067,6 +3444,15 @@ public sealed class KnowledgeApiTests
         var collectionResponse = await client.GetAsync($"/api/v1/public/share-links/{link.Token}/collection");
         var collectionRaw = await collectionResponse.Content.ReadAsStringAsync();
         var collection = JsonSerializer.Deserialize<PublicShareCollectionResponse>(collectionRaw, JsonOptions);
+        var treeResponse = await client.GetAsync($"/api/v1/public/share-links/{link.Token}/tree");
+        var treeRaw = await treeResponse.Content.ReadAsStringAsync();
+        var tree = JsonSerializer.Deserialize<PublicShareTreeResponse>(treeRaw, JsonOptions);
+        var scopedVisibleResponse = await client.GetAsync($"/api/v1/public/share-links/{link.Token}/documents/{visible.Document.Id}");
+        var scopedVisibleRaw = await scopedVisibleResponse.Content.ReadAsStringAsync();
+        var scopedVisible = JsonSerializer.Deserialize<PublicShareDocumentResponse>(scopedVisibleRaw, JsonOptions);
+        var scopedRestricted = await client.GetAsync($"/api/v1/public/share-links/{link.Token}/documents/{restricted.Document.Id}");
+        var siblingDocument = FindDocument(bootstrap, "Our Principles");
+        var scopedSibling = await client.GetAsync($"/api/v1/public/share-links/{link.Token}/documents/{siblingDocument.Id}");
         var documentEndpoint = await client.GetAsync($"/api/v1/public/share-links/{link.Token}/document");
         var anonymousManagementList = await client.GetAsync(
             $"/api/v1/permissions/resources/collection/{collectionId}/share-links?shareToken={link.Token}");
@@ -3086,6 +3472,7 @@ public sealed class KnowledgeApiTests
         await SetResourcePolicyAsync(client, ResourceTypes.Collection, collectionId, InheritanceModes.Inherit, LinkModes.Disabled);
         client.DefaultRequestHeaders.Authorization = null;
         var disabledPolicy = await client.GetAsync($"/api/v1/public/share-links/{link.Token}/collection");
+        var accessEvents = await ReadShareLinkAccessEventsAsync(factory);
 
         archive.EnsureSuccessStatusCode();
         Assert.Equal(HttpStatusCode.NoContent, delete.StatusCode);
@@ -3098,9 +3485,31 @@ public sealed class KnowledgeApiTests
         Assert.Equal(collectionId, collection.Collection.Id);
         Assert.Contains(collection.Collection.Documents, item => item.Id == visible.Document.Id);
         Assert.DoesNotContain(collection.Collection.Documents, item => item.Id == restricted.Document.Id);
+        Assert.DoesNotContain(collection.Collection.Documents, item => item.Id == unpublished.Document.Id);
         Assert.DoesNotContain(collection.Collection.Documents, item => item.Id == archived.Document.Id);
         Assert.DoesNotContain(collection.Collection.Documents, item => item.Id == deleted.Document.Id);
         Assert.DoesNotContain("\"content\"", collectionRaw, StringComparison.OrdinalIgnoreCase);
+        treeResponse.EnsureSuccessStatusCode();
+        Assert.NotNull(tree);
+        Assert.Equal(ResourceTypes.Collection, tree.ScopeType);
+        Assert.Equal(link.Link.Id, tree.ShareLinkId);
+        Assert.Contains(tree.Nodes, item => item.Type == ResourceTypes.Document && item.Id == visible.Document.Id);
+        Assert.DoesNotContain(tree.Nodes, item => item.Id == restricted.Document.Id);
+        Assert.DoesNotContain(tree.Nodes, item => item.Id == unpublished.Document.Id);
+        Assert.DoesNotContain("token", treeRaw, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("passwordHash", treeRaw, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("passwordProof", treeRaw, StringComparison.OrdinalIgnoreCase);
+        scopedVisibleResponse.EnsureSuccessStatusCode();
+        Assert.NotNull(scopedVisible);
+        Assert.Equal(visible.Document.Id, scopedVisible.Document.Id);
+        Assert.DoesNotContain("token", scopedVisibleRaw, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("passwordHash", scopedVisibleRaw, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("passwordProof", scopedVisibleRaw, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(HttpStatusCode.NotFound, scopedRestricted.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, scopedSibling.StatusCode);
+        Assert.Contains(accessEvents, item => item.Result == ShareLinkAccessResults.Success && item.Metadata.Contains("\"category\":\"tree_view\"", StringComparison.Ordinal));
+        Assert.Contains(accessEvents, item => item.Result == ShareLinkAccessResults.Success && item.Metadata.Contains("\"category\":\"document_view\"", StringComparison.Ordinal));
+        Assert.Contains(accessEvents, item => item.Result == ShareLinkAccessResults.Fail && item.FailureCategory == "scope_denied");
         Assert.Equal(HttpStatusCode.NotFound, documentEndpoint.StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, anonymousManagementList.StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, legacyResolve.StatusCode);
@@ -3129,6 +3538,7 @@ public sealed class KnowledgeApiTests
         Assert.NotNull(bootstrap);
         Authorize(client, ownerTokens);
         var document = FindDocument(bootstrap, "Our Principles");
+        _ = await PublishDocumentAsync(client, document.Id, "public-password");
         const string password = "phase-11-public-password";
         var link = await CreateShareLinkAsync(
             client,
@@ -5879,6 +6289,21 @@ public sealed class KnowledgeApiTests
     }
 
     [Fact]
+    public async Task PermissionNotificationResourceTypeMigration_AllowsLibraryNotifications()
+    {
+        var migrationPath = FindRepositoryFile(
+            "src",
+            "Northstar.Infrastructure",
+            "Persistence",
+            "Migrations",
+            "20260516110000_AllowLibraryPermissionNotifications.cs");
+        var migration = await System.IO.File.ReadAllTextAsync(migrationPath);
+
+        Assert.Contains("permission_notifications_resource_type_check", migration, StringComparison.Ordinal);
+        Assert.Contains("resource_type IS NULL OR resource_type IN ('workspace', 'library', 'collection', 'document')", migration, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task ViewerCanExport_DefaultExportIncludesArchivedAndExcludesDeleted()
     {
         using var factory = new NorthstarApiFactory();
@@ -7392,18 +7817,58 @@ public sealed class KnowledgeApiTests
             ]);
     }
 
-    private static Dictionary<string, string?> PublicShareEnabledConfiguration()
+    private static Dictionary<string, string?> PublicShareEnabledConfiguration(Dictionary<string, string?>? overrides = null)
     {
-        return new Dictionary<string, string?>
+        var configuration = new Dictionary<string, string?>
         {
             ["Permissions:PublicShareLinks:Enabled"] = "true",
             ["Permissions:PublicShareLinks:RequireExpiry"] = "true",
             ["Permissions:PublicShareLinks:ViewerOnly"] = "true",
             ["Permissions:PublicShareLinks:MaxExpiryDays"] = "7",
+            ["Permissions:PublicShareLinks:MaxExpiryDaysForLibrary"] = "7",
+            ["Permissions:PublicShareLinks:RequirePassword"] = "false",
+            ["Permissions:PublicShareLinks:RequirePasswordForCollection"] = "false",
+            ["Permissions:PublicShareLinks:RequirePasswordForLibrary"] = "false",
+            ["Permissions:PublicShareLinks:DefaultDisableDownload"] = "true",
+            ["Permissions:PublicShareLinks:DefaultDisablePrint"] = "false",
+            ["Permissions:PublicShareLinks:DefaultDisableCopy"] = "false",
+            ["Permissions:PublicShareLinks:DefaultWatermarkEnabled"] = "false",
+            ["Permissions:PublicShareLinks:RequireWatermarkForCollection"] = "false",
+            ["Permissions:PublicShareLinks:RequireWatermarkForLibrary"] = "false",
+            ["Permissions:PublicShareLinks:DisallowDownloadForPublicLinks"] = "true",
+            ["Permissions:PublicShareLinks:AllowDocumentScope"] = "true",
+            ["Permissions:PublicShareLinks:AllowCollectionScope"] = "true",
+            ["Permissions:PublicShareLinks:AllowLibraryScope"] = "false",
+            ["Permissions:PublicShareLinks:AllowNoExpiry"] = "false",
             ["Permissions:PublicShareLinks:RateLimit:PermitLimit"] = "1000",
             ["Permissions:PublicShareLinks:RateLimit:WindowSeconds"] = "60",
             ["Permissions:PublicShareLinks:RateLimit:QueueLimit"] = "0"
         };
+        if (overrides is not null)
+        {
+            foreach (var item in overrides)
+            {
+                configuration[item.Key] = item.Value;
+            }
+        }
+
+        return configuration;
+    }
+
+    private static async Task<string?> ReadErrorReasonAsync(HttpResponseMessage response)
+    {
+        var raw = await response.Content.ReadAsStringAsync();
+        using var document = JsonDocument.Parse(raw);
+        var error = document.RootElement.GetProperty("error");
+        if (!error.TryGetProperty("details", out var details) ||
+            details.ValueKind != JsonValueKind.Object ||
+            !details.TryGetProperty("reason", out var reason) ||
+            reason.ValueKind != JsonValueKind.String)
+        {
+            return null;
+        }
+
+        return reason.GetString();
     }
 
     private static async Task<CreateShareLinkResponse> CreateShareLinkAsync(
@@ -7437,6 +7902,22 @@ public sealed class KnowledgeApiTests
         var document = await response.Content.ReadFromJsonAsync<CreateDocumentResponse>();
         Assert.NotNull(document);
         return document;
+    }
+
+    private static async Task<PublishDocumentVersionResponse> PublishDocumentAsync(
+        HttpClient client,
+        string documentId,
+        string label)
+    {
+        var current = await client.GetFromJsonAsync<GetDocumentResponse>($"/api/v1/documents/{documentId}");
+        Assert.NotNull(current);
+        var response = await client.PostAsJsonAsync(
+            $"/api/v1/documents/{documentId}/versions/publish",
+            new PublishDocumentVersionRequest(current.Document.Revision, label));
+        response.EnsureSuccessStatusCode();
+        var published = await response.Content.ReadFromJsonAsync<PublishDocumentVersionResponse>();
+        Assert.NotNull(published);
+        return published;
     }
 
     private static async Task<HttpResponseMessage> GetPublicShareAsync(
@@ -7662,6 +8143,39 @@ public sealed class KnowledgeApiTests
         await dbContext.SaveChangesAsync();
         return token;
     }
+
+    private static async Task<SeededLibraryDocument> SeedSiblingLibraryDocumentAsync(
+        NorthstarApiFactory factory,
+        Guid workspaceId)
+    {
+        using var scope = factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<NorthstarDbContext>();
+        var library = new Space(
+            workspaceId,
+            "Sibling Library",
+            $"sibling-library-{Guid.NewGuid():N}");
+        var collection = new Collection(
+            workspaceId,
+            library.Id,
+            "Sibling Folder");
+        var document = new Document(
+            workspaceId,
+            library.Id,
+            collection.Id,
+            "Sibling Library Document");
+        document.MarkPublished(Guid.NewGuid());
+        await dbContext.Spaces.AddAsync(library);
+        await dbContext.Collections.AddAsync(collection);
+        await dbContext.Documents.AddAsync(document);
+        await dbContext.DocumentDrafts.AddAsync(new DocumentDraft(
+            document.Id,
+            workspaceId,
+            "{\"type\":\"doc\",\"content\":[{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"Sibling library body.\"}]}]}"));
+        await dbContext.SaveChangesAsync();
+        return new SeededLibraryDocument(library.Id, collection.Id, document.Id);
+    }
+
+    private sealed record SeededLibraryDocument(Guid LibraryId, Guid CollectionId, Guid DocumentId);
 
     private static async Task<string> SeedEmailInviteAsync(
         NorthstarApiFactory factory,

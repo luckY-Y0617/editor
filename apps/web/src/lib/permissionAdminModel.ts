@@ -1,7 +1,8 @@
 import type { AuthWorkspaceDto } from "./authClient";
-import type { PermissionAdminApiStatus, WorkspaceMemberDto } from "./permissionAdminApi";
+import type { PermissionAdminApiStatus, WorkspaceGroupDto, WorkspaceMemberDto } from "./permissionAdminApi";
 
 export type PermissionAdminAction = "add-member" | "remove-member" | "update-role";
+export type MembersTeamsTab = "directory" | "members" | "summary" | "teams";
 
 export type PermissionAdminCapability = {
   canUse: boolean;
@@ -10,6 +11,15 @@ export type PermissionAdminCapability = {
 
 export type CurrentWorkspaceRole = "admin" | "editor" | "owner" | "viewer" | "unknown";
 export type PermissionAdminWorkspaceSource = "bootstrap" | "configured" | "missing";
+export type WorkspaceMemberRole = "admin" | "editor" | "owner" | "viewer";
+
+export type MemberLifecycleAction = "remove-member" | "update-role";
+
+export type MemberLifecycleGuard = {
+  canUse: boolean;
+  reason: string | null;
+  requiresConfirmation: boolean;
+};
 
 export type PermissionAdminWorkspaceResolution = {
   reason: string | null;
@@ -18,6 +28,8 @@ export type PermissionAdminWorkspaceResolution = {
 };
 
 const managementRoles = new Set(["admin", "owner"]);
+export const supportedWorkspaceMemberRoles: WorkspaceMemberRole[] = ["owner", "admin", "editor", "viewer"];
+export const addExistingUserRoleOptions: WorkspaceMemberRole[] = ["admin", "editor", "viewer"];
 
 export function getCurrentWorkspaceRole(workspaces: AuthWorkspaceDto[] | null, workspaceId: string | null): CurrentWorkspaceRole {
   if (!workspaces || !workspaceId) {
@@ -73,7 +85,9 @@ export function getMemberActionCapability(options: {
   action: PermissionAdminAction;
   apiConfigured: boolean;
   currentRole: CurrentWorkspaceRole;
+  currentUserId?: string | null;
   member?: WorkspaceMemberDto | null;
+  members?: WorkspaceMemberDto[] | null;
   operation: string | null;
   status: PermissionAdminApiStatus;
 }): PermissionAdminCapability {
@@ -113,19 +127,134 @@ export function getMemberActionCapability(options: {
     return { canUse: false, reason: "Member is not loaded." };
   }
 
-  if (options.member.role === "owner") {
+  if (options.action === "update-role" && isLastActiveOwner(options.member, options.members)) {
+    return { canUse: false, reason: "The last workspace owner cannot be downgraded." };
+  }
+
+  const guard = getMemberLifecycleGuard({
+    action: options.action,
+    currentUserId: options.currentUserId,
+    member: options.member,
+    members: options.members,
+  });
+  if (!guard.canUse) {
+    return { canUse: false, reason: guard.reason };
+  }
+
+  return { canUse: true, reason: guard.reason };
+}
+
+export function getRoleChangeOptions(member: WorkspaceMemberDto, members?: WorkspaceMemberDto[] | null): WorkspaceMemberRole[] {
+  if (isLastActiveOwner(member, members)) {
+    return ["owner"];
+  }
+
+  return member.role === "owner" ? supportedWorkspaceMemberRoles : addExistingUserRoleOptions;
+}
+
+export function isSupportedWorkspaceMemberRole(role: string): role is WorkspaceMemberRole {
+  return supportedWorkspaceMemberRoles.includes(role as WorkspaceMemberRole);
+}
+
+export function getMemberLifecycleGuard(options: {
+  action: MemberLifecycleAction;
+  currentUserId?: string | null;
+  member: WorkspaceMemberDto;
+  members?: WorkspaceMemberDto[] | null;
+  nextRole?: string | null;
+}): MemberLifecycleGuard {
+  const isSelf = Boolean(options.currentUserId && options.currentUserId === options.member.userId);
+
+  if (options.action === "remove-member") {
+    if (isLastActiveOwner(options.member, options.members)) {
+      return {
+        canUse: false,
+        reason: "The last workspace owner cannot be removed.",
+        requiresConfirmation: false,
+      };
+    }
+
+    if (isSelf) {
+      return {
+        canUse: false,
+        reason: "You cannot remove your own workspace membership here.",
+        requiresConfirmation: false,
+      };
+    }
+
+    return { canUse: true, reason: "Confirm removal before changing workspace access.", requiresConfirmation: true };
+  }
+
+  const nextRole = options.nextRole ?? options.member.role;
+  if (!isSupportedWorkspaceMemberRole(nextRole)) {
     return {
-      canUse: true,
-      reason: "Backend last-owner and step-up checks still apply.",
+      canUse: false,
+      reason: "Workspace member role is not supported.",
+      requiresConfirmation: false,
     };
   }
 
-  return { canUse: true, reason: null };
+  if (isLastActiveOwner(options.member, options.members) && nextRole !== "owner") {
+    return {
+      canUse: false,
+      reason: "The last workspace owner cannot be downgraded.",
+      requiresConfirmation: false,
+    };
+  }
+
+  if (isSelf && nextRole !== options.member.role) {
+    return {
+      canUse: false,
+      reason: "You cannot change your own workspace role here.",
+      requiresConfirmation: false,
+    };
+  }
+
+  return {
+    canUse: true,
+    reason: options.member.role === "owner" || nextRole === "owner"
+      ? "Owner role changes require confirmation and backend validation."
+      : null,
+    requiresConfirmation: options.member.role === "owner" || nextRole === "owner",
+  };
 }
 
-export function getRoleChangeOptions(member: WorkspaceMemberDto) {
-  const roles = ["admin", "editor", "viewer"];
-  return member.role === "owner" ? ["owner", ...roles] : roles;
+export function isLastActiveOwner(member: WorkspaceMemberDto, members?: WorkspaceMemberDto[] | null) {
+  if (member.role !== "owner" || !members) {
+    return false;
+  }
+
+  return members.filter((candidate) => candidate.role === "owner" && candidate.status !== "removed").length <= 1;
+}
+
+export function getWorkspaceGroupSourceLabel(group: WorkspaceGroupDto) {
+  if (group.externalProvider?.trim()) {
+    return `${formatGroupSourceProvider(group.externalProvider)} synced`;
+  }
+
+  if (group.externalGroupId?.trim()) {
+    return "External synced";
+  }
+
+  return group.type === "dynamic" ? "Local dynamic" : "Local static";
+}
+
+export function getWorkspaceGroupReadOnlyReason(group: WorkspaceGroupDto) {
+  if (group.externalProvider || group.externalGroupId) {
+    return "Managed by directory sync.";
+  }
+
+  return "Local group editing is deferred in this surface.";
+}
+
+export function getWorkspaceGroupDetailRows(group: WorkspaceGroupDto) {
+  return [
+    ["Source", getWorkspaceGroupSourceLabel(group)],
+    ["Editable", "Read-only in this V1"],
+    ["Members", String(group.membersCount)],
+    ["Last synced", group.externalSyncedAt ?? "Not synced"],
+    ["External id", group.externalGroupId ?? "None"],
+  ];
 }
 
 export function toPermissionMutationError(error: { message?: string; status?: number } | unknown, fallback: string) {
@@ -148,4 +277,17 @@ export function toPermissionMutationError(error: { message?: string; status?: nu
 
 function isApiLikeError(error: unknown): error is { message?: string; status?: number } {
   return typeof error === "object" && error !== null && ("message" in error || "status" in error);
+}
+
+function formatGroupSourceProvider(value: string) {
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "scim") {
+    return "SCIM";
+  }
+
+  if (normalized === "iam") {
+    return "IAM";
+  }
+
+  return value.trim();
 }

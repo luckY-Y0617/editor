@@ -2,6 +2,8 @@ import { describe, expect, test } from "../test/harness";
 import {
   getPublicShareCollection,
   getPublicShareDocument,
+  getPublicShareTree,
+  getScopedPublicShareDocument,
   resolvePublicShareLink,
 } from "./appApi";
 
@@ -18,6 +20,7 @@ describe("appApi public share", () => {
     expect(captured.input).toBe("https://northstar.test/api/v1/public/share-links/token-123/resolve");
     expect(captured.headers.get("X-Share-Link-Password")).toBe("open");
     expect(captured.headers.has("Authorization")).toBe(false);
+    expect(captured.input.includes("open")).toBe(false);
   });
 
   test("reads public documents through the dedicated public endpoint", async () => {
@@ -84,6 +87,103 @@ describe("appApi public share", () => {
 
     expect(captured.input).toBe("https://northstar.test/api/v1/public/share-links/collection-token/collection");
     expect(captured.headers.has("Authorization")).toBe(false);
+  });
+
+  test("reads public scope trees through the dedicated anonymous endpoint", async () => {
+    const requests: CapturedRequest[] = [];
+    await getPublicShareTree("collection-token", {
+      apiBaseUrl: "https://northstar.test/api/v1",
+      fetchFn: jsonFetch(
+        {
+          link: {
+            audience: "public",
+            expiresAt: "2026-06-01T00:00:00.000Z",
+            hasPassword: false,
+            resourceId: "collection",
+            resourceType: "collection",
+            roleKey: "viewer",
+            workspaceId: "workspace",
+          },
+          nodes: [],
+          scopeType: "collection",
+          shareLinkId: "share-link",
+          title: "Folder",
+        },
+        requests,
+      ),
+    });
+    const captured = getCapturedRequest(requests);
+
+    expect(captured.input).toBe("https://northstar.test/api/v1/public/share-links/collection-token/tree");
+    expect(captured.headers.has("Authorization")).toBe(false);
+  });
+
+  test("reads scoped public documents through the dedicated anonymous endpoint", async () => {
+    const requests: CapturedRequest[] = [];
+    await getScopedPublicShareDocument("collection-token", "doc-1", {
+      apiBaseUrl: "https://northstar.test/api/v1",
+      fetchFn: jsonFetch(
+        {
+          document: {
+            content: { type: "doc", content: [] },
+            id: "doc-1",
+            revision: 1,
+            status: "published",
+            tags: [],
+            title: "Plan",
+            updatedAt: "2026-05-14T00:00:00.000Z",
+          },
+          link: {
+            audience: "public",
+            expiresAt: "2026-06-01T00:00:00.000Z",
+            hasPassword: false,
+            resourceId: "collection",
+            resourceType: "collection",
+            roleKey: "viewer",
+            workspaceId: "workspace",
+          },
+        },
+        requests,
+      ),
+      password: " open ",
+    });
+    const captured = getCapturedRequest(requests);
+
+    expect(captured.input).toBe("https://northstar.test/api/v1/public/share-links/collection-token/documents/doc-1");
+    expect(captured.headers.get("X-Share-Link-Password")).toBe("open");
+    expect(captured.headers.has("Authorization")).toBe(false);
+    expect(captured.input.includes("open")).toBe(false);
+  });
+
+  test("does not place public share passwords in URL or localStorage", async () => {
+    const requests: CapturedRequest[] = [];
+    const storageWrites: string[] = [];
+    const originalLocalStorage = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
+    Object.defineProperty(globalThis, "localStorage", {
+      configurable: true,
+      value: {
+        getItem: () => null,
+        removeItem: () => undefined,
+        setItem: (key: string, value: string) => storageWrites.push(`${key}:${value}`),
+      },
+    });
+
+    try {
+      await resolvePublicShareLink("token-123", {
+        apiBaseUrl: "https://northstar.test/api/v1",
+        fetchFn: jsonFetch({ resourceType: "document" }, requests),
+        password: "secret-proof",
+      });
+    } finally {
+      if (originalLocalStorage) {
+        Object.defineProperty(globalThis, "localStorage", originalLocalStorage);
+      }
+    }
+
+    const captured = getCapturedRequest(requests);
+    expect(captured.input.includes("secret-proof")).toBe(false);
+    expect(captured.headers.get("X-Share-Link-Password")).toBe("secret-proof");
+    expect(storageWrites).toEqual([]);
   });
 });
 

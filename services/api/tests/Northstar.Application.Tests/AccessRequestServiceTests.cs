@@ -391,6 +391,11 @@ public sealed class AccessRequestServiceTests
             return Task.FromResult<Guid?>(_workspaceId);
         }
 
+        public Task<LibraryPermissionResource?> GetLibraryPermissionResourceAsync(Guid libraryId, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<LibraryPermissionResource?>(new LibraryPermissionResource(libraryId, _workspaceId));
+        }
+
         public Task<Guid?> GetWorkspaceIdForDocumentAsync(Guid documentId, CancellationToken cancellationToken = default)
         {
             return Task.FromResult<Guid?>(documentId == _documentId ? _workspaceId : null);

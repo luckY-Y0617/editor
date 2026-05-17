@@ -28,7 +28,7 @@ import { type CSSProperties, type ReactNode, useEffect, useMemo, useState } from
 import { WorkspaceHomeSidebar } from "./WorkspaceHomeSidebar";
 import { WorkspaceHomeTopBar } from "./WorkspaceHomeTopBar";
 import { ApiClientError, getConfiguredApiBaseUrl, getConfiguredWorkspaceId } from "../lib/apiClient";
-import { getCurrentUser, getSecurityState, type AuthSecurityStateResponse } from "../lib/authClient";
+import { getSecurityState, type AuthSecurityStateResponse } from "../lib/authClient";
 import {
   getBootstrap,
   getOrganizationMembers,
@@ -49,6 +49,7 @@ import {
 } from "../lib/appApi";
 import {
   createSettingsHash,
+  createWorkspaceMembersHash,
   getOrganizationSettingsPanelFromHash,
   getSettingsFiltersFromHash,
   type WorkspaceSettingsTab,
@@ -89,7 +90,6 @@ import {
 } from "../lib/workspaceSettingsModel";
 import {
   PermissionAdminApiError,
-  addWorkspaceMember,
   createScimToken,
   getConfiguredPermissionAdminApiBaseUrl,
   getScimResourceTypes,
@@ -98,9 +98,7 @@ import {
   getScimTokens,
   getWorkspaceGroups as getPermissionWorkspaceGroups,
   getWorkspaceMembers as getPermissionWorkspaceMembers,
-  removeWorkspaceMember,
   revokeScimToken,
-  updateWorkspaceMemberRole,
   type CreateScimTokenResponse,
   type ScimListResponse,
   type ScimResourceTypeDto,
@@ -111,11 +109,7 @@ import {
   type WorkspaceMemberDto,
 } from "../lib/permissionAdminApi";
 import {
-  getCurrentWorkspaceRole,
-  getMemberActionCapability,
-  getRoleChangeOptions,
   toPermissionMutationError,
-  type CurrentWorkspaceRole,
 } from "../lib/permissionAdminModel";
 import { getDisplayLanguageOptions, t, type DisplayLocale, useDisplayLanguage } from "../lib/i18n";
 import type { NotificationApiStatus } from "../lib/workspaceUpdatesModel";
@@ -146,8 +140,6 @@ export function WorkspaceSettingsPage() {
   const preferences = useSettingsNotificationPreferences(workspaceId);
   const members = useSettingsWorkspaceMembers(workspaceId);
   const groups = useSettingsWorkspaceGroups(workspaceId);
-  const currentRole = useSettingsCurrentWorkspaceRole(workspaceId ?? null);
-  const memberMutations = useSettingsMemberMutations(members.apiBaseUrl, workspaceId ?? null, members.reload);
   const scimDiscovery = useSettingsScimDiscovery(workspaceId ?? null);
   const scimTokens = useSettingsScimTokens(workspaceId ?? null);
   const security = useSettingsSecurityState();
@@ -189,13 +181,6 @@ export function WorkspaceSettingsPage() {
         {activeDashboardTab === "notifications" ? (
           <NotificationsSettingsTab preferences={preferences} workspaceId={workspaceId ?? null} />
         ) : null}
-        {activeDashboardTab === "members" ? (
-          <WorkspaceMembersSettingsTab
-            currentRole={currentRole}
-            members={members}
-            mutations={memberMutations}
-          />
-        ) : null}
         {activeDashboardTab === "permissions" ? (
           <WorkspacePermissionsSettingsTab
             bootstrapStatus={bootstrap.status}
@@ -222,7 +207,6 @@ export function WorkspaceSettingsPage() {
 type WorkspaceSettingsDashboardTab =
   | "general"
   | "integrations"
-  | "members"
   | "notifications"
   | "permissions"
   | "security";
@@ -243,7 +227,6 @@ function WorkspaceSettingsDashboardTabs({
   const tabs: WorkspaceSettingsDashboardTabRow[] = [
     { href: createSettingsHash({ scope: "workspace", tab: "general" }), id: "general", label: t(locale, "settings.general") },
     { href: createSettingsHash({ scope: "workspace", tab: "notifications" }), id: "notifications", label: t(locale, "settings.notifications") },
-    { href: createSettingsHash({ scope: "workspace", tab: "members" }), id: "members", label: t(locale, "settings.members") },
     { href: createSettingsHash({ scope: "workspace", tab: "permissions" }), id: "permissions", label: t(locale, "settings.permissions") },
     { href: createSettingsHash({ scope: "workspace", tab: "security" }), id: "security", label: t(locale, "settings.security") },
     { href: createSettingsHash({ scope: "workspace", tab: "integrations" }), id: "integrations", label: t(locale, "settings.integrations") },
@@ -322,8 +305,8 @@ function WorkspacePermissionsSettingsTab({
           <p className="workspace-settings-note">Public links are created only through dedicated share-link API. This tab shows the boundary; daily document sharing remains in the Editor Share drawer.</p>
           <DefinitionList
             rows={[
-              ["Workspace members", "Managed in the Members tab."],
-              ["Workspace groups", "Managed in this Permissions tab."],
+              ["Workspace members", "Managed from the Members left-nav entry."],
+              ["Workspace groups", "Viewed from the Groups left-nav entry."],
               ["Direct document grants", "Managed from document Advanced permissions."],
               ["Access requests", "Reviewed from Updates access requests."],
               ["Workspace inheritance", "Shown here as the workspace permission boundary."],
@@ -422,8 +405,6 @@ function getWorkspaceSettingsDashboardActiveTab(filters: ReturnType<typeof getSe
       return "general";
     case "workspace-integrations":
       return "integrations";
-    case "workspace-members":
-      return "members";
     case "workspace-notifications":
       return "notifications";
     case "workspace-permissions":
@@ -439,8 +420,6 @@ function getWorkspaceSettingsDashboardActiveTab(filters: ReturnType<typeof getSe
   switch (filters.tab) {
     case "integrations":
       return "integrations";
-    case "members":
-      return "members";
     case "notifications":
       return "notifications";
     case "permissions":
@@ -673,7 +652,7 @@ function SettingsPageFrame({
   activeSidebarItem,
   children,
 }: {
-  activeSidebarItem: "home" | "libraries" | "settings" | "updates" | null;
+  activeSidebarItem: "home" | "libraries" | "members" | "settings" | "updates" | null;
   children: ReactNode;
 }) {
   const { locale } = useDisplayLanguage();
@@ -687,6 +666,7 @@ function SettingsPageFrame({
             <a href="#home">{t(locale, "nav.home")}</a>
             <a href="#libraries">{t(locale, "nav.libraries")}</a>
             <a href="#access-sharing">{t(locale, "nav.updates")}</a>
+            <a href="#members">{t(locale, "nav.members")}</a>
             <a aria-current={activeSidebarItem === "settings" ? "page" : undefined} href="#settings">{t(locale, "nav.settings")}</a>
           </div>
           <div className="permission-admin-feed-inner workspace-settings-inner">
@@ -1036,13 +1016,13 @@ function LibraryPermissionsSettingsTab() {
           <p className="workspace-settings-note">{t(locale, "settings.libraryPermissionsBoundaryHelp")}</p>
           <DefinitionList
             rows={[
-              [t(locale, "settings.members"), t(locale, "settings.membersManagedInWorkspaceSettings")],
+              [t(locale, "settings.members"), t(locale, "settings.membersManagedFromMembers")],
               [t(locale, "settings.documentPermissions"), t(locale, "settings.documentPermissionsManagedFromDocument")],
               [t(locale, "settings.accessRequests"), t(locale, "settings.accessRequestsManagedInUpdates")],
             ]}
           />
           <div className="workspace-settings-card-actions">
-            <a href={createSettingsHash({ scope: "workspace", tab: "members" })}>{t(locale, "settings.openWorkspaceMembers")}</a>
+            <a href={createWorkspaceMembersHash()}>{t(locale, "settings.openWorkspaceMembers")}</a>
             <a href="#updates?tab=access">{t(locale, "settings.openWorkspaceNotifications")}</a>
           </div>
         </SettingsCard>
@@ -1585,260 +1565,6 @@ function NotificationsSettingsTab({
         </SettingsCard>
       </div>
     </section>
-  );
-}
-
-function WorkspaceMembersSettingsTab({
-  currentRole,
-  members,
-  mutations,
-}: {
-  currentRole: CurrentWorkspaceRole;
-  members: ReturnType<typeof useSettingsWorkspaceMembers>;
-  mutations: ReturnType<typeof useSettingsMemberMutations>;
-}) {
-  const { locale } = useDisplayLanguage();
-  const addCapability = getMemberActionCapability({
-    action: "add-member",
-    apiConfigured: mutations.canUse,
-    currentRole,
-    operation: mutations.operation,
-    status: toPermissionAdminStatus(members.status),
-  });
-
-  return (
-    <>
-      <section className="permission-admin-section">
-        <SectionTitle title={t(locale, "settings.members")} />
-        <SettingsCard icon={<UsersRound className="h-4 w-4" />} status={members.status === "ready" ? "live" : "unavailable"} title="Workspace members">
-          <p className="workspace-settings-note">Workspace members are managed only in Workspace Settings. Organization members are not shown in this workspace-scoped list.</p>
-          <AddWorkspaceMemberInline
-            capabilityReason={addCapability.reason}
-            canUse={addCapability.canUse}
-            mutations={mutations}
-          />
-          <WorkspaceMembersTable
-            currentRole={currentRole}
-            members={members.members}
-            mutations={mutations}
-            status={members.status}
-          />
-        </SettingsCard>
-      </section>
-    </>
-  );
-}
-
-function AddWorkspaceMemberInline({
-  capabilityReason,
-  canUse,
-  mutations,
-}: {
-  capabilityReason: string | null;
-  canUse: boolean;
-  mutations: ReturnType<typeof useSettingsMemberMutations>;
-}) {
-  const [email, setEmail] = useState("");
-  const [role, setRole] = useState("viewer");
-  const isValid = email.trim().includes("@") && ["admin", "editor", "viewer"].includes(role);
-
-  const submit = () => {
-    if (!canUse || !isValid) {
-      return;
-    }
-
-    void mutations.addMember(email.trim(), role).then((created) => {
-      if (created) {
-        setEmail("");
-        setRole("viewer");
-      }
-    });
-  };
-
-  return (
-    <div className="permission-admin-form">
-      <div className="permission-admin-form-grid is-member">
-        <Field label="Email" htmlFor="workspace-settings-member-email">
-          <input
-            disabled={!canUse}
-            id="workspace-settings-member-email"
-            onChange={(event) => setEmail(event.currentTarget.value)}
-            placeholder="user@example.com"
-            type="email"
-            value={email}
-          />
-        </Field>
-        <Field label="Workspace role" htmlFor="workspace-settings-member-role">
-          <select
-            disabled={!canUse}
-            id="workspace-settings-member-role"
-            onChange={(event) => setRole(event.currentTarget.value)}
-            value={role}
-          >
-            {["viewer", "editor", "admin"].map((roleOption) => (
-              <option key={roleOption} value={roleOption}>
-                {formatSettingsValue(roleOption)}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <div className="permission-admin-policy-note">
-          <strong>Disabled reason</strong>
-          <span>{canUse ? "Backend last-owner and step-up checks still apply." : capabilityReason ?? "Member management is unavailable."}</span>
-        </div>
-        <button
-          className="permission-admin-primary-action"
-          disabled={!canUse || !isValid || mutations.operation === "add-member"}
-          onClick={submit}
-          title={canUse ? "Add workspace member" : capabilityReason ?? "Member management is unavailable"}
-          type="button"
-        >
-          <UsersRound className="h-4 w-4" />
-          {mutations.operation === "add-member" ? "Adding" : "Add member"}
-        </button>
-      </div>
-      <SettingsMutationStatus error={mutations.error} message={mutations.message} />
-    </div>
-  );
-}
-
-function WorkspaceMembersTable({
-  currentRole,
-  members,
-  mutations,
-  status,
-}: {
-  currentRole: CurrentWorkspaceRole;
-  members: WorkspaceMemberDto[];
-  mutations: ReturnType<typeof useSettingsMemberMutations>;
-  status: SettingsDataStatus;
-}) {
-  const [confirmRemoveUserId, setConfirmRemoveUserId] = useState<string | null>(null);
-
-  if (status !== "ready") {
-    return <SettingsEmptyState label={getManagementStatusLabel(status, "workspace members")} />;
-  }
-
-  if (members.length === 0) {
-    return <SettingsEmptyState label="No workspace members returned by the API." />;
-  }
-
-  const permissionStatus = toPermissionAdminStatus(status);
-
-  return (
-    <div className="permission-admin-table">
-      <div className="permission-admin-table-head is-members">
-        <span>Identity</span>
-        <span>Email</span>
-        <span>Role</span>
-        <span>Status</span>
-        <span>Joined</span>
-        <span>Actions</span>
-      </div>
-      {members.map((member) => {
-        const updateCapability = getMemberActionCapability({
-          action: "update-role",
-          apiConfigured: mutations.canUse,
-          currentRole,
-          member,
-          operation: mutations.operation,
-          status: permissionStatus,
-        });
-        const removeCapability = getMemberActionCapability({
-          action: "remove-member",
-          apiConfigured: mutations.canUse,
-          currentRole,
-          member,
-          operation: mutations.operation,
-          status: permissionStatus,
-        });
-        const confirmRemove = confirmRemoveUserId === member.userId;
-
-        return (
-          <article className="permission-admin-table-row is-members" key={member.userId}>
-            <span className="permission-admin-identity">
-              <SettingsAvatar initials={getInitials(member.displayName || member.email || member.userId)} tone={member.role} />
-              <span className="min-w-0">
-                <strong title={member.displayName || member.userId}>{member.displayName || "Unnamed user"}</strong>
-                <small>{shortId(member.userId)}</small>
-              </span>
-            </span>
-            <span className="permission-admin-cell-text">{member.email ?? "No email"}</span>
-            <WorkspaceRoleInlineSelect
-              disabled={!updateCapability.canUse}
-              disabledReason={updateCapability.reason}
-              member={member}
-              operation={mutations.operation}
-              onChange={(role) => mutations.updateRole(member.userId, role)}
-            />
-            <StatusPill label={member.status} />
-            <span className="permission-admin-cell-text">{member.joinedAt ? formatDateTime(member.joinedAt) : "Unknown"}</span>
-            <span className="permission-admin-row-actions">
-              <button
-                className="permission-admin-icon-button is-danger"
-                disabled={!removeCapability.canUse}
-                onClick={() => {
-                  if (!confirmRemove) {
-                    setConfirmRemoveUserId(member.userId);
-                    return;
-                  }
-
-                  void mutations.removeMember(member.userId).then((removed) => {
-                    if (removed) {
-                      setConfirmRemoveUserId(null);
-                    }
-                  });
-                }}
-                title={!removeCapability.canUse ? removeCapability.reason ?? "Member removal is unavailable" : confirmRemove ? "Confirm member removal" : "Remove member"}
-                type="button"
-              >
-                {confirmRemove ? "Confirm" : <X className="h-4 w-4" />}
-              </button>
-            </span>
-          </article>
-        );
-      })}
-    </div>
-  );
-}
-
-function WorkspaceRoleInlineSelect({
-  disabled,
-  disabledReason,
-  member,
-  onChange,
-  operation,
-}: {
-  disabled: boolean;
-  disabledReason: string | null;
-  member: WorkspaceMemberDto;
-  onChange: (role: string) => Promise<WorkspaceMemberDto | null>;
-  operation: string | null;
-}) {
-  const [draftRole, setDraftRole] = useState(member.role);
-
-  useEffect(() => {
-    setDraftRole(member.role);
-  }, [member.role]);
-
-  return (
-    <select
-      className="permission-admin-role-select"
-      disabled={disabled || operation === member.userId}
-      onChange={(event) => {
-        const nextRole = event.currentTarget.value;
-        setDraftRole(nextRole);
-        void onChange(nextRole);
-      }}
-      title={disabled ? disabledReason ?? "Role update unavailable" : "Change workspace role"}
-      value={draftRole}
-    >
-      {getRoleChangeOptions(member).map((role) => (
-        <option key={role} value={role}>
-          {formatSettingsValue(role)}
-        </option>
-      ))}
-    </select>
   );
 }
 
@@ -2500,112 +2226,6 @@ function useSettingsWorkspaceGroups(workspaceId: string | null | undefined) {
   }, [apiBaseUrl, workspaceId]);
 
   return { groups, status };
-}
-
-function useSettingsCurrentWorkspaceRole(workspaceId: string | null) {
-  const [role, setRole] = useState<CurrentWorkspaceRole>("unknown");
-
-  useEffect(() => {
-    if (!workspaceId) {
-      setRole("unknown");
-      return;
-    }
-
-    let isActive = true;
-    void getCurrentUser()
-      .then((response) => {
-        if (isActive) {
-          setRole(getCurrentWorkspaceRole(response.workspaces, workspaceId));
-        }
-      })
-      .catch(() => {
-        if (isActive) {
-          setRole("unknown");
-        }
-      });
-
-    return () => {
-      isActive = false;
-    };
-  }, [workspaceId]);
-
-  return role;
-}
-
-function useSettingsMemberMutations(
-  apiBaseUrl: string,
-  workspaceId: string | null,
-  reloadMembers: () => AbortController | undefined,
-) {
-  const [operation, setOperation] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
-  const canUse = Boolean(apiBaseUrl && workspaceId);
-
-  const addMember = async (email: string, role: string) => {
-    if (!apiBaseUrl || !workspaceId || operation) {
-      return null;
-    }
-
-    setOperation("add-member");
-    setError(null);
-    setMessage(null);
-    try {
-      const member = await addWorkspaceMember(apiBaseUrl, workspaceId, email, role);
-      setMessage("Member added.");
-      reloadMembers();
-      return member;
-    } catch (errorValue) {
-      setError(toPermissionMutationError(errorValue, "Could not add member."));
-      return null;
-    } finally {
-      setOperation(null);
-    }
-  };
-
-  const updateRole = async (userId: string, role: string) => {
-    if (!apiBaseUrl || !workspaceId || operation) {
-      return null;
-    }
-
-    setOperation(userId);
-    setError(null);
-    setMessage(null);
-    try {
-      const member = await updateWorkspaceMemberRole(apiBaseUrl, workspaceId, userId, role);
-      setMessage("Member role updated.");
-      reloadMembers();
-      return member;
-    } catch (errorValue) {
-      setError(toPermissionMutationError(errorValue, "Could not update member role."));
-      return null;
-    } finally {
-      setOperation(null);
-    }
-  };
-
-  const removeMember = async (userId: string) => {
-    if (!apiBaseUrl || !workspaceId || operation) {
-      return false;
-    }
-
-    setOperation(userId);
-    setError(null);
-    setMessage(null);
-    try {
-      await removeWorkspaceMember(apiBaseUrl, workspaceId, userId);
-      setMessage("Member removed.");
-      reloadMembers();
-      return true;
-    } catch (errorValue) {
-      setError(toPermissionMutationError(errorValue, "Could not remove member."));
-      return false;
-    } finally {
-      setOperation(null);
-    }
-  };
-
-  return { addMember, canUse, error, message, operation, removeMember, updateRole };
 }
 
 function useSettingsScimDiscovery(workspaceId: string | null) {

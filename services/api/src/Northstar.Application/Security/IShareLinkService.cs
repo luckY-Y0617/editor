@@ -77,6 +77,17 @@ public interface IShareLinkService
         string? passwordProof = null,
         CancellationToken cancellationToken = default);
 
+    Task<PublicShareTreeResponse> GetPublicShareTreeAsync(
+        string token,
+        string? passwordProof = null,
+        CancellationToken cancellationToken = default);
+
+    Task<PublicShareDocumentResponse> GetPublicShareDocumentAsync(
+        string token,
+        Guid documentId,
+        string? passwordProof = null,
+        CancellationToken cancellationToken = default);
+
     Task<PublicShareCollectionResponse> GetPublicShareCollectionAsync(
         string token,
         string? passwordProof = null,

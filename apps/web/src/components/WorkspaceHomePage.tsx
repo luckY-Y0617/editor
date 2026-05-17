@@ -207,7 +207,7 @@ export function WorkspaceHomePage() {
               <HomePanel icon={Users} title={homeModel.mode === "live" ? t(locale, "home.workspaceMembers") : t(locale, "home.topContributors")}>
                 <p className="workspace-home-panel-kicker">{homeModel.mode === "live" ? t(locale, "home.workspaceMembers") : "30 days"}</p>
                 <ContributorList items={homeModel.contributorRows} status={supplemental.contributors} />
-                <PanelLink href="#settings?scope=workspace&tab=members">Open members</PanelLink>
+                <PanelLink href="#members">Open members</PanelLink>
               </HomePanel>
 
               <HomePanel icon={AtSign} title={t(locale, "home.notificationDigest")}>
@@ -244,6 +244,7 @@ function MobileHomeNav({ locale }: { locale: DisplayLocale }) {
       </a>
       <a href="#libraries">{t(locale, "nav.libraries")}</a>
       <a href="#access-sharing">{t(locale, "nav.updates")}</a>
+      <a href="#members">{t(locale, "nav.members")}</a>
       <a href="#settings">{t(locale, "nav.settings")}</a>
     </div>
   );

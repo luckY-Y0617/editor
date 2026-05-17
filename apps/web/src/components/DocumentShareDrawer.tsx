@@ -5,6 +5,8 @@ import {
   Link2,
   Loader2,
   LockKeyhole,
+  Pause,
+  Play,
   ShieldCheck,
   Trash2,
   X,
@@ -18,7 +20,11 @@ import {
   getDocumentEmailInvites,
   getDocumentResourcePermissions,
   getDocumentShareLinks,
+  getResourcePermissions,
+  getResourceShareLinks,
   getWorkspaceMembers,
+  pauseShareLinkManagement,
+  resumeShareLinkManagement,
   revokeDocumentPermissionGrant,
   revokeEmailInvite,
   revokeShareLink,
@@ -28,6 +34,7 @@ import {
   type EmailInviteDto,
   type PermissionGrantDto,
   type ResourcePermissionsResponse,
+  type ShareLinkContentProtectionDto,
   type ShareLinkAudience,
   type ShareLinkDto,
   type ShareLinkRole,
@@ -40,8 +47,13 @@ import {
 } from "../lib/permissionAdminApi";
 import {
   createShareLinkRequest,
+  defaultPublicSharePolicy,
+  getPublicSharePasswordHint,
+  getPublicSharePolicyWarnings,
   getDocumentShareLinkStatus,
   getExistingShareLinkCopyCapability,
+  getShareLinkGovernanceHint,
+  getShareLinkScopeLabel,
   getShareDrawerInviteDisabledReason,
   getShareDrawerLinkDisabledReason,
   toAbsoluteShareUrl,
@@ -60,6 +72,7 @@ type LinkScope = "invited" | "public" | "workspace";
 type DocumentShareDrawerProps = {
   document: KnowledgeDocument;
   isOpen: boolean;
+  libraryId?: string | null;
   onClose: () => void;
   workspaceId: string | null;
 };
@@ -75,12 +88,14 @@ const linkRoles: Array<{ label: string; value: ShareLinkRole }> = [
   { label: "Commenter", value: "commenter" },
 ];
 
-export function DocumentShareDrawer({ document, isOpen, onClose, workspaceId }: DocumentShareDrawerProps) {
+export function DocumentShareDrawer({ document, isOpen, libraryId, onClose, workspaceId }: DocumentShareDrawerProps) {
   const apiBaseUrl = useMemo(() => getConfiguredApiBaseUrl(), []);
   const [permissions, setPermissions] = useState<ResourcePermissionsResponse | null>(null);
+  const [collectionPermissions, setCollectionPermissions] = useState<ResourcePermissionsResponse | null>(null);
   const [members, setMembers] = useState<WorkspaceMemberDto[] | null>(null);
   const [groups, setGroups] = useState<WorkspaceGroupDto[] | null>(null);
   const [links, setLinks] = useState<ShareLinkDto[] | null>(null);
+  const [broaderLinks, setBroaderLinks] = useState<ShareLinkDto[]>([]);
   const [invites, setInvites] = useState<EmailInviteDto[] | null>(null);
   const [status, setStatus] = useState<ShareDrawerStatus>("idle");
   const [memberStatus, setMemberStatus] = useState<ShareDrawerStatus>("idle");
@@ -94,6 +109,13 @@ export function DocumentShareDrawer({ document, isOpen, onClose, workspaceId }: 
   const [linkExpiresAt, setLinkExpiresAt] = useState("");
   const [passwordEnabled, setPasswordEnabled] = useState(false);
   const [publicPassword, setPublicPassword] = useState("");
+  const [contentProtection, setContentProtection] = useState<ShareLinkContentProtectionDto>({
+    disableDownload: true,
+    disablePrint: false,
+    disableCopy: false,
+    watermarkEnabled: false,
+    watermarkText: "Public link",
+  });
   const [createdLink, setCreatedLink] = useState<CreateShareLinkResponse | null>(null);
   const [createdInvite, setCreatedInvite] = useState<CreateEmailInviteResponse | null>(null);
 
@@ -104,6 +126,8 @@ export function DocumentShareDrawer({ document, isOpen, onClose, workspaceId }: 
   const groupById = useMemo(() => new Map((groups ?? []).map((group) => [group.id, group])), [groups]);
   const canUse = status === "ready" && Boolean(apiBaseUrl);
   const canMutate = canUse && !operation;
+  const collectionId = document.folderId?.trim() || null;
+  const currentLibraryId = libraryId?.trim() || null;
   const normalizedInvite = inviteValue.trim();
   const inviteIsEmail = isEmail(normalizedInvite);
   const selectedMember = findInviteMember(normalizedInvite, members ?? []);
@@ -132,11 +156,20 @@ export function DocumentShareDrawer({ document, isOpen, onClose, workspaceId }: 
     status,
     value: normalizedInvite,
   });
+  const publicPasswordHint = linkScope === "public" ? getPublicSharePasswordHint("document", defaultPublicSharePolicy) : null;
+  const effectivePasswordEnabled = passwordEnabled || Boolean(publicPasswordHint);
   const linkDisabledReason = getShareDrawerLinkDisabledReason({
     apiConfigured: Boolean(apiBaseUrl),
+    collectionId,
+    contentProtection,
     expiresAt: publicExpiryIso,
+    libraryId: currentLibraryId,
     linkScope,
     operation,
+    password: publicPassword,
+    passwordEnabled: effectivePasswordEnabled,
+    policy: defaultPublicSharePolicy,
+    publicScope: "document",
     status,
   });
   const canSendInvite = !inviteDisabledReason && inviteRoleOptions.length > 0;
@@ -167,10 +200,21 @@ export function DocumentShareDrawer({ document, isOpen, onClose, workspaceId }: 
       getDocumentResourcePermissions(document.id, controller.signal),
       getDocumentShareLinks(document.id, controller.signal),
       getDocumentEmailInvites(document.id, controller.signal),
+      collectionId
+        ? Promise.all([
+            getResourcePermissions("collection", collectionId, controller.signal),
+            getResourceShareLinks("collection", collectionId, controller.signal),
+          ])
+        : Promise.resolve(null),
+      currentLibraryId
+        ? getResourceShareLinks("library", currentLibraryId, controller.signal).catch(() => null)
+        : Promise.resolve(null),
     ])
-      .then(([nextPermissions, nextLinks, nextInvites]) => {
+      .then(([nextPermissions, nextLinks, nextInvites, collectionShareState, libraryShareState]) => {
         setPermissions(nextPermissions);
+        setCollectionPermissions(collectionShareState?.[0] ?? null);
         setLinks(nextLinks.links);
+        setBroaderLinks([...(collectionShareState?.[1].links ?? []), ...(libraryShareState?.links ?? [])]);
         setInvites(nextInvites.invites);
         setStatus("ready");
       })
@@ -212,7 +256,7 @@ export function DocumentShareDrawer({ document, isOpen, onClose, workspaceId }: 
     }
 
     return () => controller.abort();
-  }, [apiBaseUrl, document.id, isOpen, workspaceId]);
+  }, [apiBaseUrl, collectionId, currentLibraryId, document.id, isOpen, workspaceId]);
 
   useEffect(() => {
     if (inviteRoleOptions.some((role) => role.value === inviteRole)) {
@@ -227,13 +271,22 @@ export function DocumentShareDrawer({ document, isOpen, onClose, workspaceId }: 
   }
 
   const reloadShareState = async () => {
-    const [nextPermissions, nextLinks, nextInvites] = await Promise.all([
+    const [nextPermissions, nextLinks, nextInvites, collectionShareState, libraryShareState] = await Promise.all([
       getDocumentResourcePermissions(document.id),
       getDocumentShareLinks(document.id),
       getDocumentEmailInvites(document.id),
+      collectionId
+        ? Promise.all([
+            getResourcePermissions("collection", collectionId),
+            getResourceShareLinks("collection", collectionId),
+          ])
+        : Promise.resolve(null),
+      currentLibraryId ? getResourceShareLinks("library", currentLibraryId).catch(() => null) : Promise.resolve(null),
     ]);
     setPermissions(nextPermissions);
+    setCollectionPermissions(collectionShareState?.[0] ?? null);
     setLinks(nextLinks.links);
+    setBroaderLinks([...(collectionShareState?.[1].links ?? []), ...(libraryShareState?.links ?? [])]);
     setInvites(nextInvites.invites);
     setStatus("ready");
   };
@@ -321,16 +374,15 @@ export function DocumentShareDrawer({ document, isOpen, onClose, workspaceId }: 
       }
 
       const audience: ShareLinkAudience = linkScope === "public" ? "public" : "workspace";
-      const created = await createDocumentShareLink(
-        document.id,
-        createShareLinkRequest({
-          audience,
-          expiresAt: linkScope === "public" ? publicExpiryIso : toApiDateTime(linkExpiresAt),
-          password: linkScope === "public" && passwordEnabled ? publicPassword : null,
-          roleKey: linkRole,
-          subjectEmail: null,
-        }),
-      );
+      const request = createShareLinkRequest({
+        audience,
+        contentProtection: linkScope === "public" ? contentProtection : null,
+        expiresAt: linkScope === "public" ? publicExpiryIso : toApiDateTime(linkExpiresAt),
+        password: linkScope === "public" && effectivePasswordEnabled ? publicPassword : null,
+        roleKey: linkRole,
+        subjectEmail: null,
+      });
+      const created = await createDocumentShareLink(document.id, request);
       setCreatedLink(created);
       setPublicPassword("");
       setMessage("Share link created. The token-bearing URL is shown once.");
@@ -343,7 +395,10 @@ export function DocumentShareDrawer({ document, isOpen, onClose, workspaceId }: 
   };
 
   const copyExistingLink = (link: ShareLinkDto) => {
-    const linkStatus = getDocumentShareLinkStatus(link, permissions?.policy.linkMode);
+    const linkStatus = getDocumentShareLinkStatus(
+      link,
+      getPolicyLinkModeForShareLink(link, permissions?.policy.linkMode, collectionPermissions?.policy.linkMode),
+    );
     const disabledReason = getExistingShareLinkCopyCapability({
       apiConfigured: Boolean(apiBaseUrl),
       canManage: canMutate,
@@ -479,8 +534,31 @@ export function DocumentShareDrawer({ document, isOpen, onClose, workspaceId }: 
               </button>
             </div>
             <p className="document-share-help">
-              Invitation only creates no link. Internal creates a workspace link. Public creates a viewer-only public link through the dedicated share-link API and requires a future expiry.
+              Invitation only creates no link. Internal creates a workspace link. Public creates a viewer-only link for this document through the dedicated share-link API and requires a future expiry.
             </p>
+            <label className="document-share-select-row">
+              <span>
+                <Globe2 className="h-4 w-4" />
+                Sharing object
+              </span>
+              <select
+                disabled
+                onChange={() => undefined}
+                title="Document Share Drawer creates document links only."
+                value="document"
+              >
+                {[{ disabled: false, label: "Current document", value: "document" }].map((option) => (
+                  <option disabled={option.disabled} key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {linkScope === "public" ? (
+              <p className="document-share-help">
+                Public link V1 supports viewer only. Collection and Library public links are managed from Access & Sharing or the container share settings.
+              </p>
+            ) : null}
             <label className="document-share-select-row">
               <span>
                 <Eye className="h-4 w-4" />
@@ -520,22 +598,59 @@ export function DocumentShareDrawer({ document, isOpen, onClose, workspaceId }: 
               </span>
               <span className="document-share-password-control">
                 <button
-                  aria-pressed={passwordEnabled}
-                  className={passwordEnabled ? "is-on" : ""}
-                  disabled={!canMutate || linkScope !== "public"}
+                  aria-pressed={effectivePasswordEnabled}
+                  className={effectivePasswordEnabled ? "is-on" : ""}
+                  disabled={!canMutate || linkScope !== "public" || Boolean(publicPasswordHint)}
                   onClick={() => setPasswordEnabled((current) => !current)}
                   type="button"
                 />
                 <input
                   autoComplete="new-password"
-                  disabled={!canMutate || linkScope !== "public" || !passwordEnabled}
+                  disabled={!canMutate || linkScope !== "public" || !effectivePasswordEnabled}
                   onChange={(event) => setPublicPassword(event.target.value)}
-                  placeholder="Public links only"
+                  placeholder={publicPasswordHint ? "Required by enterprise policy" : "Public links only"}
                   type="password"
                   value={publicPassword}
                 />
               </span>
             </label>
+            {publicPasswordHint ? <p className="document-share-help is-warning">{publicPasswordHint}</p> : null}
+            {linkScope === "public" ? (
+              <div className="document-share-protection-options" aria-label="Content protection">
+                <label>
+                  <input
+                    checked={contentProtection.disableDownload}
+                    onChange={(event) => setContentProtection((current) => ({ ...current, disableDownload: event.currentTarget.checked }))}
+                    type="checkbox"
+                  />
+                  绂佹涓嬭浇
+                </label>
+                <label>
+                  <input
+                    checked={contentProtection.disablePrint}
+                    onChange={(event) => setContentProtection((current) => ({ ...current, disablePrint: event.currentTarget.checked }))}
+                    type="checkbox"
+                  />
+                  绂佹鎵撳嵃
+                </label>
+                <label>
+                  <input
+                    checked={contentProtection.disableCopy}
+                    onChange={(event) => setContentProtection((current) => ({ ...current, disableCopy: event.currentTarget.checked }))}
+                    type="checkbox"
+                  />
+                  绂佹澶嶅埗
+                </label>
+                <label>
+                  <input
+                    checked={contentProtection.watermarkEnabled}
+                    onChange={(event) => setContentProtection((current) => ({ ...current, watermarkEnabled: event.currentTarget.checked }))}
+                    type="checkbox"
+                  />
+                  鏄剧ず姘村嵃
+                </label>
+              </div>
+            ) : null}
             <button className="document-share-link-action" disabled={!canCreateLink} onClick={createLink} title={linkDisabledReason ?? "Create share link"} type="button">
               <Link2 className="h-4 w-4" />
               {operation === "link" ? "Creating" : linkScope === "public" ? "Create public link" : linkScope === "workspace" ? "Create internal link" : "Invitation only"}
@@ -629,8 +744,22 @@ export function DocumentShareDrawer({ document, isOpen, onClose, workspaceId }: 
                       key={link.id}
                       link={link}
                       operation={operation}
-                      policyLinkMode={permissions?.policy.linkMode}
+                      policyLinkMode={getPolicyLinkModeForShareLink(link, permissions?.policy.linkMode, collectionPermissions?.policy.linkMode)}
                       onCopy={() => copyExistingLink(link)}
+                      onPause={() =>
+                        void runOperation(`pause:${link.id}`, async () => {
+                          await pauseShareLinkManagement(link.id, { reason: "Paused from document share drawer." });
+                          setMessage("Share link paused.");
+                          await reloadShareState();
+                        })
+                      }
+                      onResume={() =>
+                        void runOperation(`resume:${link.id}`, async () => {
+                          await resumeShareLinkManagement(link.id);
+                          setMessage("Share link resumed.");
+                          await reloadShareState();
+                        })
+                      }
                       onRevoke={() =>
                         void runOperation(`link:${link.id}`, async () => {
                           await revokeShareLink(link.id);
@@ -641,7 +770,22 @@ export function DocumentShareDrawer({ document, isOpen, onClose, workspaceId }: 
                     />
                   ))
                 ) : (
-                  <AccessEmpty label="No share links returned by the API." />
+                  <AccessEmpty label="No document share links returned by the API." />
+                )}
+              </AccessGroup>
+
+              <AccessGroup title="Related broader links">
+                {broaderLinks.length ? (
+                  <>
+                    <p className="document-share-help">
+                      This document may also be accessible through broader Collection / Library links. Manage broader links from Access & Sharing or the corresponding Collection / Library settings.
+                    </p>
+                    {broaderLinks.map((link) => (
+                      <BroaderLinkAccessRow key={link.id} link={link} />
+                    ))}
+                  </>
+                ) : (
+                  <AccessEmpty label="No broader Collection or Library links were returned." />
                 )}
               </AccessGroup>
 
@@ -786,6 +930,14 @@ function GroupAccessRow({ grant, group }: { grant: PermissionGrantDto; group?: W
   );
 }
 
+function getPolicyLinkModeForShareLink(link: ShareLinkDto, documentLinkMode?: string | null, collectionLinkMode?: string | null) {
+  if (link.resourceType === "library" && link.audience === "public") {
+    return "public";
+  }
+
+  return link.resourceType === "collection" ? collectionLinkMode : documentLinkMode;
+}
+
 function LinkAccessRow({
   apiConfigured,
   canMutate,
@@ -793,6 +945,8 @@ function LinkAccessRow({
   operation,
   policyLinkMode,
   onCopy,
+  onPause,
+  onResume,
   onRevoke,
 }: {
   apiConfigured: boolean;
@@ -801,6 +955,8 @@ function LinkAccessRow({
   operation: string | null;
   policyLinkMode: string | null | undefined;
   onCopy: () => void;
+  onPause: () => void;
+  onResume: () => void;
   onRevoke: () => void;
 }) {
   const status = getDocumentShareLinkStatus(link, policyLinkMode);
@@ -812,8 +968,12 @@ function LinkAccessRow({
     status,
   });
   const canRevoke = canMutate && status !== "revoked";
+  const canPause = canMutate && status === "active";
+  const canResume = canMutate && status === "paused";
   const label = `${formatAudienceLabel(link.audience)} link`;
   const metadata = [
+    getShareLinkGovernanceHint(link),
+    ...getPublicSharePolicyWarnings(link, defaultPublicSharePolicy),
     formatRoleLabel(link.roleKey),
     formatExpiryLabel(link.expiresAt),
     formatLinkStatusLabel(status),
@@ -827,6 +987,15 @@ function LinkAccessRow({
           <button disabled={Boolean(copyDisabledReason)} onClick={onCopy} title={copyDisabledReason ?? "Audited copy through backend endpoint"} type="button">
             <Copy className="h-4 w-4" />
           </button>
+          {status === "paused" ? (
+            <button disabled={!canResume} onClick={onResume} title={canResume ? "Resume link" : "Cannot resume this link"} type="button">
+              <Play className="h-4 w-4" />
+            </button>
+          ) : (
+            <button disabled={!canPause} onClick={onPause} title={canPause ? "Pause link" : "Cannot pause this link"} type="button">
+              <Pause className="h-4 w-4" />
+            </button>
+          )}
           <button disabled={!canRevoke} onClick={onRevoke} title={canRevoke ? "Revoke link" : "Cannot revoke this link"} type="button">
             <Trash2 className="h-4 w-4" />
           </button>
@@ -836,6 +1005,27 @@ function LinkAccessRow({
       label={label}
       role={metadata}
       tone={link.audience === "public" ? "blue" : "gray"}
+    />
+  );
+}
+
+function BroaderLinkAccessRow({ link }: { link: ShareLinkDto }) {
+  const metadata = [
+    getShareLinkGovernanceHint(link),
+    ...getPublicSharePolicyWarnings(link, defaultPublicSharePolicy),
+    formatRoleLabel(link.roleKey),
+    formatExpiryLabel(link.expiresAt),
+    link.status ? formatLinkStatusLabel(link.status as DocumentShareLinkStatus) : null,
+    link.audience === "public" ? (link.hasPassword ? "password" : "no password") : null,
+  ].filter(Boolean).join(" / ");
+  const scopeLabel = getShareLinkScopeLabel(link);
+
+  return (
+    <AccessRow
+      initials={link.resourceType === "library" ? "LB" : "CO"}
+      label={`${scopeLabel} ${formatAudienceLabel(link.audience)} link`}
+      role={`${metadata} / manage in Access & Sharing`}
+      tone="gray"
     />
   );
 }

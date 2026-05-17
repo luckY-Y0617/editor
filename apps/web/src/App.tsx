@@ -4,6 +4,7 @@ import { AccessSharingPage } from "./components/AccessSharingPage";
 import { KnowledgeEditorPage } from "./components/KnowledgeEditorPage";
 import { LibrariesPage } from "./components/LibrariesPage";
 import { NorthstarLoginPage } from "./components/NorthstarLoginPage";
+import { PermissionAdminSurfacesPage } from "./components/PermissionAdminSurfacesPage";
 import { PublicSharePage } from "./components/PublicSharePage";
 import { SearchCommandPalette } from "./components/SearchCommandPalette";
 import { VersionHistoryComparePage } from "./components/VersionHistoryComparePage";
@@ -17,6 +18,7 @@ import {
   getCanonicalHashRedirect,
   getEditorDocumentIdFromHash,
   getHashRoute,
+  getMembersTeamsTabFromHash,
   getPublicShareTokenFromHash,
   getSearchFiltersFromHash,
   getSettingsRouteTarget,
@@ -26,6 +28,7 @@ const protectedHashes = new Set([
   "#home",
   "#dashboard",
   "#libraries",
+  "#members",
   "#access-sharing",
   "#editor",
   "#search",
@@ -39,7 +42,6 @@ const protectedHashes = new Set([
   "#share",
   "#permissions",
   "#workspace-members",
-  "#members",
   "#permission-admin",
   "#workspace-groups",
   "#groups",
@@ -150,6 +152,14 @@ function renderPage(route: string, hash: string) {
 
   if (route === "#access-sharing") {
     return <AccessSharingPage />;
+  }
+
+  if (route === "#members") {
+    return <PermissionAdminSurfacesPage initialTab={getMembersTeamsTabFromHash(hash)} />;
+  }
+
+  if (route === "#groups") {
+    return <PermissionAdminSurfacesPage initialTab="teams" />;
   }
 
   if (route === "#personal-settings") {

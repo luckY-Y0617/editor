@@ -169,7 +169,6 @@ describe("workspaceSettingsModel", () => {
     expect(groups.find((group) => group.id === "workspace")?.items.map((item) => item.id)).toEqual([
       "workspace-general",
       "workspace-notifications",
-      "workspace-members",
       "workspace-permissions",
       "workspace-security",
       "workspace-integrations",
@@ -199,7 +198,7 @@ describe("workspaceSettingsModel", () => {
       section: "workspace",
     });
     expect(normalizeSettingsPanel({ scope: "workspace", tab: "members" })).toEqual({
-      id: "workspace-members",
+      id: "workspace-general",
       section: "workspace",
     });
     expect(normalizeSettingsPanel({ scope: "workspace", tab: "permissions" })).toEqual({
@@ -231,24 +230,19 @@ describe("workspaceSettingsModel", () => {
   test("keeps workspace Settings primary tabs focused on management surfaces", () => {
     const rows = createWorkspaceSettingsTabRows("general");
     const legacyHrefTargets = new Set([
-      "#members",
       "#workspace-members",
       "#permission-admin",
       "#workspace-groups",
-      "#groups",
       "#scim",
     ]);
 
     expect(rows.map((row) => row.id)).toEqual([
       "general",
       "notifications",
-      "members",
       "permissions",
       "security",
       "integrations",
     ]);
-    expect(rows.find((row) => row.id === "members")?.status).toBe("live");
-    expect(rows.find((row) => row.id === "members")?.href).toBe("#settings?scope=workspace&tab=members");
     expect(rows.find((row) => row.id === "permissions")?.href).toBe("#settings?scope=workspace&tab=permissions");
     expect(rows.find((row) => row.id === "integrations")?.href).toBe("#settings?scope=workspace&tab=integrations");
     expect(rows.map((row) => row.href).some((href) => legacyHrefTargets.has(href))).toBe(false);
@@ -324,8 +318,8 @@ describe("workspaceSettingsModel", () => {
     });
     expect(byId.get("workspace-members")).toMatchObject({
       backendStatus: "live-mutation",
-      frontendStatus: "live",
-      recommendation: "keep",
+      frontendStatus: "should-move",
+      recommendation: "move",
       scope: "workspace",
     });
     expect(byId.get("resource-share")).toMatchObject({
@@ -338,17 +332,16 @@ describe("workspaceSettingsModel", () => {
     });
   });
 
-  test("recommends final trust pass after workspace members move into Settings", () => {
+  test("recommends final trust pass after workspace members move out of Settings", () => {
     const slice = getRecommendedSettingsClosureSlice();
 
     expect(slice.title).toBe("Settings final trust pass");
     expect(slice.capabilityIds).toEqual([
       "workspace-profile-update",
-      "workspace-members",
       "resource-share",
       "library-collections-documents",
     ]);
-    expect(slice.reason).toContain("Workspace members now live in Workspace Settings");
+    expect(slice.reason).toContain("Workspace members now live in the Members left-nav surface");
     expect(slice.reason).toContain("task surfaces");
   });
 
@@ -415,7 +408,7 @@ describe("workspaceSettingsModel", () => {
     expect(byId.get("organization-profile")?.proposedDto).toContain("OrganizationProfileDto");
     expect(byId.get("organization-profile")?.implementationRisk).toBe("medium");
     expect(byId.get("global-members")?.readiness).toBe("partial");
-    expect(byId.get("global-members")?.href).toBe("#settings?scope=workspace&tab=members");
+    expect(byId.get("global-members")?.href).toBe("#members");
     expect(byId.get("global-members")?.proposedEndpoint).toBe("GET /api/v1/organizations/{organizationId}/members");
     expect(byId.get("global-members")?.proposedDto).toContain("OrganizationMembersResponse");
     expect(byId.get("global-members")?.implementationDependencies).toContain("organization-level read authorization");

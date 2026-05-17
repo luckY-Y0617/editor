@@ -15,7 +15,8 @@ public interface IShareLinkAccessAuditService
         string eventType,
         string result,
         string? failureCategory,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        string? metadata = null);
 
     Task RecordProtectedResourceAccessAsync(
         string? shareToken,

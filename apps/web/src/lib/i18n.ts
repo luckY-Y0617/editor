@@ -70,6 +70,7 @@ type TranslationKey =
   | "library.spaceSettings"
   | "library.working"
   | "nav.currentLibraryCollections"
+  | "nav.groups"
   | "nav.home"
   | "nav.libraries"
   | "nav.members"
@@ -278,7 +279,7 @@ type TranslationKey =
   | "settings.libraryOperations"
   | "settings.libraryOperationsSurfaceHelp"
   | "settings.membersSurfaceHelp"
-  | "settings.membersManagedInWorkspaceSettings"
+  | "settings.membersManagedFromMembers"
   | "settings.notificationBoundaryHelp"
   | "settings.openMembersSurface"
   | "settings.personalPreferenceLocalHelp"
@@ -437,6 +438,7 @@ const messages: Record<DisplayLocale, Messages> = {
     "nav.currentLibraryCollections": "Current Library Folders",
     "nav.home": "Home",
     "nav.libraries": "Libraries",
+    "nav.groups": "Groups",
     "nav.members": "Members",
     "nav.noCurrentLibraryCollections": "No current library folders",
     "nav.search": "Search",
@@ -642,7 +644,7 @@ const messages: Record<DisplayLocale, Messages> = {
     "settings.lastOwnerProtected": "Protected by existing backend constraints.",
     "settings.libraryOperations": "Library operations",
     "settings.libraryOperationsSurfaceHelp": "Routine folder and document work stays in Libraries; Settings shows summary and links only.",
-    "settings.membersManagedInWorkspaceSettings": "Workspace members are managed in Workspace Settings > Members.",
+    "settings.membersManagedFromMembers": "Workspace members are managed from the Members left-nav entry.",
     "settings.membersSurfaceHelp": "Member list, add member, role update, remove member, busy states, and backend errors stay on the Members surface.",
     "settings.notificationBoundaryHelp": "Current backend support covers resource watch or mute preferences plus access, sharing, and permission notifications. Ordinary document edit activity stays in Activity, not Updates.",
     "settings.openMembersSurface": "Open Members surface",
@@ -799,6 +801,7 @@ const messages: Record<DisplayLocale, Messages> = {
     "nav.currentLibraryCollections": "\u5f53\u524d\u8d44\u6599\u5e93\u6587\u4ef6\u5939",
     "nav.home": "主页",
     "nav.libraries": "资料库",
+    "nav.groups": "组",
     "nav.members": "成员",
     "nav.noCurrentLibraryCollections": "\u6682\u65e0\u5f53\u524d\u8d44\u6599\u5e93\u6587\u4ef6\u5939",
     "nav.search": "搜索",
@@ -1004,7 +1007,7 @@ const messages: Record<DisplayLocale, Messages> = {
     "settings.libraryOperations": "\u8d44\u6599\u5e93\u64cd\u4f5c",
     "settings.libraryOperationsSurfaceHelp": "\u65e5\u5e38\u6587\u4ef6\u5939\u548c\u6587\u6863\u5de5\u4f5c\u4fdd\u7559\u5728\u8d44\u6599\u5e93\u754c\u9762\uff1b\u8bbe\u7f6e\u4ec5\u663e\u793a\u6458\u8981\u548c\u94fe\u63a5\u3002",
     "settings.libraryPermissionsBoundaryHelp": "\u6b64\u9875\u53ea\u8bf4\u660e\u6743\u9650\u5f52\u5c5e\u8fb9\u754c\u3002\u5de5\u4f5c\u533a\u6210\u5458\u5728 Settings \u7ba1\u7406\uff1b\u6587\u6863\u6388\u6743\u5728\u6587\u6863\u4e0a\u4e0b\u6587\u7ba1\u7406\u3002",
-    "settings.membersManagedInWorkspaceSettings": "\u5de5\u4f5c\u533a\u6210\u5458\u5728 Workspace Settings > Members \u4e2d\u7ba1\u7406\u3002",
+    "settings.membersManagedFromMembers": "\u5de5\u4f5c\u533a\u6210\u5458\u5df2\u79fb\u81f3\u5de6\u4fa7\u201c\u6210\u5458\u201d\u5165\u53e3\u7ba1\u7406\u3002",
     "settings.membersSurfaceHelp": "\u6210\u5458\u5217\u8868\u3001\u6dfb\u52a0\u6210\u5458\u3001\u89d2\u8272\u66f4\u65b0\u3001\u79fb\u9664\u6210\u5458\u3001\u5fd9\u788c\u72b6\u6001\u548c\u540e\u7aef\u9519\u8bef\u90fd\u4fdd\u7559\u5728\u6210\u5458\u754c\u9762\u3002",
     "settings.notificationBoundaryHelp": "\u5f53\u524d\u540e\u7aef\u652f\u6301\u8d44\u6e90\u5173\u6ce8\u6216\u9759\u97f3\u504f\u597d\uff0c\u4ee5\u53ca\u8bbf\u95ee\u3001\u5206\u4eab\u548c\u6743\u9650\u901a\u77e5\u3002\u666e\u901a\u6587\u6863\u7f16\u8f91\u52a8\u6001\u4fdd\u7559\u5728 Activity\uff0c\u4e0d\u8fdb\u5165 Updates\u3002",
     "settings.openMembersSurface": "\u6253\u5f00\u6210\u5458\u754c\u9762",

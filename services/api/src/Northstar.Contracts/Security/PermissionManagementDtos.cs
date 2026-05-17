@@ -116,7 +116,17 @@ public sealed record ShareLinkDto(
     DateTimeOffset CreatedAt,
     DateTimeOffset? ExpiresAt,
     DateTimeOffset? RevokedAt,
-    bool HasPassword);
+    DateTimeOffset? PausedAt,
+    bool HasPassword,
+    ShareLinkContentProtectionDto ContentProtection,
+    string Status);
+
+public sealed record ShareLinkContentProtectionDto(
+    bool DisableDownload,
+    bool DisablePrint,
+    bool DisableCopy,
+    bool WatermarkEnabled,
+    string WatermarkText);
 
 public sealed record ShareLinksResponse(IReadOnlyList<ShareLinkDto> Links);
 
@@ -138,6 +148,7 @@ public sealed record LinkManagementDto(
     string? PausedBy,
     string? PauseReason,
     bool HasPassword,
+    ShareLinkContentProtectionDto ContentProtection,
     string Status,
     string? LinkMode,
     string? PolicyState,
@@ -174,6 +185,11 @@ public sealed record ShareLinkAccessStatsResponse(
     long AccessCount,
     long UniqueVisitorCount,
     string? LastAccessIp,
+    long TreeViewCount,
+    long DocumentViewCount,
+    long ScopeDeniedCount,
+    long PasswordFailedCount,
+    string? LatestEventCategory,
     int RecentWindowDays,
     IReadOnlyList<ShareLinkAccessTrendPointDto> Trend,
     IReadOnlyList<ShareLinkSourceBreakdownDto> SourceBreakdown);
@@ -192,7 +208,12 @@ public sealed record ShareLinkAccessEventDto(
     string? DeviceSummary,
     string EventType,
     string Result,
-    string? FailureCategory);
+    string? FailureCategory,
+    string EventCategory,
+    string? ScopeType,
+    string ResourceType,
+    string ResourceId,
+    string? DocumentId);
 
 public sealed record ShareLinkAccessEventsResponse(
     IReadOnlyList<ShareLinkAccessEventDto> Events,
@@ -240,7 +261,8 @@ public sealed record CreateShareLinkRequest(
     string? Audience,
     DateTimeOffset? ExpiresAt,
     string? SubjectEmail = null,
-    string? Password = null);
+    string? Password = null,
+    ShareLinkContentProtectionDto? ContentProtection = null);
 
 public sealed record CreateShareLinkResponse(
     ShareLinkDto Link,
@@ -263,7 +285,24 @@ public sealed record ResolvePublicShareLinkResponse(
     string RoleKey,
     string Audience,
     DateTimeOffset ExpiresAt,
-    bool HasPassword);
+    bool HasPassword,
+    ShareLinkContentProtectionDto ContentProtection);
+
+public sealed record PublicShareTreeNodeDto(
+    string Id,
+    string Type,
+    string Title,
+    string? ParentId,
+    DateTimeOffset UpdatedAt,
+    bool HasChildren,
+    decimal SortOrder);
+
+public sealed record PublicShareTreeResponse(
+    string ShareLinkId,
+    string ScopeType,
+    string Title,
+    ShareLinkContentProtectionDto ContentProtection,
+    IReadOnlyList<PublicShareTreeNodeDto> Nodes);
 
 public sealed record PublicShareDocumentDto(
     string Id,

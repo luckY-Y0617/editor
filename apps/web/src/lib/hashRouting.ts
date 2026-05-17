@@ -42,6 +42,8 @@ export type SettingsRouteTarget = "organization" | "personal" | "workspace";
 
 export type OrganizationSettingsPanel = "members" | "profile" | "workspaces";
 
+export type MembersTeamsTab = "directory" | "members" | "summary" | "teams";
+
 const workspaceSettingsTabs = new Set<WorkspaceSettingsTab>([
   "general",
   "integrations",
@@ -66,6 +68,7 @@ const postLoginRoutes = new Set([
   "#home",
   "#dashboard",
   "#libraries",
+  "#members",
   "#access-sharing",
   "#editor",
   "#search",
@@ -79,7 +82,6 @@ const postLoginRoutes = new Set([
   "#share",
   "#permissions",
   "#workspace-members",
-  "#members",
   "#permission-admin",
   "#workspace-groups",
   "#groups",
@@ -168,7 +170,15 @@ export function createDocumentAdvancedPermissionsHash(documentId?: string | null
 }
 
 export function createWorkspaceMembersHash() {
-  return createSettingsHash({ scope: "workspace", tab: "members" });
+  return createMembersTeamsHash();
+}
+
+export function createMembersTeamsHash(options: { tab?: MembersTeamsTab | null } = {}) {
+  const tab = normalizeMembersTeamsTab(options.tab);
+  if (tab === "teams") {
+    return "#groups";
+  }
+  return tab && tab !== "members" ? `#members?tab=${encodeURIComponent(tab)}` : "#members";
 }
 
 export function createWorkspacePermissionsHash(): string {
@@ -290,6 +300,10 @@ export function createSettingsHash(options: {
     return createWorkspacePermissionsHash();
   }
 
+  if (options.panel === "workspace-members") {
+    return createWorkspaceMembersHash();
+  }
+
   if (options.panel === "deferred-developer" || options.panel === "deferred-plan") {
     return createSettingsHash({ scope: "workspace" });
   }
@@ -357,6 +371,23 @@ export function getSettingsRouteTarget(hash: string): SettingsRouteTarget {
   }
 
   return "workspace";
+}
+
+export function getMembersTeamsTabFromHash(hash: string): MembersTeamsTab {
+  const { params, route } = parseHashRoute(hash);
+  if (route !== "#members" && route !== "#workspace-members" && route !== "#workspace-groups" && route !== "#groups" && route !== "#scim") {
+    return "members";
+  }
+
+  if (route === "#workspace-groups" || route === "#groups") {
+    return "teams";
+  }
+
+  if (route === "#scim") {
+    return "directory";
+  }
+
+  return normalizeMembersTeamsTab(params.get("tab")) ?? "members";
 }
 
 export function getOrganizationSettingsPanelFromHash(hash: string): OrganizationSettingsPanel {
@@ -464,16 +495,16 @@ export function getCanonicalHashRedirect(hash: string) {
     });
   }
 
-  if (route === "#members" || route === "#workspace-members") {
-    return createWorkspaceMembersHash();
+  if (route === "#workspace-members") {
+    return createMembersTeamsHash();
   }
 
-  if (route === "#permission-admin" || route === "#workspace-groups" || route === "#groups") {
-    return createWorkspacePermissionsHash();
+  if (route === "#permission-admin" || route === "#workspace-groups") {
+    return createMembersTeamsHash({ tab: "teams" });
   }
 
   if (route === "#scim") {
-    return createWorkspaceIntegrationsHash();
+    return createMembersTeamsHash({ tab: "directory" });
   }
 
   if (route === "#links" || route === "#sharing") {
@@ -490,6 +521,10 @@ export function getCanonicalHashRedirect(hash: string) {
       return createWorkspacePermissionsHash();
     }
 
+    if (panel === "workspace-members") {
+      return createWorkspaceMembersHash();
+    }
+
     if (params.get("scope") === "workspace" && params.get("tab") === "links") {
       return createWorkspaceLinkManagementHash();
     }
@@ -499,6 +534,10 @@ export function getCanonicalHashRedirect(hash: string) {
     }
 
     const tab = params.get("tab");
+    if (params.get("scope") === "workspace" && tab === "members") {
+      return createWorkspaceMembersHash();
+    }
+
     if (params.get("scope") === "workspace" && (tab === "plan" || tab === "developer")) {
       return createSettingsHash({ scope: "workspace" });
     }
@@ -528,6 +567,7 @@ export function normalizeInternalActionHash(value?: string | null) {
     "#dashboard",
     "#libraries",
     "#access-sharing",
+    "#members",
     "#editor",
     "#search",
     "#discovery",
@@ -538,7 +578,7 @@ export function normalizeInternalActionHash(value?: string | null) {
     "#organization-settings",
     "#workspace-groups",
     "#workspace-members",
-    "#members",
+    "#groups",
     "#permission-admin",
     "#scim",
     "#updates",
@@ -548,6 +588,22 @@ export function normalizeInternalActionHash(value?: string | null) {
   ]);
 
   return allowedRoutes.has(route) ? trimmed : "#updates";
+}
+
+function normalizeMembersTeamsTab(value?: string | null): MembersTeamsTab | null {
+  if (value === "groups" || value === "teams") {
+    return "teams";
+  }
+
+  if (value === "scim" || value === "directory") {
+    return "directory";
+  }
+
+  if (value === "permissions" || value === "summary") {
+    return "summary";
+  }
+
+  return value === "members" ? "members" : null;
 }
 
 export function createRouteHashFromLocation(location: Pick<Location, "hash" | "pathname" | "search">) {

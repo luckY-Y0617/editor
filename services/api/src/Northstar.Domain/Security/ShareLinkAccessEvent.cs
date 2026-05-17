@@ -62,7 +62,7 @@ public sealed class ShareLinkAccessEvent
 
     private static string ValidResourceType(string resourceType)
     {
-        return ResourceTypes.IsScopedResource(resourceType)
+        return ResourceTypes.IsShareableResource(resourceType)
             ? resourceType
             : throw new DomainException(DomainErrorCodes.ValidationError, "resource type is invalid.");
     }

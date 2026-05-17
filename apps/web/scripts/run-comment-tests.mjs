@@ -42,7 +42,7 @@ await rm(cacheDir, { force: true, recursive: true });
 await mkdir(cacheDir, { recursive: true });
 
 const entryContents = [
-  ...testFiles.map((filePath) => `import "./${filePath.replaceAll("\\", "/")}";`),
+  ...testFiles.map((filePath) => `import "./${filePath.replace(/\\/g, "/")}";`),
   `import { runTests } from "./src/test/harness";`,
   `await runTests();`,
 ].join("\n");

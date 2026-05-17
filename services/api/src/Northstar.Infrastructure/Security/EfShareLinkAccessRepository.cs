@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Northstar.Application.Security;
 using Northstar.Domain.Security;
 using Northstar.Infrastructure.Persistence;
+using System.Text.Json;
 
 namespace Northstar.Infrastructure.Security;
 
@@ -166,6 +167,35 @@ public sealed class EfShareLinkAccessRepository : IShareLinkAccessRepository
             .ToArray();
     }
 
+    public async Task<ShareLinkAccessCategorySummary> GetCategorySummaryAsync(
+        Guid workspaceId,
+        Guid shareLinkId,
+        CancellationToken cancellationToken = default)
+    {
+        var rows = await _dbContext.ShareLinkAccessEvents
+            .AsNoTracking()
+            .Where(accessEvent =>
+                accessEvent.WorkspaceId == workspaceId &&
+                accessEvent.ShareLinkId == shareLinkId)
+            .OrderByDescending(accessEvent => accessEvent.OccurredAt)
+            .Select(accessEvent => new
+            {
+                accessEvent.EventType,
+                accessEvent.Result,
+                accessEvent.FailureCategory,
+                accessEvent.Metadata
+            })
+            .ToListAsync(cancellationToken);
+
+        var categories = rows.Select(row => GetEventCategory(row.EventType, row.Result, row.FailureCategory, row.Metadata)).ToArray();
+        return new ShareLinkAccessCategorySummary(
+            categories.LongCount(category => category == "tree_view"),
+            categories.LongCount(category => category == "document_view"),
+            categories.LongCount(category => category == "scope_denied"),
+            categories.LongCount(category => category == "password_failed"),
+            categories.FirstOrDefault());
+    }
+
     public async Task<ShareLinkAccessEventPage> GetEventsAsync(
         Guid workspaceId,
         Guid shareLinkId,
@@ -210,5 +240,53 @@ public sealed class EfShareLinkAccessRepository : IShareLinkAccessRepository
             ShareLinkAudiences.Public when !hasActor => "public_visitor",
             _ => "unknown"
         };
+    }
+
+    private static string GetEventCategory(string eventType, string result, string? failureCategory, string metadata)
+    {
+        if (failureCategory == "scope_denied")
+        {
+            return "scope_denied";
+        }
+
+        if (failureCategory is "password_failed" or "password_required_or_invalid")
+        {
+            return "password_failed";
+        }
+
+        var metadataCategory = ReadMetadataString(metadata, "category");
+        if (!string.IsNullOrWhiteSpace(metadataCategory))
+        {
+            return metadataCategory!;
+        }
+
+        if (eventType == ShareLinkAccessEventTypes.Resolve)
+        {
+            return "resolve";
+        }
+
+        return result == ShareLinkAccessResults.Fail ? "denied" : eventType;
+    }
+
+    private static string? ReadMetadataString(string metadata, string propertyName)
+    {
+        if (string.IsNullOrWhiteSpace(metadata))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(metadata);
+            return document.RootElement.ValueKind == JsonValueKind.Object &&
+                document.RootElement.TryGetProperty(propertyName, out var property) &&
+                property.ValueKind == JsonValueKind.String
+                    ? property.GetString()
+                    : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 }

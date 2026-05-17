@@ -14,7 +14,7 @@ public sealed class ResourceAccessPolicyConfiguration : IEntityTypeConfiguration
             "resource_access_policies",
             table =>
             {
-                table.HasCheckConstraint("resource_access_policies_resource_type_check", "resource_type IN ('collection', 'document')");
+                table.HasCheckConstraint("resource_access_policies_resource_type_check", "resource_type IN ('library', 'collection', 'document')");
                 table.HasCheckConstraint("resource_access_policies_inheritance_mode_check", "inheritance_mode IN ('inherit', 'restricted')");
                 table.HasCheckConstraint("resource_access_policies_link_mode_check", "link_mode IN ('disabled', 'internal', 'external', 'public')");
                 table.HasCheckConstraint("resource_access_policies_default_link_role_check", "default_link_role IS NULL OR default_link_role IN ('viewer', 'commenter')");

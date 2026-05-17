@@ -34,11 +34,15 @@ import { ApiClientError, getConfiguredApiBaseUrl } from "../lib/apiClient";
 import {
   filterLinksByTab,
   getCopyShareLinkLabel,
+  getLinkManagementScopeLabel,
   getAccessEventDisplayRows,
   getSourceBreakdownRows,
   getTrendTotals,
   getLinkManagementActionState,
   getLinkManagementDisplay,
+  getLinkProtectionLabels,
+  getLinkRiskFromStats,
+  getLinkRiskReasons,
   toLinkManagementMutationError,
   toLinkManagementQuery,
   type LinkManagementFilterTab,
@@ -360,6 +364,7 @@ export function WorkspaceLinkManagementPanel({ workspaceId }: { workspaceId: str
             <option value="">资源类型</option>
             <option value="document">文档</option>
             <option value="collection">文件夹</option>
+            <option value="library">Library</option>
           </select>
           <Filter className="h-4 w-4 link-management-filter-icon" aria-hidden="true" />
         </div>
@@ -495,7 +500,7 @@ function LinkManagementTable({
               <span className="permission-admin-avatar is-secure"><FileText className="h-4 w-4" /></span>
               <span className="min-w-0">
                 <strong title={link.resourceTitle ?? link.resourceId}>{link.resourceTitle ?? "未命名资源"}</strong>
-                <small>{formatResourceType(link.resourceType)} / {shortId(link.resourceId)}</small>
+                <small>{getLinkManagementScopeLabel(link.resourceType)} / {shortId(link.resourceId)}</small>
               </span>
             </span>
             <span className="permission-admin-cell-text" title={link.id}>{shortId(link.id)}</span>
@@ -613,6 +618,9 @@ function LinkDetailDrawer({
   }
 
   const display = getLinkManagementDisplay(detail);
+  const effectiveRisk = getLinkRiskFromStats(detail, stats);
+  const riskReasons = getLinkRiskReasons(detail, stats);
+  const protectionLabels = getLinkProtectionLabels(detail);
 
   return (
     <aside className="link-management-drawer" aria-label="链接详情" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true">
@@ -665,6 +673,7 @@ function LinkDetailDrawer({
         <DefinitionItem label="链接 ID" value={detail.id} />
         <DefinitionItem label="资源" value={detail.resourceTitle ?? detail.resourceId} />
         <DefinitionItem label="资源 ID" value={detail.resourceId} />
+        <DefinitionItem label="Scope Type" value={getLinkManagementScopeLabel(detail.resourceType)} />
         <DefinitionItem label="资源类型" value={formatResourceType(detail.resourceType)} />
         <DefinitionItem label="创建人" value={detail.createdByDisplayName ?? detail.createdBy ?? "-"} />
         <DefinitionItem label="创建时间" value={formatDateTime(detail.createdAt)} />
@@ -673,10 +682,18 @@ function LinkDetailDrawer({
         <DefinitionItem label="状态" value={display.statusLabel} />
         <DefinitionItem label="策略状态" value={formatPolicyState(detail.policyState, detail.linkMode)} />
         <DefinitionItem label="密码保护" value={detail.hasPassword ? "有密码" : "无密码"} />
+        <DefinitionItem label="Content protection" value={protectionLabels.length ? protectionLabels.join(", ") : "-"} />
         <DefinitionItem label="过期时间" value={detail.expiresAt ? formatDateTime(detail.expiresAt) : "永不过期"} />
         <DefinitionItem label="最近访问" value={formatNullableDateTime(stats?.lastAccessedAt ?? detail.lastAccessedAt)} />
         <DefinitionItem label="访问次数" value={formatCount(stats?.accessCount ?? detail.accessCount)} />
         <DefinitionItem label="唯一访客" value={formatCount(stats?.uniqueVisitorCount ?? detail.uniqueVisitorCount)} />
+        <DefinitionItem label="Risk label" value={formatRiskLabel(effectiveRisk)} />
+        <DefinitionItem label="Risk signals" value={riskReasons.length ? riskReasons.join(", ") : "No elevated signal"} />
+        <DefinitionItem label="Tree views" value={formatCount(stats?.treeViewCount)} />
+        <DefinitionItem label="Document views" value={formatCount(stats?.documentViewCount)} />
+        <DefinitionItem label="Denied attempts" value={formatCount(stats?.scopeDeniedCount)} />
+        <DefinitionItem label="Password failures" value={formatCount(stats?.passwordFailedCount)} />
+        <DefinitionItem label="Latest event" value={formatEventCategory(stats?.latestEventCategory)} />
       </dl>
 
       <TrendPanel error={statsError} onRetry={onRetryAnalytics} stats={stats} status={statsStatus} />
@@ -802,7 +819,7 @@ function AccessEventsPanel({
             {rows.map((row) => (
               <article key={row.id}>
                 <strong>{formatDateTime(row.time)}</strong>
-                <span>{row.actor} / {row.actorType} / {row.type} / {row.result}</span>
+                <span>{row.actor} / {row.actorType} / {row.scopeType} / {row.type} / {row.result}</span>
                 <small>IP {row.ip} · {row.device} · {row.failure}</small>
               </article>
             ))}
@@ -946,7 +963,35 @@ function formatPolicyState(policyState: string | null | undefined, linkMode: str
 }
 
 function formatResourceType(resourceType: string) {
-  return resourceType === "collection" ? "文件夹" : resourceType === "document" ? "文档" : resourceType;
+  return resourceType === "collection" ? "文件夹" : resourceType === "document" ? "文档" : resourceType === "library" ? "Library" : resourceType;
+}
+
+function formatRiskLabel(risk: string) {
+  return risk === "high" ? "High" : risk === "attention" || risk === "expiring" ? "Medium" : "Low";
+}
+
+function formatEventCategory(category: string | null | undefined) {
+  if (category === "tree_view") {
+    return "Tree view";
+  }
+
+  if (category === "document_view") {
+    return "Document view";
+  }
+
+  if (category === "scope_denied") {
+    return "Scope denied";
+  }
+
+  if (category === "password_failed") {
+    return "Password failed";
+  }
+
+  if (category === "resolve") {
+    return "Resolve";
+  }
+
+  return category || "-";
 }
 
 function formatExpiry(expiresAt: string | null, revokedAt: string | null) {

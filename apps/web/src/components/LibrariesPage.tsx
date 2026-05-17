@@ -19,11 +19,13 @@ import {
   RotateCcw,
   Search,
   Settings,
+  Share2,
   Trash2,
   X,
   type LucideIcon,
 } from "lucide-react";
 import { type CSSProperties, type ReactNode, useEffect, useMemo, useState } from "react";
+import { ResourceShareDrawer, type ResourceShareTarget } from "./ResourceShareDrawer";
 import { WorkspaceHomeSidebar } from "./WorkspaceHomeSidebar";
 import { WorkspaceHomeTopBar } from "./WorkspaceHomeTopBar";
 import { ApiClientError, formatApiOperationError, getConfiguredApiBaseUrl } from "../lib/apiClient";
@@ -126,6 +128,7 @@ export function LibrariesPage() {
   const [documentActionMessage, setDocumentActionMessage] = useState<DocumentActionMessage>(null);
   const [collectionActionMessage, setCollectionActionMessage] = useState<DocumentActionMessage>(null);
   const [actionPanel, setActionPanel] = useState<LibraryActionPanelState>(null);
+  const [shareTarget, setShareTarget] = useState<ResourceShareTarget | null>(null);
   const filters = getLibrariesFiltersFromHash(hash);
   const bootstrap = useBootstrapData(bootstrapRetryKey);
   const selectedLibraryId = getPreferredLibraryId(bootstrap.data, filters.libraryId);
@@ -156,11 +159,12 @@ export function LibrariesPage() {
     tagFilter,
   ]);
   const sidebarCollections = model
-    ? model.collections.slice(0, 8).map((collection) => ({
+    ? model.collections.map((collection) => ({
         displayTitle: collection.title,
         documentCount: collection.documentCount,
         href: collection.href,
         id: collection.id,
+        isActive: collection.isActive,
       }))
     : [];
   const pageTitle = model && model.hasLibraries ? model.activeLibraryName : t(locale, "nav.libraries");
@@ -185,6 +189,7 @@ export function LibrariesPage() {
     setDocumentActionMessage(null);
     setCollectionActionMessage(null);
     setActionPanel(null);
+    setShareTarget(null);
   }, [selectedLibraryId]);
 
   useEffect(() => {
@@ -298,6 +303,32 @@ export function LibrariesPage() {
     }
 
     setActionPanel({ kind: "create-collection", title: "" });
+  };
+
+  const handleShareLibrary = () => {
+    if (!model?.activeLibraryId) {
+      setCreateError("Load a library before publishing it.");
+      return;
+    }
+
+    setShareTarget({
+      resourceId: model.activeLibraryId,
+      resourceTitle: model.activeLibraryName,
+      resourceType: "library",
+    });
+  };
+
+  const handleShareCollection = (collection: { displayTitle: string; id: string }) => {
+    if (!collection.id) {
+      setCollectionActionMessage({ kind: "error", text: "Folder context is not available." });
+      return;
+    }
+
+    setShareTarget({
+      resourceId: collection.id,
+      resourceTitle: collection.displayTitle,
+      resourceType: "collection",
+    });
   };
 
   const handleRenameCollection = () => {
@@ -497,12 +528,14 @@ export function LibrariesPage() {
         <WorkspaceHomeSidebar
           activeItem="libraries"
           currentLibraryCollections={sidebarCollections}
+          onShareCollection={handleShareCollection}
         />
         <section className="workspace-home-content editor-scrollbar min-w-0 flex-1 overflow-y-auto">
           <div className="workspace-home-mobile-nav md:hidden" aria-label="Workspace navigation">
             <a href="#home">{t(locale, "nav.home")}</a>
             <a aria-current="page" href="#libraries">{t(locale, "nav.libraries")}</a>
             <a href="#access-sharing">{t(locale, "nav.updates")}</a>
+            <a href="#members">{t(locale, "nav.members")}</a>
             <a href="#settings">{t(locale, "nav.settings")}</a>
           </div>
 
@@ -518,6 +551,16 @@ export function LibrariesPage() {
                 ) : null}
               </div>
               <div className="libraries-workbench-heading-actions">
+                <button
+                  className="workspace-home-secondary-action"
+                  disabled={!model?.activeLibraryId}
+                  onClick={handleShareLibrary}
+                  title={model?.activeLibraryId ? `Publish ${model.activeLibraryName}` : "Load a library before publishing it."}
+                  type="button"
+                >
+                  <Share2 className="h-4 w-4" />
+                  <span>Publish Library</span>
+                </button>
                 {librarySettingsHref ? (
                   <a
                     className="workspace-home-secondary-action"
@@ -574,6 +617,12 @@ export function LibrariesPage() {
                   return { ...current, title };
                 });
               }}
+            />
+
+            <ResourceShareDrawer
+              isOpen={Boolean(shareTarget)}
+              onClose={() => setShareTarget(null)}
+              target={shareTarget}
             />
 
             {createError ? <div className="share-permissions-inline-status mb-4">{createError}</div> : null}

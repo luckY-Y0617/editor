@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Northstar.Application.Common;
 using Northstar.Application.Knowledge;
 using Northstar.Contracts.Common;
@@ -101,7 +102,13 @@ public sealed class ShareLinkService : IShareLinkService
             DateTimeOffset.UtcNow,
             cancellationToken);
 
-        return new ShareLinksResponse(links.Select(ToDto).ToArray());
+        var policy = await _permissionRepository.GetPolicyAsync(
+            target.WorkspaceId,
+            target.ResourceType,
+            target.ResourceId,
+            cancellationToken);
+
+        return new ShareLinksResponse(links.Select(link => ToDto(link, policy)).ToArray());
     }
 
     public async Task<LinkManagementListResponse> SearchShareLinksAsync(
@@ -126,7 +133,7 @@ public sealed class ShareLinkService : IShareLinkService
         var normalizedLimit = Math.Clamp(limit ?? 50, 1, 100);
         var normalizedResourceType = string.IsNullOrWhiteSpace(resourceType)
             ? null
-            : PermissionResourceNormalizer.NormalizeScopedResourceType(resourceType);
+            : PermissionResourceNormalizer.NormalizeShareableResourceType(resourceType);
         var normalizedAudience = NormalizeAudienceFilter(audience);
         var normalizedRole = NormalizeRoleFilter(roleKey);
         var normalizedStatus = NormalizeStatusFilter(status);
@@ -170,7 +177,12 @@ public sealed class ShareLinkService : IShareLinkService
             link.ResourceId,
             link.WorkspaceId);
         await EnsureCanShareAsync(target, cancellationToken);
-        return ToDto(link);
+        var policy = await _permissionRepository.GetPolicyAsync(
+            target.WorkspaceId,
+            target.ResourceType,
+            target.ResourceId,
+            cancellationToken);
+        return ToDto(link, policy);
     }
 
     public async Task<LinkManagementDto> GetManagedShareLinkAsync(
@@ -201,6 +213,8 @@ public sealed class ShareLinkService : IShareLinkService
             EnsureCanGrant(shareResult.EffectiveRole, roleKey);
             EnsureExpiry(audience, request.ExpiresAt);
             EnsureAudienceRules(target, audience, roleKey, subjectEmail, request.ExpiresAt);
+            var contentProtection = NormalizeContentProtection(target, audience, request.ContentProtection);
+            EnsurePublicShareCreationPolicy(target, audience, roleKey, request.ExpiresAt, request.Password, contentProtection);
             var passwordHash = NormalizeAndHashPassword(audience, request.Password);
 
             var token = _tokenService.GenerateToken();
@@ -215,7 +229,8 @@ public sealed class ShareLinkService : IShareLinkService
                 request.ExpiresAt,
                 subjectEmail,
                 passwordHash,
-                _tokenProtector.Protect(token));
+                _tokenProtector.Protect(token),
+                SerializeContentProtectionForStorage(audience, contentProtection));
             await _shareLinkRepository.AddAsync(link, ct);
             await EnsureLinkPolicyAsync(target, audience, roleKey, actorId, shareResult, link.Id, ct);
             await _auditService.AddAsync(
@@ -238,7 +253,7 @@ public sealed class ShareLinkService : IShareLinkService
             await _unitOfWork.SaveChangesAsync(ct);
 
             return new CreateShareLinkResponse(
-                ToDto(link),
+                ToDto(link, status: "active"),
                 token,
                 BuildShareLinkResolveUrl(audience, token));
         }, cancellationToken);
@@ -627,7 +642,7 @@ public sealed class ShareLinkService : IShareLinkService
         CancellationToken cancellationToken = default)
     {
         var link = await GetActivePublicLinkAsync(token, ResourceTypes.Document, passwordProof, cancellationToken);
-        var document = await _knowledgeQueryService.GetDocumentAsync(link.ResourceId, cancellationToken)
+        var document = await _publicCollectionQueryService.GetDocumentAsync(link, link.ResourceId, cancellationToken)
             ?? throw new ApplicationErrorException(ErrorCodes.NotFound, "Share link was not found.");
 
         await _shareLinkAccessAuditService.RecordPublicAccessAsync(
@@ -635,10 +650,95 @@ public sealed class ShareLinkService : IShareLinkService
             ShareLinkAccessEventTypes.Access,
             ShareLinkAccessResults.Success,
             null,
-            cancellationToken);
+            cancellationToken,
+            JsonSerializer.Serialize(new
+            {
+                category = "document_view",
+                scopeType = link.ResourceType,
+                resourceType = ResourceTypes.Document,
+                documentId = link.ResourceId.ToString(),
+                resourceId = link.ResourceId.ToString()
+            }, JsonOptions));
         return new PublicShareDocumentResponse(
             ToPublicResolveDto(link),
-            ToPublicDocumentDto(document));
+            SanitizePublicDocumentDto(document));
+    }
+
+    public async Task<PublicShareTreeResponse> GetPublicShareTreeAsync(
+        string token,
+        string? passwordProof = null,
+        CancellationToken cancellationToken = default)
+    {
+        var link = await GetActivePublicLinkAsync(token, expectedResourceType: null, passwordProof, cancellationToken);
+        var tree = await _publicCollectionQueryService.GetTreeAsync(
+            link,
+            cancellationToken)
+            ?? throw new ApplicationErrorException(ErrorCodes.NotFound, "Share link was not found.");
+
+        await _shareLinkAccessAuditService.RecordPublicAccessAsync(
+            token,
+            ShareLinkAccessEventTypes.Access,
+            ShareLinkAccessResults.Success,
+            null,
+            cancellationToken,
+            JsonSerializer.Serialize(new
+            {
+                category = "tree_view",
+                scopeType = link.ResourceType,
+                resourceType = link.ResourceType,
+                resourceId = link.ResourceId.ToString()
+            }, JsonOptions));
+        return tree with
+        {
+            ContentProtection = GetContentProtectionDto(link)
+        };
+    }
+
+    public async Task<PublicShareDocumentResponse> GetPublicShareDocumentAsync(
+        string token,
+        Guid documentId,
+        string? passwordProof = null,
+        CancellationToken cancellationToken = default)
+    {
+        var link = await GetActivePublicLinkAsync(token, expectedResourceType: null, passwordProof, cancellationToken);
+        var document = await _publicCollectionQueryService.GetDocumentAsync(link, documentId, cancellationToken);
+        if (document is null)
+        {
+            await _shareLinkAccessAuditService.RecordPublicAccessAsync(
+                token,
+                ShareLinkAccessEventTypes.Access,
+                ShareLinkAccessResults.Fail,
+                "scope_denied",
+                cancellationToken,
+                JsonSerializer.Serialize(new
+                {
+                    category = "scope_denied",
+                    scopeType = link.ResourceType,
+                    resourceType = ResourceTypes.Document,
+                    documentId = documentId.ToString(),
+                    resourceId = documentId.ToString(),
+                    denialReason = "scope_denied"
+                }, JsonOptions));
+            throw new ApplicationErrorException(ErrorCodes.NotFound, "Share link was not found.");
+        }
+
+        await _shareLinkAccessAuditService.RecordPublicAccessAsync(
+            token,
+            ShareLinkAccessEventTypes.Access,
+            ShareLinkAccessResults.Success,
+            null,
+            cancellationToken,
+            JsonSerializer.Serialize(new
+            {
+                category = "document_view",
+                scopeType = link.ResourceType,
+                resourceType = ResourceTypes.Document,
+                documentId = documentId.ToString(),
+                resourceId = documentId.ToString()
+            }, JsonOptions));
+        return new PublicShareDocumentResponse(
+            ToPublicResolveDto(link),
+            SanitizePublicDocumentDto(document));
     }
 
     public async Task<PublicShareCollectionResponse> GetPublicShareCollectionAsync(
@@ -658,7 +758,14 @@ public sealed class ShareLinkService : IShareLinkService
             ShareLinkAccessEventTypes.Access,
             ShareLinkAccessResults.Success,
             null,
-            cancellationToken);
+            cancellationToken,
+            JsonSerializer.Serialize(new
+            {
+                category = "tree_view",
+                scopeType = link.ResourceType,
+                resourceType = link.ResourceType,
+                resourceId = link.ResourceId.ToString()
+            }, JsonOptions));
         return new PublicShareCollectionResponse(
             ToPublicResolveDto(link),
             collection);
@@ -849,13 +956,19 @@ public sealed class ShareLinkService : IShareLinkService
         var userId = await _scopedAccessService.GetRequiredUserIdAsync(cancellationToken);
         var manageAction = link.ResourceType == ResourceTypes.Document
             ? PermissionActions.DocumentManagePermissions
-            : PermissionActions.CollectionManagePermissions;
+            : link.ResourceType == ResourceTypes.Collection
+                ? PermissionActions.CollectionManagePermissions
+                : PermissionActions.WorkspaceManagePermissions;
         var shareAction = link.ResourceType == ResourceTypes.Document
             ? PermissionActions.DocumentShare
-            : PermissionActions.CollectionShare;
+            : link.ResourceType == ResourceTypes.Collection
+                ? PermissionActions.CollectionShare
+                : PermissionActions.WorkspaceManagePermissions;
         var manageResult = link.ResourceType == ResourceTypes.Document
             ? await _effectivePermissionService.AuthorizeDocumentAsync(link.ResourceId, userId, manageAction, cancellationToken)
-            : await _effectivePermissionService.AuthorizeCollectionAsync(link.ResourceId, userId, manageAction, cancellationToken);
+            : link.ResourceType == ResourceTypes.Collection
+                ? await _effectivePermissionService.AuthorizeCollectionAsync(link.ResourceId, userId, manageAction, cancellationToken)
+                : await _effectivePermissionService.AuthorizeWorkspaceAsync(link.WorkspaceId, userId, manageAction, cancellationToken);
         if (manageResult.Allowed)
         {
             return new LinkManagementAccess(manageResult, CanManage: true);
@@ -863,7 +976,9 @@ public sealed class ShareLinkService : IShareLinkService
 
         var shareResult = link.ResourceType == ResourceTypes.Document
             ? await _effectivePermissionService.AuthorizeDocumentAsync(link.ResourceId, userId, shareAction, cancellationToken)
-            : await _effectivePermissionService.AuthorizeCollectionAsync(link.ResourceId, userId, shareAction, cancellationToken);
+            : link.ResourceType == ResourceTypes.Collection
+                ? await _effectivePermissionService.AuthorizeCollectionAsync(link.ResourceId, userId, shareAction, cancellationToken)
+                : await _effectivePermissionService.AuthorizeWorkspaceAsync(link.WorkspaceId, userId, shareAction, cancellationToken);
         if (shareResult.Allowed && link.CreatedBy == userId)
         {
             return new LinkManagementAccess(shareResult, CanManage: false);
@@ -876,15 +991,34 @@ public sealed class ShareLinkService : IShareLinkService
         PermissionResourceTarget target,
         CancellationToken cancellationToken)
     {
-        return target.ResourceType == ResourceTypes.Document
-            ? await _scopedAccessService.EnsureCanAccessDocumentAsync(
+        if (target.ResourceType == ResourceTypes.Document)
+        {
+            return await _scopedAccessService.EnsureCanAccessDocumentAsync(
                 target.ResourceId,
                 PermissionActions.DocumentShare,
-                cancellationToken)
-            : await _scopedAccessService.EnsureCanAccessCollectionAsync(
+                cancellationToken);
+        }
+
+        if (target.ResourceType == ResourceTypes.Collection)
+        {
+            return await _scopedAccessService.EnsureCanAccessCollectionAsync(
                 target.ResourceId,
                 PermissionActions.CollectionShare,
                 cancellationToken);
+        }
+
+        var userId = await _scopedAccessService.GetRequiredUserIdAsync(cancellationToken);
+        var result = await _effectivePermissionService.AuthorizeWorkspaceAsync(
+            target.WorkspaceId,
+            userId,
+            PermissionActions.WorkspaceManagePermissions,
+            cancellationToken);
+        if (!result.Allowed)
+        {
+            throw new ApplicationErrorException(ErrorCodes.Forbidden, "Workspace permission is insufficient.");
+        }
+
+        return result;
     }
 
     private async Task<PermissionResourceTarget> ResolveTargetAsync(
@@ -892,7 +1026,23 @@ public sealed class ShareLinkService : IShareLinkService
         Guid resourceId,
         CancellationToken cancellationToken)
     {
-        var normalizedResourceType = PermissionResourceNormalizer.NormalizeScopedResourceType(resourceType);
+        if (!string.IsNullOrWhiteSpace(resourceType))
+        {
+            var requestedResourceType = resourceType.Trim().ToLowerInvariant();
+            if (requestedResourceType == "workspace")
+            {
+                throw PublicSharePolicyBlocked("PUBLIC_SHARE_WORKSPACE_UNSUPPORTED", "Workspace public sharing is not supported.");
+            }
+        }
+
+        var normalizedResourceType = PermissionResourceNormalizer.NormalizeShareableResourceType(resourceType);
+        if (normalizedResourceType == ResourceTypes.Library)
+        {
+            var library = await _resourceResolver.GetLibraryPermissionResourceAsync(resourceId, cancellationToken)
+                ?? throw new ApplicationErrorException(ErrorCodes.NotFound, "Library was not found.");
+            return new PermissionResourceTarget(ResourceTypes.Library, library.LibraryId, library.WorkspaceId);
+        }
+
         if (normalizedResourceType == ResourceTypes.Document)
         {
             var document = await _resourceResolver.GetDocumentPermissionResourceAsync(resourceId, cancellationToken)
@@ -933,8 +1083,7 @@ public sealed class ShareLinkService : IShareLinkService
         {
             ShareLinkAudiences.Workspace => normalized,
             ShareLinkAudiences.External => normalized,
-            ShareLinkAudiences.Public when _publicShareOptions.Enabled => normalized,
-            ShareLinkAudiences.Public => throw new ApplicationErrorException(ErrorCodes.ValidationError, "Public share links are not enabled."),
+            ShareLinkAudiences.Public => normalized,
             _ => throw new ApplicationErrorException(ErrorCodes.ValidationError, "share link audience is invalid.")
         };
     }
@@ -961,11 +1110,6 @@ public sealed class ShareLinkService : IShareLinkService
 
     private static void EnsureExpiry(string audience, DateTimeOffset? expiresAt)
     {
-        if (audience == ShareLinkAudiences.Public && !expiresAt.HasValue)
-        {
-            throw new ApplicationErrorException(ErrorCodes.ValidationError, "Public share links require expiresAt.");
-        }
-
         if (expiresAt.HasValue && expiresAt.Value <= DateTimeOffset.UtcNow)
         {
             throw new ApplicationErrorException(ErrorCodes.ValidationError, "expiresAt must be in the future.");
@@ -984,9 +1128,9 @@ public sealed class ShareLinkService : IShareLinkService
             return;
         }
 
-        if (roleKey != PermissionRole.Viewer)
+        if (_publicShareOptions.ViewerOnly && roleKey != PermissionRole.Viewer)
         {
-            throw new ApplicationErrorException(ErrorCodes.ValidationError, "Public share links can only use viewer role.");
+            throw PublicSharePolicyBlocked("PUBLIC_SHARE_ROLE_NOT_ALLOWED", "Public share links can only use viewer role.");
         }
 
         if (!string.IsNullOrWhiteSpace(subjectEmail))
@@ -994,17 +1138,232 @@ public sealed class ShareLinkService : IShareLinkService
             throw new ApplicationErrorException(ErrorCodes.ValidationError, "subjectEmail is not supported for public links.");
         }
 
-        if (!expiresAt.HasValue)
+        if ((_publicShareOptions.RequireExpiry || !_publicShareOptions.AllowNoExpiry) && !expiresAt.HasValue)
         {
-            throw new ApplicationErrorException(ErrorCodes.ValidationError, "Public share links require expiresAt.");
+            throw PublicSharePolicyBlocked("PUBLIC_SHARE_EXPIRY_REQUIRED", "Public share links require expiresAt.");
         }
 
-        var now = DateTimeOffset.UtcNow;
-        var maxExpiresAt = now.Add(_publicShareOptions.EffectiveMaxExpiry());
-        if (!expiresAt.HasValue || expiresAt.Value > maxExpiresAt)
+        if (expiresAt.HasValue)
         {
-            throw new ApplicationErrorException(ErrorCodes.ValidationError, "Public share link expiry exceeds the configured maximum.");
+            var now = DateTimeOffset.UtcNow;
+            var maxExpiresAt = now.Add(_publicShareOptions.EffectiveMaxExpiry(target.ResourceType));
+            if (expiresAt.Value > maxExpiresAt)
+            {
+                throw PublicSharePolicyBlocked("PUBLIC_SHARE_EXPIRY_TOO_LONG", "Public share link expiry exceeds the configured maximum.");
+            }
         }
+    }
+
+    private void EnsurePublicShareCreationPolicy(
+        PermissionResourceTarget target,
+        string audience,
+        string roleKey,
+        DateTimeOffset? expiresAt,
+        string? password,
+        ShareLinkContentProtectionDto contentProtection)
+    {
+        if (audience != ShareLinkAudiences.Public)
+        {
+            return;
+        }
+
+        if (!_publicShareOptions.Enabled)
+        {
+            throw PublicSharePolicyBlocked("PUBLIC_SHARE_DISABLED", "Public share links are not enabled.");
+        }
+
+        if (target.ResourceType == ResourceTypes.Document && !_publicShareOptions.AllowDocumentScope)
+        {
+            throw PublicSharePolicyBlocked("PUBLIC_SHARE_SCOPE_DISABLED", "Document public share links are disabled by policy.");
+        }
+
+        if (target.ResourceType == ResourceTypes.Collection && !_publicShareOptions.AllowCollectionScope)
+        {
+            throw PublicSharePolicyBlocked("PUBLIC_SHARE_SCOPE_DISABLED", "Collection public share links are disabled by policy.");
+        }
+
+        if (target.ResourceType == ResourceTypes.Library && !_publicShareOptions.AllowLibraryScope)
+        {
+            throw PublicSharePolicyBlocked("PUBLIC_SHARE_SCOPE_DISABLED", "Library public share links are disabled by policy.");
+        }
+
+        if (target.ResourceType is not ResourceTypes.Document and not ResourceTypes.Collection and not ResourceTypes.Library)
+        {
+            throw PublicSharePolicyBlocked("PUBLIC_SHARE_SCOPE_DISABLED", "Public share scope is not supported.");
+        }
+
+        if (_publicShareOptions.ViewerOnly && roleKey != PermissionRole.Viewer)
+        {
+            throw PublicSharePolicyBlocked("PUBLIC_SHARE_ROLE_NOT_ALLOWED", "Public share links can only use viewer role.");
+        }
+
+        if ((_publicShareOptions.RequireExpiry || !_publicShareOptions.AllowNoExpiry) && !expiresAt.HasValue)
+        {
+            throw PublicSharePolicyBlocked("PUBLIC_SHARE_EXPIRY_REQUIRED", "Public share links require expiresAt.");
+        }
+
+        if (expiresAt.HasValue && expiresAt.Value > DateTimeOffset.UtcNow.Add(_publicShareOptions.EffectiveMaxExpiry(target.ResourceType)))
+        {
+            throw PublicSharePolicyBlocked("PUBLIC_SHARE_EXPIRY_TOO_LONG", "Public share link expiry exceeds the configured maximum.");
+        }
+
+        if (_publicShareOptions.RequirePassword && string.IsNullOrWhiteSpace(password))
+        {
+            throw PublicSharePolicyBlocked("PUBLIC_SHARE_PASSWORD_REQUIRED", "Public share links require a password.");
+        }
+
+        if (_publicShareOptions.RequirePasswordForCollection &&
+            target.ResourceType == ResourceTypes.Collection &&
+            string.IsNullOrWhiteSpace(password))
+        {
+            throw PublicSharePolicyBlocked("PUBLIC_SHARE_PASSWORD_REQUIRED", "Collection public share links require a password.");
+        }
+
+        if (_publicShareOptions.RequirePasswordForLibrary &&
+            target.ResourceType == ResourceTypes.Library &&
+            string.IsNullOrWhiteSpace(password))
+        {
+            throw PublicSharePolicyBlocked("PUBLIC_SHARE_PASSWORD_REQUIRED", "Library public share links require a password.");
+        }
+
+        if (_publicShareOptions.DisallowDownloadForPublicLinks && !contentProtection.DisableDownload)
+        {
+            throw PublicSharePolicyBlocked("PUBLIC_SHARE_DOWNLOAD_DISABLED_REQUIRED", "Public share links must disable download.");
+        }
+
+        if (_publicShareOptions.RequireWatermarkForCollection &&
+            target.ResourceType == ResourceTypes.Collection &&
+            !contentProtection.WatermarkEnabled)
+        {
+            throw PublicSharePolicyBlocked("PUBLIC_SHARE_WATERMARK_REQUIRED", "Collection public share links require a watermark.");
+        }
+
+        if (_publicShareOptions.RequireWatermarkForLibrary &&
+            target.ResourceType == ResourceTypes.Library &&
+            !contentProtection.WatermarkEnabled)
+        {
+            throw PublicSharePolicyBlocked("PUBLIC_SHARE_WATERMARK_REQUIRED", "Library public share links require a watermark.");
+        }
+    }
+
+    private ShareLinkContentProtectionDto NormalizeContentProtection(
+        PermissionResourceTarget target,
+        string audience,
+        ShareLinkContentProtectionDto? requested)
+    {
+        if (audience != ShareLinkAudiences.Public)
+        {
+            return DefaultContentProtection();
+        }
+
+        var disableDownload = requested?.DisableDownload ?? _publicShareOptions.DefaultDisableDownload;
+        var disablePrint = requested?.DisablePrint ?? _publicShareOptions.DefaultDisablePrint;
+        var disableCopy = requested?.DisableCopy ?? _publicShareOptions.DefaultDisableCopy;
+        var watermarkEnabled = requested?.WatermarkEnabled ?? _publicShareOptions.DefaultWatermarkEnabled;
+        var watermarkText = SanitizeWatermarkText(requested?.WatermarkText, target);
+
+        return new ShareLinkContentProtectionDto(
+            disableDownload,
+            disablePrint,
+            disableCopy,
+            watermarkEnabled,
+            watermarkText);
+    }
+
+    private ShareLinkContentProtectionDto GetContentProtectionDto(ShareLink link)
+    {
+        if (link.Audience != ShareLinkAudiences.Public)
+        {
+            return DefaultContentProtection();
+        }
+
+        if (string.IsNullOrWhiteSpace(link.ContentProtectionJson))
+        {
+            return DefaultContentProtection();
+        }
+
+        try
+        {
+            var stored = JsonSerializer.Deserialize<StoredShareLinkContentProtection>(
+                link.ContentProtectionJson,
+                JsonOptions);
+            if (stored is null)
+            {
+                return DefaultContentProtection();
+            }
+
+            return new ShareLinkContentProtectionDto(
+                stored.DisableDownload ?? _publicShareOptions.DefaultDisableDownload,
+                stored.DisablePrint ?? _publicShareOptions.DefaultDisablePrint,
+                stored.DisableCopy ?? _publicShareOptions.DefaultDisableCopy,
+                stored.WatermarkEnabled ?? _publicShareOptions.DefaultWatermarkEnabled,
+                SanitizeWatermarkText(stored.WatermarkText, new PermissionResourceTarget(link.ResourceType, link.ResourceId, link.WorkspaceId)));
+        }
+        catch (JsonException)
+        {
+            return DefaultContentProtection();
+        }
+    }
+
+    private ShareLinkContentProtectionDto DefaultContentProtection()
+    {
+        return new ShareLinkContentProtectionDto(
+            _publicShareOptions.DefaultDisableDownload,
+            _publicShareOptions.DefaultDisablePrint,
+            _publicShareOptions.DefaultDisableCopy,
+            _publicShareOptions.DefaultWatermarkEnabled,
+            "Public link");
+    }
+
+    private static string? SerializeContentProtectionForStorage(
+        string audience,
+        ShareLinkContentProtectionDto contentProtection)
+    {
+        if (audience != ShareLinkAudiences.Public)
+        {
+            return null;
+        }
+
+        return JsonSerializer.Serialize(new StoredShareLinkContentProtection(
+            contentProtection.DisableDownload,
+            contentProtection.DisablePrint,
+            contentProtection.DisableCopy,
+            contentProtection.WatermarkEnabled,
+            contentProtection.WatermarkText), JsonOptions);
+    }
+
+    private static string SanitizeWatermarkText(string? value, PermissionResourceTarget target)
+    {
+        var text = string.IsNullOrWhiteSpace(value) ? "Public link" : value.Trim();
+        if (text.Length > 80)
+        {
+            text = text[..80].Trim();
+        }
+
+        var lower = text.ToLowerInvariant();
+        if (lower.Contains("token", StringComparison.Ordinal) ||
+            lower.Contains("password", StringComparison.Ordinal) ||
+            lower.Contains("hash", StringComparison.Ordinal) ||
+            lower.Contains("proof", StringComparison.Ordinal) ||
+            lower.Contains(target.ResourceId.ToString("D"), StringComparison.OrdinalIgnoreCase) ||
+            lower.Contains(target.WorkspaceId.ToString("D"), StringComparison.OrdinalIgnoreCase))
+        {
+            return target.ResourceType == ResourceTypes.Collection ? "Shared folder" : "Public link";
+        }
+
+        return text;
+    }
+
+    private static ApplicationErrorException PublicSharePolicyBlocked(string reason, string message)
+    {
+        return new ApplicationErrorException(
+            ErrorCodes.ValidationError,
+            message,
+            new
+            {
+                policyBlocked = true,
+                reason
+            });
     }
 
     private string? NormalizeAndHashPassword(string audience, string? password)
@@ -1033,7 +1392,7 @@ public sealed class ShareLinkService : IShareLinkService
         return _passwordHashService.HashPassword(CreateShareLinkPasswordUser(), normalized);
     }
 
-    private static ShareLinkDto ToDto(ShareLink link)
+    private ShareLinkDto ToDto(ShareLink link, ResourceAccessPolicy? policy = null, string? status = null)
     {
         return new ShareLinkDto(
             link.Id.ToString(),
@@ -1047,10 +1406,13 @@ public sealed class ShareLinkService : IShareLinkService
             link.CreatedAt,
             link.ExpiresAt,
             link.RevokedAt,
-            link.HasPassword);
+            link.PausedAt,
+            link.HasPassword,
+            GetContentProtectionDto(link),
+            status ?? GetStatus(link, policy, DateTimeOffset.UtcNow));
     }
 
-    private static LinkManagementDto ToManagementDto(
+    private LinkManagementDto ToManagementDto(
         ShareLink link,
         EffectivePermissionResult managementResult,
         bool canManage,
@@ -1078,6 +1440,7 @@ public sealed class ShareLinkService : IShareLinkService
             link.PausedBy?.ToString(),
             link.PauseReason,
             link.HasPassword,
+            GetContentProtectionDto(link),
             status,
             policy?.LinkMode,
             GetPolicyState(link, policy),
@@ -1289,7 +1652,9 @@ public sealed class ShareLinkService : IShareLinkService
         }
 
         if ((expectedResourceType is not null && link.ResourceType != expectedResourceType) ||
-            (link.ResourceType != ResourceTypes.Document && link.ResourceType != ResourceTypes.Collection))
+            (link.ResourceType != ResourceTypes.Document &&
+                link.ResourceType != ResourceTypes.Collection &&
+                link.ResourceType != ResourceTypes.Library))
         {
             await RecordPublicFailureAsync(token, "resource_mismatch", cancellationToken);
             throw new ApplicationErrorException(ErrorCodes.NotFound, "Share link was not found.");
@@ -1305,7 +1670,7 @@ public sealed class ShareLinkService : IShareLinkService
 
         if (!PublicPasswordProofIsValid(link, passwordProof))
         {
-            await RecordPublicFailureAsync(token, "password_required_or_invalid", cancellationToken);
+            await RecordPublicFailureAsync(token, "password_failed", cancellationToken);
             throw new ApplicationErrorException(ErrorCodes.NotFound, "Share link was not found.");
         }
 
@@ -1347,7 +1712,7 @@ public sealed class ShareLinkService : IShareLinkService
             cancellationToken);
     }
 
-    private static ResolvePublicShareLinkResponse ToPublicResolveDto(ShareLink link)
+    private ResolvePublicShareLinkResponse ToPublicResolveDto(ShareLink link)
     {
         return new ResolvePublicShareLinkResponse(
             link.WorkspaceId.ToString(),
@@ -1356,7 +1721,8 @@ public sealed class ShareLinkService : IShareLinkService
             link.RoleKey,
             link.Audience,
             link.ExpiresAt!.Value,
-            link.HasPassword);
+            link.HasPassword,
+            GetContentProtectionDto(link));
     }
 
     private static PublicShareDocumentDto ToPublicDocumentDto(KnowledgeDocumentDto document)
@@ -1367,8 +1733,127 @@ public sealed class ShareLinkService : IShareLinkService
             document.Status,
             document.UpdatedAt,
             document.Tags,
-            document.Content,
+            SanitizePublicContent(document.Content),
             document.Revision);
+    }
+
+    private static PublicShareDocumentDto SanitizePublicDocumentDto(PublicShareDocumentDto document)
+    {
+        return document with
+        {
+            Content = SanitizePublicContent(document.Content)
+        };
+    }
+
+    private static JsonElement SanitizePublicContent(JsonElement content)
+    {
+        var node = JsonNode.Parse(content.GetRawText());
+        var sanitized = SanitizePublicContentNode(node) ?? new JsonObject
+        {
+            ["type"] = "doc",
+            ["content"] = new JsonArray()
+        };
+        using var document = JsonDocument.Parse(sanitized.ToJsonString(JsonOptions));
+        return document.RootElement.Clone();
+    }
+
+    private static JsonNode? SanitizePublicContentNode(JsonNode? node)
+    {
+        if (node is not JsonObject obj)
+        {
+            return node?.DeepClone();
+        }
+
+        var type = TryGetString(obj["type"]);
+        if ((type == "image" || type == "imageBlock") && HasInternalPublicFileReference(obj))
+        {
+            return new JsonObject
+            {
+                ["type"] = "paragraph",
+                ["content"] = new JsonArray(new JsonObject
+                {
+                    ["type"] = "text",
+                    ["text"] = "File preview is not available in this public view."
+                })
+            };
+        }
+
+        var copy = new JsonObject();
+        foreach (var property in obj)
+        {
+            if (property.Key == "attrs" && property.Value is JsonObject attrs)
+            {
+                copy[property.Key] = SanitizePublicAttrs(attrs);
+                continue;
+            }
+
+            if (property.Key == "content" && property.Value is JsonArray content)
+            {
+                var sanitizedContent = new JsonArray();
+                foreach (var child in content)
+                {
+                    var sanitizedChild = SanitizePublicContentNode(child);
+                    if (sanitizedChild is not null)
+                    {
+                        sanitizedContent.Add(sanitizedChild);
+                    }
+                }
+
+                copy[property.Key] = sanitizedContent;
+                continue;
+            }
+
+            copy[property.Key] = property.Value?.DeepClone();
+        }
+
+        return copy;
+    }
+
+    private static JsonObject SanitizePublicAttrs(JsonObject attrs)
+    {
+        var copy = new JsonObject();
+        foreach (var property in attrs)
+        {
+            if (property.Key == "fileId")
+            {
+                continue;
+            }
+
+            if (property.Key is "src" or "href" &&
+                TryGetString(property.Value) is { } value &&
+                value.Contains("/api/v1/files/", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            copy[property.Key] = property.Value?.DeepClone();
+        }
+
+        return copy;
+    }
+
+    private static bool HasInternalPublicFileReference(JsonObject obj)
+    {
+        if (obj["attrs"] is not JsonObject attrs)
+        {
+            return false;
+        }
+
+        return TryGetString(attrs["fileId"]) is { Length: > 0 } ||
+            (TryGetString(attrs["src"]) is { } src &&
+                src.Contains("/api/v1/files/", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static string? TryGetString(JsonNode? node)
+    {
+        try
+        {
+            return node?.GetValue<string>();
+        }
+        catch (InvalidOperationException)
+        {
+            return null;
+        }
     }
 
     private static User CreateShareLinkPasswordUser()
@@ -1431,6 +1916,7 @@ public sealed class ShareLinkService : IShareLinkService
                 link.Audience,
                 link.SubjectEmail,
                 link.HasPassword,
+                contentProtectionJson = link.Audience == ShareLinkAudiences.Public ? link.ContentProtectionJson : null,
                 link.ExpiresAt,
                 reason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim()
             }, JsonOptions));
@@ -1486,6 +1972,7 @@ public sealed class ShareLinkService : IShareLinkService
             link.Audience,
             link.SubjectEmail,
             link.HasPassword,
+            contentProtectionJson = link.Audience == ShareLinkAudiences.Public ? link.ContentProtectionJson : null,
             link.CreatedBy,
             link.CreatedAt,
             link.ExpiresAt,
@@ -1504,4 +1991,11 @@ public sealed class ShareLinkService : IShareLinkService
     private readonly record struct LinkManagementAccess(
         EffectivePermissionResult Result,
         bool CanManage);
+
+    private sealed record StoredShareLinkContentProtection(
+        bool? DisableDownload,
+        bool? DisablePrint,
+        bool? DisableCopy,
+        bool? WatermarkEnabled,
+        string? WatermarkText);
 }

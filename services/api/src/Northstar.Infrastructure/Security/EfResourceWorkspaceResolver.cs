@@ -22,6 +22,17 @@ public sealed class EfResourceWorkspaceResolver : IResourceWorkspaceResolver
             .FirstOrDefaultAsync(cancellationToken);
     }
 
+    public Task<LibraryPermissionResource?> GetLibraryPermissionResourceAsync(
+        Guid libraryId,
+        CancellationToken cancellationToken = default)
+    {
+        return _dbContext.Spaces
+            .AsNoTracking()
+            .Where(space => space.Id == libraryId && space.DeletedAt == null)
+            .Select(space => new LibraryPermissionResource(space.Id, space.WorkspaceId))
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
     public Task<Guid?> GetWorkspaceIdForDocumentAsync(Guid documentId, CancellationToken cancellationToken = default)
     {
         return _dbContext.Documents

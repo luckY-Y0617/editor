@@ -9,11 +9,13 @@ export type ApiFetchOptions = Omit<RequestInit, "body"> & {
 export class ApiClientError extends Error {
   readonly status: number;
   readonly code?: string;
+  readonly details?: unknown;
 
-  constructor(status: number, message: string, code?: string) {
+  constructor(status: number, message: string, code?: string, details?: unknown) {
     super(message);
     this.status = status;
     this.code = code;
+    this.details = details;
   }
 }
 
@@ -293,13 +295,14 @@ async function toApiError(response: Response) {
   try {
     const body = (await response.json()) as {
       code?: string;
-      error?: { code?: string; message?: string };
+      details?: unknown;
+      error?: { code?: string; details?: unknown; message?: string };
       message?: string;
       title?: string;
     };
     const code = body.error?.code ?? body.code;
     const message = body.error?.message ?? body.message ?? body.title ?? fallback;
-    return new ApiClientError(response.status, message, code);
+    return new ApiClientError(response.status, message, code, body.error?.details ?? body.details);
   } catch {
     return new ApiClientError(response.status, fallback);
   }

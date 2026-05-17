@@ -3,6 +3,7 @@ import { ApiClientError } from "./apiClient";
 import {
   createShareLinkRequest,
   createAccessRequestReviewRequest,
+  defaultPublicSharePolicy,
   getAvailableDocumentGrantRoles,
   createWorkspaceShareLinkRequest,
   getDocumentShareLinkStatus,
@@ -11,6 +12,14 @@ import {
   getIamManagedGroupState,
   getInheritanceModeLabel,
   getInheritedSourceLabel,
+  getPublicShareCreateTarget,
+  getPublicSharePasswordHint,
+  getPublicSharePolicyViolation,
+  getPublicSharePolicyWarnings,
+  getPublicShareScopeHint,
+  getPublicShareScopeOptions,
+  getShareLinkGovernanceHint,
+  getShareLinkScopeLabel,
   getShareDrawerInviteDisabledReason,
   getShareDrawerLinkDisabledReason,
   getShareLinkCapability,
@@ -23,6 +32,9 @@ import {
   toSharePermissionMutationError,
   toggleBatchGrantSelection,
 } from "./documentShareLinksModel";
+
+const nodeFs = "node:fs";
+const { readFileSync } = await import(nodeFs);
 
 describe("documentShareLinksModel", () => {
   test("resolves configured document before bootstrap fallback", () => {
@@ -115,6 +127,13 @@ describe("documentShareLinksModel", () => {
       }),
     ).toEqual({
       audience: "public",
+      contentProtection: {
+        disableDownload: true,
+        disablePrint: false,
+        disableCopy: false,
+        watermarkEnabled: false,
+        watermarkText: "Public link",
+      },
       expiresAt: "2026-06-01T00:00:00.000Z",
       password: "open",
       roleKey: "viewer",
@@ -130,10 +149,34 @@ describe("documentShareLinksModel", () => {
       }),
     ).toEqual({
       audience: "external",
+      contentProtection: null,
       expiresAt: "2026-06-01T00:00:00.000Z",
       password: null,
       roleKey: "commenter",
       subjectEmail: "person@example.com",
+    });
+  });
+
+  test("adds public content protection controls to create payloads", () => {
+    expect(
+      createShareLinkRequest({
+        audience: "public",
+        contentProtection: {
+          disableCopy: true,
+          disableDownload: true,
+          disablePrint: true,
+          watermarkEnabled: true,
+          watermarkText: "Shared via Northstar",
+        },
+        expiresAt: "2026-06-01T00:00:00.000Z",
+        roleKey: "viewer",
+      }).contentProtection,
+    ).toEqual({
+      disableDownload: true,
+      disablePrint: true,
+      disableCopy: true,
+      watermarkEnabled: true,
+      watermarkText: "Shared via Northstar",
     });
   });
 
@@ -181,12 +224,224 @@ describe("documentShareLinksModel", () => {
     expect(
       getShareDrawerLinkDisabledReason({
         apiConfigured: true,
+        collectionId: "collection-1",
         expiresAt: null,
         linkScope: "public",
         operation: null,
+        publicScope: "document",
         status: "ready",
       }),
-    ).toBe("Public links require a future expiry time.");
+    ).toBe("Enterprise policy requires public links to have an expiry.");
+
+    expect(
+      getShareDrawerLinkDisabledReason({
+        apiConfigured: true,
+        collectionId: null,
+        expiresAt: "2026-06-01T00:00:00.000Z",
+        linkScope: "public",
+        operation: null,
+        publicScope: "collection",
+        status: "ready",
+      }),
+    ).toBe("This document is not in a shareable collection.");
+
+    expect(
+      getShareDrawerLinkDisabledReason({
+        apiConfigured: true,
+        collectionId: "collection-1",
+        expiresAt: "2026-06-01T00:00:00.000Z",
+        linkScope: "public",
+        operation: null,
+        publicScope: "library",
+        status: "ready",
+      }),
+    ).toBe("Library context is not available for this document.");
+  });
+
+  test("models public share policy controls for collection password and expiry", () => {
+    const now = new Date("2026-05-14T00:00:00.000Z");
+
+    expect(getPublicSharePasswordHint("collection")).toContain("Collection public links");
+    expect(
+      getPublicSharePolicyViolation({
+        collectionId: "collection-1",
+        expiresAt: "2026-05-20T00:00:00.000Z",
+        password: "",
+        passwordEnabled: true,
+        scope: "collection",
+        now,
+      }),
+    ).toContain("access password");
+    expect(
+      getPublicSharePolicyViolation({
+        expiresAt: null,
+        scope: "document",
+        now,
+      }),
+    ).toContain("expiry");
+    expect(
+      getPublicSharePolicyViolation({
+        expiresAt: "2026-07-20T00:00:00.000Z",
+        scope: "document",
+        now,
+      }),
+    ).toContain("maximum");
+    expect(
+      getPublicSharePolicyViolation({
+        collectionId: "collection-1",
+        expiresAt: "2026-05-20T00:00:00.000Z",
+        password: "open",
+        passwordEnabled: true,
+        scope: "collection",
+        now,
+      }),
+    ).toBe(null);
+  });
+
+  test("models public share disabled scopes without enabling workspace public share", () => {
+    const policy = {
+      ...defaultPublicSharePolicy,
+      allowCollectionScope: false,
+    };
+
+    expect(getPublicShareScopeOptions("collection-1", policy)[1]).toMatchObject({
+      disabled: true,
+      reason: "Enterprise policy does not allow Collection public links.",
+    });
+    expect(getPublicSharePolicyViolation({ collectionId: "collection-1", expiresAt: "2026-05-20T00:00:00.000Z", policy, scope: "collection" })).toBe(
+      "Enterprise policy does not allow Collection public links.",
+    );
+    expect(getPublicSharePolicyViolation({ expiresAt: "2026-05-20T00:00:00.000Z", libraryId: "library-1", scope: "library" })).toBe(
+      "Enterprise policy does not allow Library public links.",
+    );
+  });
+
+  test("models public share scope options and create targets", () => {
+    expect(getPublicShareScopeOptions("collection-1", { ...defaultPublicSharePolicy, allowLibraryScope: true }, "library-1").map((option) => ({ disabled: option.disabled, value: option.value }))).toEqual([
+      { disabled: false, value: "document" },
+      { disabled: false, value: "collection" },
+      { disabled: false, value: "library" },
+    ]);
+    expect(getPublicShareScopeOptions(null)[1]).toMatchObject({
+      disabled: true,
+      reason: "This document is not in a shareable collection.",
+      value: "collection",
+    });
+    expect(getPublicShareScopeOptions("collection-1", { ...defaultPublicSharePolicy, allowLibraryScope: true }, null)[2]).toMatchObject({
+      disabled: true,
+      reason: "Library context is not available for this document.",
+      value: "library",
+    });
+    expect(getPublicShareScopeHint("collection", "collection-1")).toContain("collection");
+    expect(getPublicShareScopeHint("library", "collection-1", "library-1")).toContain("Library 范围内");
+    expect(getPublicShareCreateTarget({ collectionId: "collection-1", documentId: "document-1", publicScope: "collection" })).toEqual({
+      reason: null,
+      resourceId: "collection-1",
+      resourceType: "collection",
+    });
+    expect(getPublicShareCreateTarget({ documentId: "document-1", publicScope: "document" })).toEqual({
+      reason: null,
+      resourceId: "document-1",
+      resourceType: "document",
+    });
+    expect(
+      getPublicShareCreateTarget({
+        collectionId: "collection-1",
+        documentId: "document-1",
+        libraryId: "library-1",
+        policy: { ...defaultPublicSharePolicy, allowLibraryScope: true },
+        publicScope: "library",
+      }),
+    ).toEqual({
+      reason: null,
+      resourceId: "library-1",
+      resourceType: "library",
+    });
+  });
+
+  test("enforces library public share password, watermark, and expiry policy", () => {
+    const policy = {
+      ...defaultPublicSharePolicy,
+      allowLibraryScope: true,
+      maxExpiryDaysForLibrary: 3,
+      requirePasswordForLibrary: true,
+      requireWatermarkForLibrary: true,
+    };
+    const now = new Date("2026-05-14T00:00:00.000Z");
+
+    expect(getPublicSharePasswordHint("library", policy)).toContain("Library public links");
+    expect(
+      getPublicSharePolicyViolation({
+        expiresAt: "2026-05-16T00:00:00.000Z",
+        libraryId: "library-1",
+        password: "",
+        passwordEnabled: true,
+        policy,
+        scope: "library",
+        now,
+      }),
+    ).toContain("access password");
+    expect(
+      getPublicSharePolicyViolation({
+        contentProtection: { watermarkEnabled: false },
+        expiresAt: "2026-05-16T00:00:00.000Z",
+        libraryId: "library-1",
+        password: "open",
+        passwordEnabled: true,
+        policy,
+        scope: "library",
+        now,
+      }),
+    ).toContain("watermark");
+    expect(
+      getPublicSharePolicyViolation({
+        contentProtection: { watermarkEnabled: true },
+        expiresAt: "2026-05-20T00:00:00.000Z",
+        libraryId: "library-1",
+        password: "open",
+        passwordEnabled: true,
+        policy,
+        scope: "library",
+        now,
+      }),
+    ).toContain("maximum");
+    expect(
+      getPublicSharePolicyViolation({
+        contentProtection: { watermarkEnabled: true },
+        expiresAt: "2026-05-16T00:00:00.000Z",
+        libraryId: "library-1",
+        password: "open",
+        passwordEnabled: true,
+        policy,
+        scope: "library",
+        now,
+      }),
+    ).toBe(null);
+  });
+
+  test("labels existing share-link scopes without exposing secret material", () => {
+    expect(getShareLinkScopeLabel({ resourceType: "document" })).toBe("Current document");
+    expect(getShareLinkScopeLabel({ resourceType: "collection" })).toBe("Collection");
+    expect(getShareLinkScopeLabel({ resourceType: "library" })).toBe("Library");
+    expect(getShareLinkGovernanceHint({ audience: "public", hasPassword: false, resourceType: "collection" })).toBe(
+      "Public / Collection / viewer-only / no password / Download disabled",
+    );
+  });
+
+  test("warns about legacy public links that violate current policy without secrets", () => {
+    const warnings = getPublicSharePolicyWarnings(
+      {
+        audience: "public",
+        expiresAt: null,
+        hasPassword: false,
+        resourceType: "collection",
+      },
+      defaultPublicSharePolicy,
+      new Date("2026-05-14T00:00:00.000Z"),
+    );
+
+    expect(warnings).toEqual(["missing required password", "no expiry no longer allowed"]);
+    expect(hasForbiddenAdvancedPermissionSecretFields(Object.fromEntries(warnings.map((warning, index) => [`warning${index}`, warning])))).toBe(false);
   });
 
   test("derives document share link row status without widening public access", () => {
@@ -238,10 +493,13 @@ describe("documentShareLinksModel", () => {
   test("preserves Northstar API message before generic fallbacks", () => {
     expect(
       toSharePermissionMutationError(
-        { message: "Public share links require expiresAt.", status: 400 },
+        new ApiClientError(400, "Public share links require expiresAt.", "VALIDATION_ERROR", {
+          policyBlocked: true,
+          reason: "PUBLIC_SHARE_EXPIRY_REQUIRED",
+        }),
         "Fallback",
       ),
-    ).toBe("Public share links require expiresAt.");
+    ).toBe("Enterprise policy requires public links to have an expiry.");
     expect(toSharePermissionMutationError({ message: "API returned 403", status: 403 }, "Fallback")).toContain(
       "do not have permission",
     );
@@ -366,5 +624,19 @@ describe("documentShareLinksModel", () => {
     expect(hasForbiddenAdvancedPermissionSecretFields({ token: "raw" })).toBe(true);
     expect(hasForbiddenAdvancedPermissionSecretFields({ password_hash: "hash" })).toBe(true);
     expect(hasForbiddenAdvancedPermissionSecretFields({ roleKey: "viewer", subjectId: "user-id" })).toBe(false);
+  });
+
+  test("keeps DocumentShareDrawer scoped to document link creation with broader links read-only", () => {
+    const source = readFileSync("src/components/DocumentShareDrawer.tsx", "utf8");
+
+    expect(source.includes("createResourceShareLink")).toBe(false);
+    expect(source.includes("setPublicScope")).toBe(false);
+    expect(source.includes("Current collection")).toBe(false);
+    expect(source.includes("Related broader links")).toBe(true);
+    expect(source.includes("Manage broader links from Access & Sharing")).toBe(true);
+    const broaderRowSource = source.slice(source.indexOf("function BroaderLinkAccessRow"), source.indexOf("function AccessRow"));
+    expect(broaderRowSource.includes("onRevoke")).toBe(false);
+    expect(broaderRowSource.includes("onPause")).toBe(false);
+    expect(broaderRowSource.includes("copyShareLinkManagementUrl")).toBe(false);
   });
 });

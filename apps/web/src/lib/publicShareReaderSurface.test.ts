@@ -42,12 +42,36 @@ describe("public share reader surface", () => {
     expect(source.includes("URLSearchParams")).toBe(false);
   });
 
-  test("keeps collection public links summary-only in the public view", () => {
+  test("renders content protection behavior without adding public download controls", () => {
     const source = readSource("src/components/PublicSharePage.tsx");
-    const collectionPageSource = source.slice(source.indexOf("function PublicShareCollectionPage"));
+
+    expect(source.includes("public-share-copy-limited")).toBe(true);
+    expect(source.includes("public-share-watermark")).toBe(true);
+    expect(source.includes("disablePrint")).toBe(true);
+    expect(source.includes("download")).toBe(false);
+  });
+
+  test("keeps legacy collection summary endpoint separate from scoped document reading", () => {
+    const source = readSource("src/components/PublicSharePage.tsx");
+    const collectionPageSource = source.slice(
+      source.indexOf("function PublicShareCollectionPage"),
+      source.indexOf("function PublicShareScopePage"),
+    );
 
     expect(collectionPageSource.includes("ReadonlyDocumentContent")).toBe(false);
     expect(collectionPageSource.includes("document.content")).toBe(false);
+    expect(source.includes("getScopedPublicShareDocument")).toBe(true);
+  });
+
+  test("renders public knowledge base navigation without protected app shell", () => {
+    const source = readSource("src/components/PublicSharePage.tsx");
+
+    expect(source.includes("derivePublicShareKnowledgeBaseState")).toBe(true);
+    expect(source.includes("public-share-breadcrumb")).toBe(true);
+    expect(source.includes("public-share-prev-next")).toBe(true);
+    expect(source.includes("getScopedPublicShareDocument(token")).toBe(true);
+    expect(source.includes("createEditorHash")).toBe(false);
+    expect(source.includes("#editor")).toBe(false);
   });
 
   test("replaces internal file references with unavailable fallback content", () => {

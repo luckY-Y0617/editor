@@ -5,18 +5,22 @@ import {
   buildShareLinkManagementDetailPath,
   buildShareLinkManagementListPath,
   type LinkManagementDto,
+  type ShareLinkAccessEventDto,
 } from "./appApi";
 import {
   filterLinksByTab,
-  getAccessEventDisplayRows,
   getCopyShareLinkLabel,
+  getAccessEventDisplayRows,
   getLinkManagementActionState,
   getLinkManagementDisplay,
+  getLinkManagementScopeLabel,
+  getLinkRiskReasons,
   getSourceBreakdownRows,
   getTrendTotals,
   hasForbiddenSecretFields,
   prepareLinkManagementPatch,
 } from "./linkManagementModel";
+import { defaultPublicSharePolicy } from "./documentShareLinksModel";
 import { toUserFacingShareUrl } from "./publicShareModel";
 import { describe, expect, test } from "../test/harness";
 
@@ -33,6 +37,7 @@ describe("linkManagementModel", () => {
       "canPause",
       "canRevoke",
       "canUpdate",
+      "contentProtection",
       "createdAt",
       "createdBy",
       "createdByDisplayName",
@@ -60,38 +65,15 @@ describe("linkManagementModel", () => {
   });
 
   test("derives normal, expiring, attention, and high risk from real metadata", () => {
-    expect(getLinkManagementDisplay(createLink(), now)).toMatchObject({
-      riskLabel: "正常",
-      statusLabel: "活跃",
-    });
-    expect(getLinkManagementDisplay(createLink({ expiresAt: "2026-05-20T00:00:00.000Z" }), now)).toMatchObject({
-      riskLabel: "即将过期",
-      statusLabel: "活跃",
-    });
-    expect(getLinkManagementDisplay(createLink({ recentFailCount: 1 }), now)).toMatchObject({
-      riskLabel: "需关注",
-      statusLabel: "活跃",
-    });
-    expect(getLinkManagementDisplay(createLink({ audience: "public", hasPassword: false }), now)).toMatchObject({
-      riskLabel: "需关注",
-      statusLabel: "活跃",
-    });
-    expect(getLinkManagementDisplay(createLink({ recentFailCount: 5 }), now)).toMatchObject({
-      riskLabel: "高风险",
-      statusLabel: "活跃",
-    });
-    expect(getLinkManagementDisplay(createLink({ accessCount: 50, audience: "public", externalOrPublicAccessCount: 45 }), now)).toMatchObject({
-      riskLabel: "高风险",
-      statusLabel: "活跃",
-    });
-    expect(getLinkManagementDisplay(createLink({ expiresAt: "2026-05-01T00:00:00.000Z" }), now)).toMatchObject({
-      riskLabel: "-",
-      statusLabel: "已过期",
-    });
-    expect(getLinkManagementDisplay(createLink({ revokedAt: "2026-05-13T00:00:00.000Z" }), now)).toMatchObject({
-      riskLabel: "-",
-      statusLabel: "已撤销",
-    });
+    expect(getLinkManagementDisplay(createLink(), now).riskLabel).toBe("Low");
+    expect(getLinkManagementDisplay(createLink({ expiresAt: "2026-05-20T00:00:00.000Z" }), now).riskLabel).toBe("Medium");
+    expect(getLinkManagementDisplay(createLink({ recentFailCount: 1 }), now).riskLabel).toBe("Medium");
+    expect(getLinkManagementDisplay(createLink({ audience: "public", hasPassword: false }), now).riskLabel).toBe("High");
+    expect(getLinkManagementDisplay(createLink({ audience: "public", hasPassword: true, resourceType: "library" }), now).riskLabel).toBe("High");
+    expect(getLinkManagementDisplay(createLink({ recentFailCount: 5 }), now).riskLabel).toBe("High");
+    expect(getLinkManagementDisplay(createLink({ accessCount: 50, audience: "public", externalOrPublicAccessCount: 45 }), now).riskLabel).toBe("High");
+    expect(getLinkManagementDisplay(createLink({ expiresAt: "2026-05-01T00:00:00.000Z" }), now).riskLabel).toBe("Low");
+    expect(getLinkManagementDisplay(createLink({ revokedAt: "2026-05-13T00:00:00.000Z" }), now).riskLabel).toBe("Low");
   });
 
   test("high-risk tab filters only high risk links without mock rows", () => {
@@ -189,6 +171,70 @@ describe("linkManagementModel", () => {
     expect(getAccessEventDisplayRows([])).toEqual([]);
   });
 
+  test("labels governance event categories with safe fallbacks", () => {
+    const rows = getAccessEventDisplayRows([
+      createAccessEvent({ eventCategory: "tree_view" }),
+      createAccessEvent({ eventCategory: "document_view" }),
+      createAccessEvent({ eventCategory: "scope_denied", failureCategory: "scope_denied", result: "fail" }),
+      createAccessEvent({ eventCategory: "password_failed", failureCategory: "password_failed", result: "fail" }),
+    ]);
+
+    expect(rows.map((row) => row.type)).toEqual(["Tree view", "Document view", "Scope denied", "Password failed"]);
+    expect(rows[0]).toMatchObject({ resource: "document-1", scopeType: "Collection" });
+  });
+
+  test("surfaces current-policy warnings for legacy links without auto-pausing them", () => {
+    expect(
+      getLinkRiskReasons(
+        createLink({ audience: "public", expiresAt: null, hasPassword: false, resourceType: "collection", status: "active" }),
+        null,
+        now,
+      ),
+    ).toEqual([
+      "missing required password",
+      "no expiry no longer allowed",
+      "Public link without password",
+      "Collection scope",
+      "Copy allowed advisory",
+      "No watermark advisory",
+      "No expiry",
+    ]);
+
+    expect(
+      getLinkRiskReasons(
+        createLink({ audience: "public", expiresAt: "2026-07-01T00:00:00.000Z", hasPassword: true, resourceType: "document" }),
+        null,
+        now,
+      ),
+    ).toContain("expiry longer than current policy");
+
+    expect(
+      getLinkRiskReasons(
+        createLink({ audience: "public", expiresAt: "2026-05-20T00:00:00.000Z", hasPassword: true, resourceType: "collection" }),
+        null,
+        now,
+        {
+          ...defaultPublicSharePolicy,
+          allowCollectionScope: false,
+        },
+      ),
+    ).toContain("collection scope currently disabled");
+
+    expect(getLinkManagementActionState(createLink({ audience: "public", hasPassword: true, status: "policy_paused" }), null).disabledReason).toContain("linkMode");
+  });
+
+  test("labels and warns library public links without exposing secrets", () => {
+    expect(getLinkManagementScopeLabel("library")).toBe("Library");
+    expect(
+      getLinkRiskReasons(
+        createLink({ audience: "public", expiresAt: "2026-05-20T00:00:00.000Z", hasPassword: true, resourceType: "library" }),
+        null,
+        now,
+        { ...defaultPublicSharePolicy, allowLibraryScope: true, requireWatermarkForLibrary: true },
+      ),
+    ).toEqual(["missing required watermark", "Library scope", "Copy allowed advisory", "No watermark advisory", "Expiring soon"]);
+  });
+
   test("stats and access event DTOs do not carry token or password material", () => {
     const stats = {
       accessCount: 1,
@@ -219,6 +265,8 @@ describe("linkManagementModel", () => {
 
     expect(hasForbiddenSecretFields(stats)).toBe(false);
     expect(hasForbiddenSecretFields(event)).toBe(false);
+    expect(hasForbiddenSecretFields({ password: "secret" })).toBe(true);
+    expect(hasForbiddenSecretFields({ proof: "secret" })).toBe(true);
   });
 });
 
@@ -230,6 +278,13 @@ function createLink(overrides: Partial<LinkManagementDto> = {}): LinkManagementD
     canPause: true,
     canRevoke: true,
     canUpdate: true,
+    contentProtection: {
+      disableCopy: false,
+      disableDownload: true,
+      disablePrint: false,
+      watermarkEnabled: false,
+      watermarkText: "Public link",
+    },
     createdAt: "2026-05-14T00:00:00.000Z",
     createdBy: "user-1",
     createdByDisplayName: "Northstar Owner",
@@ -253,6 +308,31 @@ function createLink(overrides: Partial<LinkManagementDto> = {}): LinkManagementD
     subjectEmail: null,
     uniqueVisitorCount: 0,
     workspaceId: "00000000-0000-0000-0000-000000000001",
+    ...overrides,
+  };
+}
+
+function createAccessEvent(overrides: Partial<ShareLinkAccessEventDto> = {}): ShareLinkAccessEventDto {
+  return {
+    accessedAt: "2026-05-14T00:00:00.000Z",
+    accessedBy: null,
+    actorDisplayName: null,
+    actorType: "anonymous",
+    actorUserId: null,
+    deviceSummary: null,
+    documentId: "document-1",
+    eventCategory: "document_view",
+    eventType: "access",
+    failureCategory: null,
+    id: "event-1",
+    ip: "127.0.0.1",
+    occurredAt: "2026-05-14T00:00:00.000Z",
+    resourceId: "document-1",
+    resourceType: "document",
+    result: "success",
+    scopeType: "collection",
+    shareLinkId: "link-1",
+    userAgent: null,
     ...overrides,
   };
 }

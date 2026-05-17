@@ -530,7 +530,7 @@ export type OrganizationMembersResponse = {
 export type ShareLinkRole = "commenter" | "viewer";
 
 export type ShareLinkAudience = "external" | "public" | "workspace";
-export type PublicShareResourceType = "collection" | "document";
+export type PublicShareResourceType = "collection" | "document" | "library";
 export type LinkManagementStatus = "active" | "expired" | "paused" | "policy_paused" | "revoked" | string;
 export type PermissionGrantRole = "admin" | "commenter" | "editor" | "owner" | "viewer";
 export type PermissionGrantSubjectType = "group" | "user";
@@ -569,6 +569,14 @@ export type ResourcePermissionsResponse = {
   availableRoles: string[];
 };
 
+export type ShareLinkContentProtectionDto = {
+  disableDownload: boolean;
+  disablePrint: boolean;
+  disableCopy: boolean;
+  watermarkEnabled: boolean;
+  watermarkText: string;
+};
+
 export type ShareLinkDto = {
   id: string;
   workspaceId: string;
@@ -581,7 +589,10 @@ export type ShareLinkDto = {
   createdAt: string;
   expiresAt: string | null;
   revokedAt: string | null;
+  pausedAt?: string | null;
   hasPassword: boolean;
+  contentProtection?: ShareLinkContentProtectionDto | null;
+  status?: string | null;
 };
 
 export type ShareLinksResponse = {
@@ -596,6 +607,7 @@ export type ResolvePublicShareLinkResponse = {
   resourceType: PublicShareResourceType;
   roleKey: "viewer";
   workspaceId: string;
+  contentProtection?: ShareLinkContentProtectionDto | null;
 };
 
 export type PublicShareDocumentDto = {
@@ -611,6 +623,24 @@ export type PublicShareDocumentDto = {
 export type PublicShareDocumentResponse = {
   document: PublicShareDocumentDto;
   link: ResolvePublicShareLinkResponse;
+};
+
+export type PublicShareTreeNodeDto = {
+  hasChildren: boolean;
+  id: string;
+  parentId: string | null;
+  sortOrder: number;
+  title: string;
+  type: PublicShareResourceType;
+  updatedAt: string;
+};
+
+export type PublicShareTreeResponse = {
+  contentProtection?: ShareLinkContentProtectionDto | null;
+  nodes: PublicShareTreeNodeDto[];
+  scopeType: PublicShareResourceType;
+  shareLinkId: string;
+  title: string;
 };
 
 export type PublicShareCollectionDocumentDto = {
@@ -668,6 +698,7 @@ export type LinkManagementDto = {
   uniqueVisitorCount: number;
   recentFailCount: number;
   externalOrPublicAccessCount: number;
+  contentProtection?: ShareLinkContentProtectionDto | null;
   canManage: boolean;
   canUpdate: boolean;
   canPause: boolean;
@@ -733,6 +764,11 @@ export type ShareLinkAccessStatsResponse = {
   accessCount: number;
   uniqueVisitorCount: number;
   lastAccessIp: string | null;
+  treeViewCount: number;
+  documentViewCount: number;
+  scopeDeniedCount: number;
+  passwordFailedCount: number;
+  latestEventCategory: string | null;
   recentWindowDays: number;
   trend: ShareLinkAccessTrendPointDto[];
   sourceBreakdown: ShareLinkSourceBreakdownDto[];
@@ -753,6 +789,11 @@ export type ShareLinkAccessEventDto = {
   eventType: string;
   result: string;
   failureCategory: string | null;
+  eventCategory: string;
+  scopeType: string | null;
+  resourceType: string;
+  resourceId: string;
+  documentId: string | null;
 };
 
 export type ShareLinkAccessEventsResponse = {
@@ -776,6 +817,7 @@ export type CreateShareLinkRequest = {
   expiresAt?: string | null;
   subjectEmail?: string | null;
   password?: string | null;
+  contentProtection?: ShareLinkContentProtectionDto | null;
 };
 
 export type CreateShareLinkResponse = {
@@ -1208,6 +1250,17 @@ export function getPublicShareDocument(token: string, options: PublicShareReques
   return apiFetch<PublicShareDocumentResponse>(buildPublicSharePath(token, "document"), createPublicShareRequestOptions(options));
 }
 
+export function getPublicShareTree(token: string, options: PublicShareRequestOptions = {}) {
+  return apiFetch<PublicShareTreeResponse>(buildPublicSharePath(token, "tree"), createPublicShareRequestOptions(options));
+}
+
+export function getScopedPublicShareDocument(token: string, documentId: string, options: PublicShareRequestOptions = {}) {
+  return apiFetch<PublicShareDocumentResponse>(
+    buildPublicSharePath(token, `documents/${encodeURIComponent(documentId)}`),
+    createPublicShareRequestOptions(options),
+  );
+}
+
 export function getPublicShareCollection(token: string, options: PublicShareRequestOptions = {}) {
   return apiFetch<PublicShareCollectionResponse>(buildPublicSharePath(token, "collection"), createPublicShareRequestOptions(options));
 }
@@ -1327,6 +1380,13 @@ export function recordShareLinkCopyEvent(
 
 export function getDocumentResourcePermissions(documentId: string, signal?: AbortSignal) {
   return apiFetch<ResourcePermissionsResponse>(`/permissions/resources/document/${documentId}`, { signal });
+}
+
+export function getResourcePermissions(resourceType: string, resourceId: string, signal?: AbortSignal) {
+  return apiFetch<ResourcePermissionsResponse>(
+    `/permissions/resources/${encodeURIComponent(resourceType)}/${resourceId}`,
+    { signal },
+  );
 }
 
 export function createDocumentPermissionGrant(
@@ -1515,7 +1575,7 @@ function setOptionalNumberQueryParam(params: URLSearchParams, key: string, value
   }
 }
 
-function buildPublicSharePath(token: string, action: "collection" | "document" | "resolve") {
+function buildPublicSharePath(token: string, action: "collection" | "document" | "resolve" | "tree" | `documents/${string}`) {
   return `/public/share-links/${encodeURIComponent(token)}/${action}`;
 }
 

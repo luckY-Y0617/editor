@@ -130,6 +130,11 @@ public sealed class WorkspaceAccessServiceTests
             return Task.FromResult<Guid?>(null);
         }
 
+        public Task<LibraryPermissionResource?> GetLibraryPermissionResourceAsync(Guid libraryId, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<LibraryPermissionResource?>(null);
+        }
+
         public Task<Guid?> GetWorkspaceIdForDocumentAsync(Guid documentId, CancellationToken cancellationToken = default)
         {
             return Task.FromResult<Guid?>(null);

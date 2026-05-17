@@ -1,5 +1,6 @@
-import type { CreateShareLinkRequest, ShareLinkAudience, ShareLinkRole } from "./appApi";
-import { formatApiOperationError } from "./apiClient";
+import type { CreateShareLinkRequest, ShareLinkAudience, ShareLinkContentProtectionDto, ShareLinkRole } from "./appApi";
+import { ApiClientError, formatApiOperationError } from "./apiClient";
+import { getContentProtectionLabels, normalizeContentProtection } from "./publicShareModel";
 
 export type SharePermissionApiStatus = "error" | "forbidden" | "loading" | "ready" | "unconfigured";
 export type ShareDrawerApiStatus = SharePermissionApiStatus | "idle";
@@ -19,6 +20,26 @@ export type ShareLinkCapability = {
 };
 
 export type DocumentShareLinkStatus = "active" | "expired" | "paused" | "policy-paused" | "revoked";
+export type PublicShareCreationScope = "collection" | "document" | "library";
+
+export type PublicSharePolicy = {
+  allowCollectionScope: boolean;
+  allowDocumentScope: boolean;
+  allowLibraryScope: boolean;
+  allowNoExpiry: boolean;
+  maxExpiryDays: number | null;
+  maxExpiryDaysForLibrary: number | null;
+  requireExpiry: boolean;
+  requirePassword: boolean;
+  requirePasswordForCollection: boolean;
+  requirePasswordForLibrary: boolean;
+  requireWatermarkForLibrary: boolean;
+  viewerOnly: boolean;
+  defaultDisableDownload: boolean;
+  defaultDisablePrint: boolean;
+  defaultDisableCopy: boolean;
+  defaultWatermarkEnabled: boolean;
+};
 
 export type ShareInviteRole = "commenter" | "editor" | "viewer";
 export type DocumentAdvancedRoleAccess = "Can comment" | "Can edit" | "Can manage" | "Can view";
@@ -71,10 +92,51 @@ export type ShareDrawerInviteCapabilityOptions = {
 
 export type ShareDrawerLinkCapabilityOptions = {
   apiConfigured: boolean;
+  collectionId?: string | null;
+  contentProtection?: Partial<ShareLinkContentProtectionDto> | null;
   expiresAt: string | null;
+  libraryId?: string | null;
   linkScope: "invited" | "public" | "workspace";
   operation: string | null;
+  password?: string | null;
+  passwordEnabled?: boolean;
+  policy?: PublicSharePolicy;
+  publicScope?: PublicShareCreationScope;
   status: ShareDrawerApiStatus;
+};
+
+export type PublicShareScopeOptionState = {
+  disabled: boolean;
+  label: string;
+  reason: string | null;
+  value: PublicShareCreationScope;
+};
+
+export const defaultPublicSharePolicy: PublicSharePolicy = {
+  allowCollectionScope: true,
+  allowDocumentScope: true,
+  allowLibraryScope: false,
+  allowNoExpiry: false,
+  maxExpiryDays: 30,
+  maxExpiryDaysForLibrary: 30,
+  requireExpiry: true,
+  requirePassword: false,
+  requirePasswordForCollection: true,
+  requirePasswordForLibrary: true,
+  requireWatermarkForLibrary: false,
+  viewerOnly: true,
+  defaultDisableDownload: true,
+  defaultDisablePrint: false,
+  defaultDisableCopy: false,
+  defaultWatermarkEnabled: false,
+};
+
+export const defaultPublicContentProtection: ShareLinkContentProtectionDto = {
+  disableDownload: defaultPublicSharePolicy.defaultDisableDownload,
+  disablePrint: defaultPublicSharePolicy.defaultDisablePrint,
+  disableCopy: defaultPublicSharePolicy.defaultDisableCopy,
+  watermarkEnabled: defaultPublicSharePolicy.defaultWatermarkEnabled,
+  watermarkText: "Public link",
 };
 
 export function resolveShareTarget(options: {
@@ -212,16 +274,331 @@ export function getShareDrawerLinkDisabledReason(options: ShareDrawerLinkCapabil
   }
 
   if (options.linkScope === "public") {
-    if (!options.expiresAt) {
-      return "Public links require a future expiry time.";
-    }
-
-    if (new Date(options.expiresAt).getTime() <= Date.now()) {
-      return "Public link expiry must be in the future.";
+    const publicScope = options.publicScope ?? "document";
+    const policyReason = getPublicSharePolicyViolation({
+      collectionId: options.collectionId,
+      contentProtection: options.contentProtection,
+      expiresAt: options.expiresAt,
+      libraryId: options.libraryId,
+      password: options.password,
+      passwordEnabled: options.passwordEnabled,
+      policy: options.policy,
+      scope: publicScope,
+    });
+    if (policyReason) {
+      return policyReason;
     }
   }
 
   return null;
+}
+
+export function getPublicShareScopeOptions(
+  collectionId?: string | null,
+  policy: PublicSharePolicy = defaultPublicSharePolicy,
+  libraryId?: string | null,
+): PublicShareScopeOptionState[] {
+  const hasCollection = Boolean(collectionId?.trim());
+  const hasLibrary = Boolean(libraryId?.trim());
+  return [
+    {
+      disabled: !policy.allowDocumentScope,
+      label: "Current document",
+      reason: policy.allowDocumentScope ? null : "Enterprise policy does not allow document public links.",
+      value: "document",
+    },
+    {
+      disabled: !hasCollection || !policy.allowCollectionScope,
+      label: "Current collection",
+      reason: !hasCollection
+        ? "This document is not in a shareable collection."
+        : policy.allowCollectionScope
+          ? null
+          : "Enterprise policy does not allow Collection public links.",
+      value: "collection",
+    },
+    {
+      disabled: !hasLibrary || !policy.allowLibraryScope,
+      label: "Library",
+      reason: !hasLibrary
+        ? "Library context is not available for this document."
+        : policy.allowLibraryScope
+          ? null
+          : "Enterprise policy does not allow Library public links.",
+      value: "library",
+    },
+  ];
+}
+
+export function getPublicShareScopeHint(scope: PublicShareCreationScope, collectionId?: string | null, libraryId?: string | null) {
+  if (scope === "collection") {
+    return collectionId?.trim()
+      ? "Link visitors can browse only public read-only content inside this collection."
+      : "This document is not in a shareable collection.";
+  }
+
+  if (scope === "library") {
+    return libraryId?.trim()
+      ? "Library 链接会公开此 Library 范围内允许公开的只读内容。"
+      : "Library context is not available for this document.";
+  }
+
+  return "Link visitors can read only this document.";
+}
+
+export function getShareLinkScopeLabel(link: { resourceType?: string | null }) {
+  if (link.resourceType === "collection") {
+    return "Collection";
+  }
+
+  if (link.resourceType === "library") {
+    return "Library";
+  }
+
+  return "Current document";
+}
+
+export function getShareLinkGovernanceHint(link: {
+  audience: ShareLinkAudience;
+  contentProtection?: Partial<ShareLinkContentProtectionDto> | null;
+  expiresAt?: string | null;
+  hasPassword?: boolean | null;
+  resourceType?: string | null;
+  status?: string | null;
+}) {
+  const scope = getShareLinkScopeLabel(link);
+  const parts = [formatAudienceHint(link.audience), scope, "viewer-only"];
+  if (link.audience === "public") {
+    parts.push(link.hasPassword ? "password" : "no password");
+    parts.push(...getContentProtectionLabels(link.contentProtection).slice(0, 2));
+  }
+
+  if (link.status === "paused") {
+    parts.push("paused");
+  } else if (link.expiresAt && Date.parse(link.expiresAt) - Date.now() <= 7 * 24 * 60 * 60 * 1000) {
+    parts.push("expiring soon");
+  }
+
+  return parts.filter(Boolean).join(" / ");
+}
+
+export function getPublicShareCreateTarget(options: {
+  collectionId?: string | null;
+  documentId: string;
+  libraryId?: string | null;
+  policy?: PublicSharePolicy;
+  publicScope: PublicShareCreationScope;
+}) {
+  const policy = options.policy ?? defaultPublicSharePolicy;
+  if (options.publicScope === "document" && !policy.allowDocumentScope) {
+    return {
+      reason: "Enterprise policy does not allow document public links.",
+      resourceId: null,
+      resourceType: null,
+    };
+  }
+
+  if (options.publicScope === "collection") {
+    const collectionId = options.collectionId?.trim();
+    if (!collectionId) {
+      return {
+        reason: "This document is not in a shareable collection.",
+        resourceId: null,
+        resourceType: null,
+      };
+    }
+
+    if (!policy.allowCollectionScope) {
+      return {
+        reason: "Enterprise policy does not allow Collection public links.",
+        resourceId: null,
+        resourceType: null,
+      };
+    }
+
+    return {
+      reason: null,
+      resourceId: collectionId,
+      resourceType: "collection" as const,
+    };
+  }
+
+  if (options.publicScope === "library") {
+    const libraryId = options.libraryId?.trim();
+    if (!libraryId) {
+      return {
+        reason: "Library context is not available for this document.",
+        resourceId: null,
+        resourceType: null,
+      };
+    }
+
+    if (!policy.allowLibraryScope) {
+      return {
+        reason: "Enterprise policy does not allow Library public links.",
+        resourceId: null,
+        resourceType: null,
+      };
+    }
+
+    return {
+      reason: null,
+      resourceId: libraryId,
+      resourceType: "library" as const,
+    };
+  }
+
+  return {
+    reason: null,
+    resourceId: options.documentId,
+    resourceType: "document" as const,
+  };
+}
+
+export function getPublicSharePolicyViolation(options: {
+  collectionId?: string | null;
+  contentProtection?: Partial<ShareLinkContentProtectionDto> | null;
+  expiresAt: string | null;
+  libraryId?: string | null;
+  password?: string | null;
+  passwordEnabled?: boolean;
+  policy?: PublicSharePolicy;
+  scope: PublicShareCreationScope;
+  now?: Date;
+}) {
+  const policy = options.policy ?? defaultPublicSharePolicy;
+  const now = options.now ?? new Date();
+
+  if (options.scope === "document" && !policy.allowDocumentScope) {
+    return "Enterprise policy does not allow document public links.";
+  }
+
+  if (options.scope === "collection") {
+    if (!options.collectionId?.trim()) {
+      return "This document is not in a shareable collection.";
+    }
+
+    if (!policy.allowCollectionScope) {
+      return "Enterprise policy does not allow Collection public links.";
+    }
+  }
+
+  if (options.scope === "library") {
+    if (!options.libraryId?.trim()) {
+      return "Library context is not available for this document.";
+    }
+
+    if (!policy.allowLibraryScope) {
+      return "Enterprise policy does not allow Library public links.";
+    }
+  }
+
+  if ((policy.requireExpiry || !policy.allowNoExpiry) && !options.expiresAt) {
+    return "Enterprise policy requires public links to have an expiry.";
+  }
+
+  if (options.expiresAt) {
+    const expiresAt = new Date(options.expiresAt);
+    if (Number.isNaN(expiresAt.getTime()) || expiresAt.getTime() <= now.getTime()) {
+      return "Public link expiry must be in the future.";
+    }
+
+    const effectiveMaxExpiryDays = getEffectivePublicMaxExpiryDays(policy, options.scope);
+    if (effectiveMaxExpiryDays && expiresAt.getTime() - now.getTime() > effectiveMaxExpiryDays * 24 * 60 * 60 * 1000) {
+      return "Expiry exceeds the enterprise policy maximum.";
+    }
+  }
+
+  const hasPassword = Boolean(options.passwordEnabled && options.password?.trim());
+  if (policy.requirePassword && !hasPassword) {
+    return "Enterprise policy requires public links to use an access password.";
+  }
+
+  if (policy.requirePasswordForCollection && options.scope === "collection" && !hasPassword) {
+    return "Enterprise policy requires Collection public links to use an access password.";
+  }
+
+  if (policy.requirePasswordForLibrary && options.scope === "library" && !hasPassword) {
+    return "Enterprise policy requires Library public links to use an access password.";
+  }
+
+  if (policy.requireWatermarkForLibrary && options.scope === "library" && !options.contentProtection?.watermarkEnabled) {
+    return "Enterprise policy requires Library public links to use a watermark.";
+  }
+
+  return null;
+}
+
+export function getPublicSharePasswordHint(scope: PublicShareCreationScope, policy: PublicSharePolicy = defaultPublicSharePolicy) {
+  if (policy.requirePassword) {
+    return "Enterprise policy requires public links to use an access password.";
+  }
+
+  if (scope === "collection" && policy.requirePasswordForCollection) {
+    return "Enterprise policy requires Collection public links to use an access password.";
+  }
+
+  if (scope === "library" && policy.requirePasswordForLibrary) {
+    return "Enterprise policy requires Library public links to use an access password.";
+  }
+
+  return null;
+}
+
+export function getPublicSharePolicyWarnings(
+  link: {
+    audience: ShareLinkAudience;
+    expiresAt?: string | null;
+    hasPassword?: boolean | null;
+    resourceType?: string | null;
+    status?: string | null;
+  },
+  policy: PublicSharePolicy = defaultPublicSharePolicy,
+  now = new Date(),
+) {
+  if (link.audience !== "public") {
+    return [];
+  }
+
+  const warnings: string[] = [];
+  if (
+    (policy.requirePassword ||
+      (policy.requirePasswordForCollection && link.resourceType === "collection") ||
+      (policy.requirePasswordForLibrary && link.resourceType === "library")) &&
+    !link.hasPassword
+  ) {
+    warnings.push("missing required password");
+  }
+
+  if ((policy.requireExpiry || !policy.allowNoExpiry) && !link.expiresAt) {
+    warnings.push("no expiry no longer allowed");
+  } else if (link.expiresAt) {
+    const effectiveMaxExpiryDays = getEffectivePublicMaxExpiryDays(policy, link.resourceType);
+    if (effectiveMaxExpiryDays && Date.parse(link.expiresAt) - now.getTime() > effectiveMaxExpiryDays * 24 * 60 * 60 * 1000) {
+      warnings.push("expiry longer than current policy");
+    }
+  }
+
+  if (link.resourceType === "collection" && !policy.allowCollectionScope) {
+    warnings.push("collection scope currently disabled");
+  }
+
+  if (link.resourceType === "library" && !policy.allowLibraryScope) {
+    warnings.push("library scope currently disabled");
+  }
+
+  if (link.resourceType === "library" && policy.requireWatermarkForLibrary) {
+    const protection = normalizeContentProtection((link as { contentProtection?: Partial<ShareLinkContentProtectionDto> | null }).contentProtection);
+    if (!protection.watermarkEnabled) {
+      warnings.push("missing required watermark");
+    }
+  }
+
+  if (link.status === "policy_paused" || link.status === "policy-paused") {
+    warnings.push("policy-paused");
+  }
+
+  return warnings;
 }
 
 export function createWorkspaceShareLinkRequest(roleKey: ShareLinkRole): CreateShareLinkRequest {
@@ -234,15 +611,31 @@ export function createWorkspaceShareLinkRequest(roleKey: ShareLinkRole): CreateS
   };
 }
 
+function getEffectivePublicMaxExpiryDays(policy: PublicSharePolicy, scope?: string | null) {
+  if (scope !== "library" || !policy.maxExpiryDaysForLibrary || policy.maxExpiryDaysForLibrary <= 0) {
+    return policy.maxExpiryDays;
+  }
+
+  if (!policy.maxExpiryDays || policy.maxExpiryDays <= 0) {
+    return policy.maxExpiryDaysForLibrary;
+  }
+
+  return Math.min(policy.maxExpiryDays, policy.maxExpiryDaysForLibrary);
+}
+
 export function createShareLinkRequest(options: {
   audience: ShareLinkAudience;
   expiresAt?: string | null;
   password?: string | null;
   roleKey: ShareLinkRole;
   subjectEmail?: string | null;
+  contentProtection?: ShareLinkContentProtectionDto | null;
 }): CreateShareLinkRequest {
   return {
     audience: options.audience,
+    contentProtection: options.audience === "public"
+      ? normalizeContentProtection(options.contentProtection ?? defaultPublicContentProtection)
+      : null,
     expiresAt: options.expiresAt ?? null,
     password: options.audience === "public" ? options.password?.trim() || null : null,
     roleKey: options.audience === "public" ? "viewer" : options.roleKey,
@@ -468,6 +861,13 @@ export function hasForbiddenAdvancedPermissionSecretFields(value: Record<string,
 }
 
 export function toSharePermissionMutationError(error: { message?: string; status?: number } | unknown, fallback: string) {
+  if (error instanceof ApiClientError) {
+    const reason = readPolicyBlockedReason(error.details);
+    if (reason) {
+      return formatPolicyBlockedReason(reason, error.message);
+    }
+  }
+
   if (isApiLikeError(error) && error.status !== 0) {
     if (error.message && !error.message.startsWith("API returned ")) {
       return error.message;
@@ -490,6 +890,55 @@ export function toSharePermissionMutationError(error: { message?: string; status
   });
 }
 
+function readPolicyBlockedReason(details: unknown) {
+  if (typeof details !== "object" || details === null) {
+    return null;
+  }
+
+  const value = details as { policyBlocked?: unknown; reason?: unknown };
+  return value.policyBlocked === true && typeof value.reason === "string" ? value.reason : null;
+}
+
+function formatPolicyBlockedReason(reason: string, fallback: string) {
+  if (reason === "PUBLIC_SHARE_PASSWORD_REQUIRED") {
+    return "Enterprise policy requires this public link to use an access password.";
+  }
+
+  if (reason === "PUBLIC_SHARE_EXPIRY_REQUIRED") {
+    return "Enterprise policy requires public links to have an expiry.";
+  }
+
+  if (reason === "PUBLIC_SHARE_EXPIRY_TOO_LONG") {
+    return "Expiry exceeds the enterprise policy maximum.";
+  }
+
+  if (reason === "PUBLIC_SHARE_SCOPE_DISABLED") {
+    return "Enterprise policy does not allow this public share scope.";
+  }
+
+  if (reason === "PUBLIC_SHARE_WORKSPACE_UNSUPPORTED") {
+    return "Workspace public sharing is not supported.";
+  }
+
+  if (reason === "PUBLIC_SHARE_ROLE_NOT_ALLOWED") {
+    return "Public links are viewer-only by enterprise policy.";
+  }
+
+  if (reason === "PUBLIC_SHARE_DISABLED") {
+    return "Public share links are disabled by enterprise policy.";
+  }
+
+  if (reason === "PUBLIC_SHARE_DOWNLOAD_DISABLED_REQUIRED") {
+    return "Enterprise policy requires public links to disable downloads.";
+  }
+
+  if (reason === "PUBLIC_SHARE_WATERMARK_REQUIRED") {
+    return "Enterprise policy requires this public link to display a watermark.";
+  }
+
+  return fallback;
+}
+
 export function toAbsoluteShareUrl(value: string, apiBaseUrl: string) {
   if (!value.trim()) {
     return "";
@@ -508,6 +957,18 @@ function toRoleLabel(roleKey: string) {
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ") || "Role";
+}
+
+function formatAudienceHint(audience: ShareLinkAudience) {
+  if (audience === "public") {
+    return "Public";
+  }
+
+  if (audience === "external") {
+    return "External";
+  }
+
+  return "Workspace";
 }
 
 function isApiLikeError(error: unknown): error is { message?: string; status?: number } {

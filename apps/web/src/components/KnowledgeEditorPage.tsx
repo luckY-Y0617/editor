@@ -1459,6 +1459,7 @@ export function KnowledgeEditorPage({ requestedDocumentId = null }: { requestedD
           <DocumentShareDrawer
             document={activeDocument}
             isOpen={isShareDrawerOpen}
+            libraryId={activeLibraryId}
             onClose={() => setIsShareDrawerOpen(false)}
             workspaceId={workspaceId}
           />

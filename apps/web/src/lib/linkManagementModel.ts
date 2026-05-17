@@ -11,6 +11,8 @@ import type {
   UpdateShareLinkRequest,
 } from "./appApi";
 import { formatApiOperationError } from "./apiClient";
+import { defaultPublicSharePolicy, getPublicSharePolicyWarnings, type PublicSharePolicy } from "./documentShareLinksModel";
+import { getContentProtectionLabels, normalizeContentProtection } from "./publicShareModel";
 
 export type LinkManagementFilterTab = "active" | "all" | "expiring" | "high-risk" | "revoked";
 export type LinkManagementRisk = "attention" | "empty" | "expiring" | "high" | "normal";
@@ -46,9 +48,10 @@ export type LinkManagementPatchState = {
 };
 
 const expiringWindowMs = 1000 * 60 * 60 * 24 * 7;
+const longExpiryWindowMs = 1000 * 60 * 60 * 24 * 30;
 
 export function getLinkManagementDisplay(
-  link: Pick<LinkManagementDto, "accessCount" | "audience" | "expiresAt" | "externalOrPublicAccessCount" | "hasPassword" | "recentFailCount" | "revokedAt" | "status">,
+  link: Pick<LinkManagementDto, "accessCount" | "audience" | "expiresAt" | "externalOrPublicAccessCount" | "hasPassword" | "recentFailCount" | "resourceType" | "revokedAt" | "status">,
   now = new Date(),
 ): LinkManagementDisplay {
   const normalizedStatus = normalizeLinkManagementStatus(link.status, link.revokedAt, link.expiresAt, now);
@@ -56,26 +59,49 @@ export function getLinkManagementDisplay(
 
   return {
     risk,
-    riskLabel: getRiskLabel(risk),
+    riskLabel: getGovernanceRiskLabel(risk),
     statusClassName: normalizedStatus === "active" ? "active" : normalizedStatus === "revoked" ? "danger" : "muted",
     statusLabel: getStatusLabel(normalizedStatus),
   };
 }
 
 export function getLinkRisk(
-  link: Pick<LinkManagementDto, "accessCount" | "audience" | "expiresAt" | "externalOrPublicAccessCount" | "hasPassword" | "recentFailCount" | "revokedAt" | "status">,
+  link: Pick<LinkManagementDto, "accessCount" | "audience" | "expiresAt" | "externalOrPublicAccessCount" | "hasPassword" | "recentFailCount" | "resourceType" | "revokedAt" | "status">,
   now = new Date(),
+  policy: PublicSharePolicy = defaultPublicSharePolicy,
 ): LinkManagementRisk {
   const normalizedStatus = normalizeLinkManagementStatus(link.status, link.revokedAt, link.expiresAt, now);
   if ((normalizedStatus === "revoked" || normalizedStatus === "expired") && link.recentFailCount <= 0) {
     return "empty";
   }
 
+  if (getPublicSharePolicyWarnings(link, policy, now).length > 0) {
+    return "high";
+  }
+
+  if (link.audience === "public" && !link.hasPassword) {
+    return "high";
+  }
+
+  if (link.audience === "public" && link.resourceType === "library") {
+    return "high";
+  }
+
+  if (link.audience === "public" && (link.resourceType === "collection" || link.resourceType === "library") && isLongExpiry(link.expiresAt, now)) {
+    return "high";
+  }
+
   if (isHighRiskLink(link)) {
     return "high";
   }
 
-  if (link.recentFailCount > 0 || normalizedStatus === "paused" || normalizedStatus === "policy_paused" || (link.audience === "public" && !link.hasPassword)) {
+  if (
+    link.recentFailCount > 0 ||
+    normalizedStatus === "paused" ||
+    normalizedStatus === "policy_paused" ||
+    (link.audience === "public" && !link.hasPassword) ||
+    (link.audience === "public" && (link.resourceType === "collection" || link.resourceType === "library"))
+  ) {
     return "attention";
   }
 
@@ -87,8 +113,8 @@ export function getLinkRisk(
 }
 
 export function getLinkRiskFromStats(
-  link: Pick<LinkManagementDto, "accessCount" | "audience" | "expiresAt" | "externalOrPublicAccessCount" | "hasPassword" | "recentFailCount" | "revokedAt" | "status">,
-  stats: Pick<ShareLinkAccessStatsResponse, "accessCount" | "sourceBreakdown" | "trend"> | null,
+  link: Pick<LinkManagementDto, "accessCount" | "audience" | "expiresAt" | "externalOrPublicAccessCount" | "hasPassword" | "recentFailCount" | "resourceType" | "revokedAt" | "status">,
+  stats: Pick<ShareLinkAccessStatsResponse, "accessCount" | "passwordFailedCount" | "scopeDeniedCount" | "sourceBreakdown" | "trend"> | null,
   now = new Date(),
 ): LinkManagementRisk {
   const statsLike = stats
@@ -96,10 +122,72 @@ export function getLinkRiskFromStats(
         ...link,
         accessCount: stats.accessCount,
         externalOrPublicAccessCount: getExternalOrPublicSourceCount(stats.sourceBreakdown),
-        recentFailCount: getRecentFailCount(stats.trend),
+        recentFailCount: Math.max(getRecentFailCount(stats.trend), stats.passwordFailedCount + stats.scopeDeniedCount),
       }
     : link;
   return getLinkRisk(statsLike, now);
+}
+
+export function getLinkRiskReasons(
+  link: Pick<LinkManagementDto, "audience" | "expiresAt" | "hasPassword" | "recentFailCount" | "resourceType" | "status">,
+  stats?: Pick<ShareLinkAccessStatsResponse, "passwordFailedCount" | "scopeDeniedCount"> | null,
+  now = new Date(),
+  policy: PublicSharePolicy = defaultPublicSharePolicy,
+) {
+  const reasons: string[] = [...getPublicSharePolicyWarnings(link, policy, now)];
+  const status = normalizeLinkManagementStatus(link.status, null, link.expiresAt, now);
+  if (link.audience === "public" && !link.hasPassword) {
+    reasons.push("Public link without password");
+  }
+
+  if (link.audience === "public" && link.resourceType === "collection") {
+    reasons.push("Collection scope");
+  }
+
+  if (link.audience === "public" && link.resourceType === "library") {
+    reasons.push("Library scope");
+  }
+
+  if (link.audience === "public") {
+    const protection = normalizeContentProtection((link as { contentProtection?: LinkManagementDto["contentProtection"] }).contentProtection);
+    if (!protection.disableDownload) {
+      reasons.push(link.resourceType === "collection" ? "Collection download allowed" : link.resourceType === "library" ? "Library download allowed" : "Download allowed");
+    }
+
+    if (!protection.disableCopy) {
+      reasons.push("Copy allowed advisory");
+    }
+
+    if ((link.resourceType === "collection" || link.resourceType === "library") && !protection.watermarkEnabled) {
+      reasons.push("No watermark advisory");
+    }
+  }
+
+  if (!link.expiresAt) {
+    reasons.push("No expiry");
+  } else if (isLongExpiry(link.expiresAt, now)) {
+    reasons.push("Long expiry");
+  } else if (isExpiringSoon(link.expiresAt, now)) {
+    reasons.push("Expiring soon");
+  }
+
+  if ((stats?.scopeDeniedCount ?? 0) >= 3) {
+    reasons.push("Repeated denied access");
+  }
+
+  if ((stats?.passwordFailedCount ?? 0) >= 3) {
+    reasons.push("Password failures");
+  }
+
+  if (link.recentFailCount >= 5) {
+    reasons.push("Repeated failed access");
+  }
+
+  if (status === "paused" || status === "policy_paused") {
+    reasons.push(status === "policy_paused" ? "Paused due to policy" : "Paused");
+  }
+
+  return reasons;
 }
 
 export function filterLinksByTab(links: LinkManagementDto[], tab: LinkManagementFilterTab, now = new Date()) {
@@ -236,8 +324,24 @@ export function getCopyShareLinkLabel() {
   return "Audited copy link";
 }
 
+export function getLinkProtectionLabels(link: Pick<LinkManagementDto, "audience" | "contentProtection">) {
+  return link.audience === "public" ? getContentProtectionLabels(link.contentProtection) : [];
+}
+
+export function getLinkManagementScopeLabel(resourceType: string | null | undefined) {
+  if (resourceType === "collection") {
+    return "Collection";
+  }
+
+  if (resourceType === "library") {
+    return "Library";
+  }
+
+  return "Document";
+}
+
 export function hasForbiddenSecretFields(value: Record<string, unknown>) {
-  return ["token", "tokenHash", "token_hash", "passwordHash", "password_hash", "passwordProof", "url"].some((key) => key in value);
+  return ["token", "tokenHash", "token_hash", "password", "passwordHash", "password_hash", "passwordProof", "proof", "url"].some((key) => key in value);
 }
 
 export function getTrendTotals(trend: ShareLinkAccessTrendPointDto[] | null | undefined) {
@@ -267,9 +371,11 @@ export function getAccessEventDisplayRows(events: ShareLinkAccessEventDto[] | nu
     id: event.id,
     ip: event.ip || "-",
     rawUserAgent: event.userAgent || "-",
+    resource: event.documentId || event.resourceId || "-",
+    scopeType: event.scopeType ? getLinkManagementScopeLabel(event.scopeType) : "-",
     result: event.result === "success" ? "成功" : "失败",
     time: event.occurredAt || event.accessedAt,
-    type: getEventTypeLabel(event.eventType),
+    type: getEventCategoryLabel(event.eventCategory || event.eventType),
   }));
 }
 
@@ -293,6 +399,18 @@ export function normalizeLinkManagementStatus(
   }
 
   return "active";
+}
+
+function getGovernanceRiskLabel(risk: LinkManagementRisk) {
+  if (risk === "high") {
+    return "High";
+  }
+
+  if (risk === "attention" || risk === "expiring") {
+    return "Medium";
+  }
+
+  return "Low";
 }
 
 function getStatusLabel(status: ReturnType<typeof normalizeLinkManagementStatus>) {
@@ -407,6 +525,30 @@ function getEventTypeLabel(eventType: string) {
   return eventType;
 }
 
+function getEventCategoryLabel(category: string) {
+  if (category === "resolve") {
+    return "Resolve";
+  }
+
+  if (category === "tree_view") {
+    return "Tree view";
+  }
+
+  if (category === "document_view") {
+    return "Document view";
+  }
+
+  if (category === "scope_denied") {
+    return "Scope denied";
+  }
+
+  if (category === "password_failed") {
+    return "Password failed";
+  }
+
+  return getEventTypeLabel(category);
+}
+
 function isExpiringSoon(expiresAt: string | null, now: Date) {
   if (!expiresAt) {
     return false;
@@ -415,6 +557,14 @@ function isExpiringSoon(expiresAt: string | null, now: Date) {
   const expiresTime = Date.parse(expiresAt);
   const diff = expiresTime - now.getTime();
   return diff > 0 && diff <= expiringWindowMs;
+}
+
+function isLongExpiry(expiresAt: string | null, now: Date) {
+  if (!expiresAt) {
+    return false;
+  }
+
+  return Date.parse(expiresAt) - now.getTime() > longExpiryWindowMs;
 }
 
 function toDateTimeLocalValue(value: string | null) {

@@ -781,6 +781,7 @@ type ShareLinkDto = {
   expiresAt: string | null;
   revokedAt: string | null;
   hasPassword: boolean;
+  contentProtection?: ShareLinkContentProtectionDto | null;
 };
 
 type ShareLinksResponse = {
@@ -793,6 +794,7 @@ type CreateShareLinkRequest = {
   expiresAt?: string | null;
   subjectEmail?: string | null;
   password?: string | null;
+  contentProtection?: ShareLinkContentProtectionDto | null;
 };
 
 type CreateShareLinkResponse = {
@@ -1041,6 +1043,19 @@ Risk and audit display target:
 - risk indicators may use access count spikes, unexpected IP/source patterns,
   frequent external/public access, expired/revoked access attempts, and failed
   known-link access events.
+- Share Governance Hardening V1 shows token-safe governance context in Access
+  & Sharing: scope type, Low/Medium/High risk label, reason summary, total
+  accesses, tree views, document views, denied attempts, password failures,
+  last access, latest event category, and recent event category/scope/result.
+- Risk labels are UI governance signals, not enforced policy. Frontend-derived
+  thresholds such as expiring soon, long expiry, repeated password failures, or
+  repeated scope denied events must be worded as signals/hints unless the
+  backend exposes a policy-enforced state.
+- Collection and library public links are always viewer-only, scope-bound,
+  rendered from public-safe DTOs, and copied only through audited copy.
+  Collection public links without a password are high risk; collection scope is
+  at least medium risk. Library public links are high risk by default and are
+  enabled only when policy and current library context allow.
 - unknown-token failures must not reveal token existence and may be summarized
   from rate-limit/security logs rather than application tables.
 - access event tables are analytics/security data and do not replace immutable
@@ -1172,6 +1187,15 @@ Public link management uses the existing share-link create/list/revoke
 endpoints. Frontend controls must stay disabled/read-only while the backend
 feature flag is off.
 
+Document Share Drawer management creates and manages links for the current
+document only. Collection and library public links continue to use the same
+dedicated share-link API with `collection` or `library` resource routes, but
+their creation belongs to Access & Sharing or a clear container context, not
+the document-local drawer. The document drawer may show related broader
+collection/library links as read-only inherited/broader access context. It does
+not use generic permission policy mutation. Workspace public scope remains
+unsupported.
+
 ```json
 {
   "roleKey": "viewer",
@@ -1184,19 +1208,69 @@ feature flag is off.
 
 Rules:
 
-- document and collection resources are supported when the backend feature flag
-  is enabled;
+- document, collection, and policy-enabled library resources are supported when
+  the backend feature flag is enabled;
+- the document Share Drawer can create document-scope public links through
+  `/permissions/resources/document/:documentId/share-links`;
+- collection-scope and library-scope public links are created from Access &
+  Sharing or a container-specific share/publish context through
+  `/permissions/resources/:resourceType/:resourceId/share-links`;
+- the Libraries page provides the primary container-specific creation context:
+  the Library header publish/share action creates `resourceType = "library"`
+  links for the active Library, and the folder-list share action creates
+  `resourceType = "collection"` links for the selected Folder/Collection;
+  neither action offers workspace public scope or generic policy `public` mode;
+- Access & Sharing inventory displays document, collection, and library scope metadata,
+  including resource title, audience, role, status, expiry, password-protected
+  metadata, access counts, last access, and pause/resume/revoke/copy actions;
 - `roleKey` must be `viewer`;
 - `expiresAt` is required, future, and bounded by backend config;
 - `subjectEmail` must be omitted or `null`;
 - create returns the raw token and public URL once; list never returns token
   material;
+- existing-link copy must use the audited
+  `POST /permissions/share-links/:shareLinkId/copy` endpoint and convert
+  public API URLs into the frontend route
+  `#public/share-links/:token` before display/copy;
 - optional `password` is accepted only once at create time; list responses show
   `hasPassword` only and never expose plaintext password or password hash;
 - password-protected public resolve/read calls must send
   `X-Share-Link-Password`;
 - public controls must not expose MFA, recent-auth, commenter, editor, admin,
   owner, or subject-email options as functional controls.
+- Security Policy Controls V1 may block public-link creation based on
+  `Permissions:PublicShareLinks`: enabled state, viewer-only role,
+  document/collection/library scope allow flags, required expiry, max expiry,
+  library-specific max expiry, required password, collection/library-specific
+  required password, enforced public download-disabled policy, and optional
+  collection/library watermark requirement. Blocked creates
+  return the normal API error envelope with token-safe
+  `details.reason` values such as `PUBLIC_SHARE_PASSWORD_REQUIRED` or
+  `PUBLIC_SHARE_EXPIRY_TOO_LONG`, `PUBLIC_SHARE_DOWNLOAD_DISABLED_REQUIRED`, or
+  `PUBLIC_SHARE_WATERMARK_REQUIRED`.
+- Public link create requests may include token-safe content protection
+  metadata:
+  `contentProtection = { disableDownload, disablePrint, disableCopy,
+  watermarkEnabled, watermarkText }`. Defaults are download disabled, print
+  allowed, copy allowed, watermark disabled, and `watermarkText = "Public link"`.
+  Missing metadata on legacy links is normalized to defaults without rewriting
+  or revoking the link.
+- Content Protection Policy V1 is not DRM. The public reader hides absent
+  download/print controls where applicable, uses no-select/copy event
+  deterrence for `disableCopy`, and displays a light token-safe watermark for
+  `watermarkEnabled`. It does not add public file download, public edit, public
+  comments, or any absolute anti-copy/anti-screenshot guarantee.
+- The Share Drawer may use local management-safe policy assumptions when no
+  policy discovery endpoint exists, but backend create failure remains the
+  source of enforcement. Collection public links can require an access
+  password. Library public links are enabled only when `AllowLibraryScope` and
+  a current library context are available; policy can require library password,
+  watermark, and stricter expiry. Workspace public links remain unsupported.
+- Access & Sharing may show advisory policy warnings for legacy links that no
+  longer satisfy current policy, including missing required password, too-long
+  expiry, no expiry when expiry is required, or collection/library scope
+  currently disabled. These warnings do not revoke or pause links; backend
+  `policy_paused` remains a distinct state.
 
 Anonymous read endpoints:
 
@@ -1204,17 +1278,28 @@ Anonymous read endpoints:
 GET /public/share-links/:token/resolve
 GET /public/share-links/:token/document
 GET /public/share-links/:token/collection
+GET /public/share-links/:token/tree
+GET /public/share-links/:token/documents/:documentId
 ```
 
 ```ts
 type ResolvePublicShareLinkResponse = {
   workspaceId: string;
-  resourceType: "document" | "collection";
+  resourceType: "document" | "collection" | "library";
   resourceId: string;
   roleKey: "viewer";
   audience: "public";
   expiresAt: string;
   hasPassword: boolean;
+  contentProtection: ShareLinkContentProtectionDto;
+};
+
+type ShareLinkContentProtectionDto = {
+  disableDownload: boolean;
+  disablePrint: boolean;
+  disableCopy: boolean;
+  watermarkEnabled: boolean;
+  watermarkText: string;
 };
 
 type PublicShareDocumentDto = {
@@ -1253,19 +1338,69 @@ type PublicShareCollectionResponse = {
   link: ResolvePublicShareLinkResponse;
   collection: PublicShareCollectionDto;
 };
+
+type PublicShareTreeNodeDto = {
+  id: string;
+  type: "document" | "collection";
+  title: string;
+  parentId: string | null;
+  updatedAt: string;
+  hasChildren: boolean;
+  sortOrder: number;
+};
+
+type PublicShareTreeResponse = {
+  shareLinkId: string;
+  scopeType: "document" | "collection" | "library";
+  title: string;
+  contentProtection: ShareLinkContentProtectionDto;
+  nodes: PublicShareTreeNodeDto[];
+};
 ```
 
 Public tokens must not be passed to bootstrap, map, search, export, comments,
 edit, archive, delete, or management endpoints.
 
-Frontend interaction remains minimal in Phase 11: controls may stay disabled or
-read-only unless the app can confirm the public-link feature flag and implement
-the password prompt flow. Collection public views must treat the listing as
-metadata only and fetch no child document content through protected APIs.
-The public reader route remains `#public/share-links/:token`; document reads
-reuse the shared document reader surface and readonly Tiptap renderer used by
-the internal document reading layout, while the public page keeps token,
-password, and anonymous endpoint handling outside the internal editor shell.
+Public reader API calls use `auth: false`. Password-protected public
+resolve/tree/document calls send the password only through
+`X-Share-Link-Password`; the password must not be placed in query strings,
+route hashes, localStorage, or analytics payloads.
+
+Public Knowledge Base Experience V1 keeps the public reader route at
+`#public/share-links/:token`, does not enter the editor route or app shell, and
+uses the shared readonly document reader surface for document content. Document
+links may continue using the legacy single-document endpoint. Collection and
+library links call `/tree`, render the backend public-safe tree with a
+scope-aware header, breadcrumb, current-document highlight, empty/read-denied
+states, mobile-collapsible navigation, and previous/next document controls.
+They load document content only through `/documents/:documentId`. The legacy
+`/collection` endpoint remains summary-only for compatibility and must not be
+used to fetch child document content through protected APIs.
+
+Library public scope uses the backend `library` resource type and public-safe
+tree response. The frontend must display a Library scope label, render the
+existing tree UI without workspace navigation/sidebar, and rely only on backend
+public endpoint responses. It must not synthesize library-wide access from
+protected APIs.
+
+Share V1 closeout:
+
+- Closeout status is recorded in
+  `docs/agent/reports/share-v1-closeout.md`.
+- Current completed frontend-facing scope includes document public share,
+  collection public share, policy-gated library public share, Public Knowledge
+  Base reader V1, public-safe tree navigation, scoped readonly document reads,
+  document-only Share Drawer creation, container-context collection/library
+  creation, Access & Sharing governance, audited copy, pause/resume/revoke,
+  governance analytics/risk labels, security policy controls, and content
+  protection display behavior.
+- Public reader routes stay outside the authenticated editor shell and call
+  only anonymous public share-link endpoints with `auth: false`.
+- Out of scope for this V1: workspace public scope, public edit, public
+  comments, public download/file download, public search, SEO, custom domain,
+  theme, and Public Site / Published Knowledge Base product behavior.
+- `apps/web/dist` can be regenerated by frontend builds; review generated asset
+  churn separately before committing.
 
 ## Permission System Phase 8 Frontend Contract Update
 
@@ -1305,6 +1440,45 @@ UI rules:
 - Local groups keep the existing behavior.
 - IAM-managed groups may appear as grant subjects, but full grant mutation UI
   remains deferred.
+
+Workspace members/groups IA discovery:
+
+- Code-level discovery is recorded in
+  `docs/agent/reports/workspace-members-groups-ia-discovery-v1.md`.
+- `#members` is the workspace-level Members lifecycle surface. `#groups` is the
+  workspace-level Groups read/detail surface. Directory Sync and Permissions
+  Summary remain available inside the identity administration route.
+- Members uses real workspace member APIs for list, add existing user by email,
+  role update, and remove. It is not a pending invite workflow and must not be
+  labeled as a full invitation lifecycle.
+- Member Lifecycle Hardening V1 keeps the add flow labeled as add existing
+  user. The frontend exposes only supported workspace roles (`owner`, `admin`,
+  `editor`, `viewer`), does not expose owner assignment in the add-existing-user
+  form, blocks last-owner demotion/removal when the loaded member list proves
+  the target is the last active owner, confirms owner role changes, and blocks
+  current-user self removal/role change when `auth/me` identifies the current
+  user. Backend validation remains authoritative for stale or incomplete
+  frontend state.
+- Workspace Settings no longer exposes member management. Legacy
+  `#settings?scope=workspace&tab=members` redirects to `#members`; Permissions
+  and Integrations Settings tabs remain available for their existing scopes.
+- Workspace Settings Permissions and document share surfaces can display
+  real workspace group metadata and IAM source metadata. Current frontend group
+  management is read/list focused; local group create/update/archive/member
+  mutation APIs exist in the backend but are not exposed as editable frontend
+- Groups is read/detail-only in V1. Local/static groups are shown as local
+  groups, but create/delete/rename/member mutation controls are not exposed. IAM/SCIM/
+  external groups are shown as directory-managed and read-only.
+- Directory Sync surfaces SCIM discovery and token status. Full SCIM bearer
+  token create/revoke management remains in Settings Integrations, where the
+  existing one-time raw-token display rules apply. SCIM provisioning UI and IAM
+  sync UI remain not exposed.
+- Permissions Summary is read-only. It points users to Advanced Permissions for
+  resource grants and Access & Sharing for share-link/public exposure; it does
+  not edit permissions and does not change Share V1 behavior.
+- The identity surfaces do not render global connection/status summary cards.
+  API/workspace/member/group/SCIM readiness is surfaced only where it is
+  actionable through per-section loading, empty, error, and read-only states.
 
 ### IAM sync API visibility
 

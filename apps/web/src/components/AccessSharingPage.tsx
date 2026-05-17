@@ -34,14 +34,15 @@ export function AccessSharingPage() {
           <div className="workspace-home-mobile-nav md:hidden" aria-label="Workspace navigation">
             <a href="#home">{t(locale, "nav.home")}</a>
             <a href="#libraries">{t(locale, "nav.libraries")}</a>
-            <a aria-current="page" href="#access-sharing">访问与分享</a>
+            <a aria-current="page" href="#access-sharing">{t(locale, "nav.updates")}</a>
+            <a href="#members">{t(locale, "nav.members")}</a>
             <a href="#settings">{t(locale, "nav.settings")}</a>
           </div>
           <div className="access-sharing-inner permission-admin-feed-inner">
             <WorkspaceLinkManagementPanel workspaceId={workspaceId ?? null} />
             {bootstrap.status === "error" || bootstrap.status === "forbidden" ? (
               <p className="permission-admin-inline-status is-error" role="alert">
-                {bootstrap.error || "工作区上下文加载失败，链接列表可能无法显示。"}
+                {bootstrap.error || "Workspace context failed to load, so link inventory may be unavailable."}
               </p>
             ) : null}
           </div>
@@ -79,7 +80,7 @@ function useAccessSharingBootstrap() {
 
         setData(null);
         setStatus(loadError instanceof ApiClientError && (loadError.status === 401 || loadError.status === 403) ? "forbidden" : "error");
-        setError(loadError instanceof Error ? loadError.message : "工作区上下文加载失败。");
+        setError(loadError instanceof Error ? loadError.message : "Workspace context failed to load.");
       });
 
     return () => controller.abort();

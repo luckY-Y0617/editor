@@ -14,7 +14,7 @@ public sealed class ShareLinkAccessEventConfiguration : IEntityTypeConfiguration
             "share_link_access_events",
             table =>
             {
-                table.HasCheckConstraint("share_link_access_events_resource_type_check", "resource_type IN ('collection', 'document')");
+                table.HasCheckConstraint("share_link_access_events_resource_type_check", "resource_type IN ('library', 'collection', 'document')");
                 table.HasCheckConstraint("share_link_access_events_audience_check", "audience IN ('workspace', 'external', 'public')");
                 table.HasCheckConstraint("share_link_access_events_event_type_check", "event_type IN ('resolve', 'access', 'download')");
                 table.HasCheckConstraint("share_link_access_events_result_check", "result IN ('success', 'fail')");

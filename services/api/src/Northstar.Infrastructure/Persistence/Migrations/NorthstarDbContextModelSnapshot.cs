@@ -1606,7 +1606,7 @@ namespace Northstar.Infrastructure.Persistence.Migrations
 
                     b.ToTable("permission_notifications", null, t =>
                         {
-                            t.HasCheckConstraint("permission_notifications_resource_type_check", "resource_type IS NULL OR resource_type IN ('workspace', 'collection', 'document')");
+                t.HasCheckConstraint("permission_notifications_resource_type_check", "resource_type IS NULL OR resource_type IN ('workspace', 'library', 'collection', 'document')");
 
                             t.HasCheckConstraint("permission_notifications_type_check", "type IN ('access_request.created', 'access_request.approved', 'access_request.denied', 'permission.grant_created', 'permission.grant_updated', 'permission.grant_revoked', 'permission.grant_expiring', 'permission.grant_expired', 'group.member_added', 'group.member_removed', 'group.member_expiring', 'group.member_expired', 'share_link.created', 'share_link.revoked', 'email_invite.created', 'email_invite.accepted', 'email_invite.revoked', 'email_invite.delivery_failed')");
                         });
@@ -1849,7 +1849,7 @@ namespace Northstar.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("resource_access_policies_link_mode_check", "link_mode IN ('disabled', 'internal', 'external', 'public')");
 
-                            t.HasCheckConstraint("resource_access_policies_resource_type_check", "resource_type IN ('collection', 'document')");
+                            t.HasCheckConstraint("resource_access_policies_resource_type_check", "resource_type IN ('library', 'collection', 'document')");
                         });
                 });
 
@@ -2074,6 +2074,10 @@ namespace Northstar.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("created_by");
 
+                    b.Property<string>("ContentProtectionJson")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("content_protection_json");
+
                     b.Property<DateTimeOffset?>("ExpiresAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("expires_at");
@@ -2152,9 +2156,9 @@ namespace Northstar.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("share_links_password_public_check", "password_hash IS NULL OR audience = 'public'");
 
-                            t.HasCheckConstraint("share_links_public_viewer_expiry_check", "audience <> 'public' OR (resource_type IN ('document', 'collection') AND role_key = 'viewer' AND subject_email IS NULL AND expires_at IS NOT NULL)");
+                            t.HasCheckConstraint("share_links_public_viewer_expiry_check", "audience <> 'public' OR (resource_type IN ('document', 'collection', 'library') AND role_key = 'viewer' AND subject_email IS NULL AND expires_at IS NOT NULL)");
 
-                            t.HasCheckConstraint("share_links_resource_type_check", "resource_type IN ('collection', 'document')");
+                            t.HasCheckConstraint("share_links_resource_type_check", "resource_type IN ('library', 'collection', 'document')");
 
                             t.HasCheckConstraint("share_links_role_key_check", "role_key IN ('viewer', 'commenter')");
                         });
@@ -2253,7 +2257,7 @@ namespace Northstar.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("share_link_access_events_event_type_check", "event_type IN ('resolve', 'access', 'download')");
 
-                            t.HasCheckConstraint("share_link_access_events_resource_type_check", "resource_type IN ('collection', 'document')");
+                            t.HasCheckConstraint("share_link_access_events_resource_type_check", "resource_type IN ('library', 'collection', 'document')");
 
                             t.HasCheckConstraint("share_link_access_events_result_check", "result IN ('success', 'fail')");
                         });

@@ -294,9 +294,9 @@ export function toSettingsCapabilityInventoryRows(): SettingsCapabilityInventory
     },
     {
       backendStatus: "live-mutation",
-      frontendStatus: "live",
+      frontendStatus: "should-move",
       id: "workspace-members",
-      recommendation: "keep",
+      recommendation: "move",
       scope: "workspace",
       userExpectation: "high",
     },
@@ -363,12 +363,11 @@ export function getRecommendedSettingsClosureSlice(): SettingsClosureSlice {
   return {
     capabilityIds: [
       "workspace-profile-update",
-      "workspace-members",
       "resource-share",
       "library-collections-documents",
     ],
     reason:
-      "Workspace members now live in Workspace Settings, while resource share and library operations stay on their own task surfaces. Keep the remaining closure focused on read-only workspace profile copy, clear boundaries, and no unsupported controls.",
+      "Workspace members now live in the Members left-nav surface, while resource share and library operations stay on their own task surfaces. Keep the remaining closure focused on read-only workspace profile copy, clear boundaries, and no unsupported controls.",
     title: "Settings final trust pass",
   };
 }
@@ -397,7 +396,6 @@ export function createWorkspaceSettingsTabRows(
     : [
     { id: "general", label: "General", status: "live" },
     { id: "notifications", label: "Notifications", status: "live" },
-    { id: "members", label: "Members", status: "live" },
     { id: "permissions", label: "Permissions", status: "reused" },
     { id: "security", label: "Security", status: "live" },
     { id: "integrations", label: "Integrations", status: "reused" },
@@ -430,7 +428,6 @@ export function createSettingsNavGroups(): SettingsNavGroup[] {
       items: [
         createSettingsNavItem("workspace-general", "live"),
         createSettingsNavItem("workspace-notifications", "live"),
-        createSettingsNavItem("workspace-members", "live"),
         createSettingsNavItem("workspace-permissions", "reused"),
         createSettingsNavItem("workspace-security", "live"),
         createSettingsNavItem("workspace-integrations", "reused"),
@@ -497,11 +494,12 @@ export function normalizeSettingsPanel(filters: {
     return { id: "workspace-notifications", section: "workspace" };
   }
 
-  if (filters.tab === "members" || filters.tab === "permissions") {
-    return {
-      id: filters.tab === "members" ? "workspace-members" : "workspace-permissions",
-      section: "workspace",
-    };
+  if (filters.tab === "members") {
+    return { id: "workspace-general", section: "workspace" };
+  }
+
+  if (filters.tab === "permissions") {
+    return { id: "workspace-permissions", section: "workspace" };
   }
 
   if (filters.tab === "security") {

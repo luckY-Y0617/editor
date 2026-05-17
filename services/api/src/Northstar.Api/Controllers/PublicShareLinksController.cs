@@ -46,6 +46,32 @@ public sealed class PublicShareLinksController : ControllerBase
             cancellationToken));
     }
 
+    [HttpGet("{token}/tree")]
+    [ProducesResponseType(typeof(PublicShareTreeResponse), StatusCodes.Status200OK)]
+    public async Task<ActionResult<PublicShareTreeResponse>> GetTree(
+        string token,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await _shareLinkService.GetPublicShareTreeAsync(
+            token,
+            GetPasswordProof(),
+            cancellationToken));
+    }
+
+    [HttpGet("{token}/documents/{documentId:guid}")]
+    [ProducesResponseType(typeof(PublicShareDocumentResponse), StatusCodes.Status200OK)]
+    public async Task<ActionResult<PublicShareDocumentResponse>> GetScopedDocument(
+        string token,
+        Guid documentId,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await _shareLinkService.GetPublicShareDocumentAsync(
+            token,
+            documentId,
+            GetPasswordProof(),
+            cancellationToken));
+    }
+
     [HttpGet("{token}/collection")]
     [ProducesResponseType(typeof(PublicShareCollectionResponse), StatusCodes.Status200OK)]
     public async Task<ActionResult<PublicShareCollectionResponse>> GetCollection(

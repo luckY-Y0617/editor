@@ -30,6 +30,11 @@ public interface IShareLinkAccessRepository
         Guid shareLinkId,
         CancellationToken cancellationToken = default);
 
+    Task<ShareLinkAccessCategorySummary> GetCategorySummaryAsync(
+        Guid workspaceId,
+        Guid shareLinkId,
+        CancellationToken cancellationToken = default);
+
     Task<ShareLinkAccessEventPage> GetEventsAsync(
         Guid workspaceId,
         Guid shareLinkId,
@@ -43,6 +48,13 @@ public interface IShareLinkAccessRepository
 public sealed record ShareLinkAccessTrendRow(DateOnly Date, long SuccessCount, long FailCount);
 
 public sealed record ShareLinkAccessSourceRow(string Source, long Count);
+
+public sealed record ShareLinkAccessCategorySummary(
+    long TreeViewCount,
+    long DocumentViewCount,
+    long ScopeDeniedCount,
+    long PasswordFailedCount,
+    string? LatestEventCategory);
 
 public sealed record ShareLinkAccessSummaryRow(
     Guid ShareLinkId,

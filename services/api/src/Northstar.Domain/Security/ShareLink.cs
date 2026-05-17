@@ -24,6 +24,7 @@ public sealed class ShareLink
         string? subjectEmail = null,
         string? passwordHash = null,
         string? tokenCiphertext = null,
+        string? contentProtectionJson = null,
         Guid? id = null)
     {
         Id = id ?? Guid.NewGuid();
@@ -39,6 +40,7 @@ public sealed class ShareLink
         ExpiresAt = expiresAt;
         PasswordHash = NormalizeOptional(passwordHash);
         TokenCiphertext = NormalizeOptional(tokenCiphertext);
+        ContentProtectionJson = NormalizeOptional(contentProtectionJson);
     }
 
     public Guid Id { get; private set; }
@@ -51,6 +53,7 @@ public sealed class ShareLink
     public string Audience { get; private set; }
     public string? SubjectEmail { get; private set; }
     public string? PasswordHash { get; private set; }
+    public string? ContentProtectionJson { get; private set; }
     public Guid? CreatedBy { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset? ExpiresAt { get; private set; }
@@ -59,6 +62,11 @@ public sealed class ShareLink
     public Guid? PausedBy { get; private set; }
     public string? PauseReason { get; private set; }
     public bool HasPassword => !string.IsNullOrWhiteSpace(PasswordHash);
+
+    public void SetContentProtectionJson(string? contentProtectionJson)
+    {
+        ContentProtectionJson = NormalizeOptional(contentProtectionJson);
+    }
 
     public void Revoke()
     {
@@ -124,7 +132,7 @@ public sealed class ShareLink
 
     private static string ValidResourceType(string resourceType)
     {
-        return ResourceTypes.IsScopedResource(resourceType)
+        return ResourceTypes.IsShareableResource(resourceType)
             ? resourceType
             : throw new DomainException(DomainErrorCodes.ValidationError, "resource type is invalid.");
     }

@@ -86,6 +86,58 @@ Status: documented baseline, not blindly verified current code.
   - update
   - delete
 
+## Workspace Members / Groups Discovery State
+
+- Status: code-level discovery captured on 2026-05-16 in
+  `docs/agent/reports/workspace-members-groups-ia-discovery-v1.md`.
+- Members & Teams Surface V1 implementation is recorded in
+  `docs/agent/reports/members-teams-surface-v1.md`.
+- Member Lifecycle Hardening V1 implementation is recorded in
+  `docs/agent/reports/member-lifecycle-hardening-v1.md`.
+- Verified in current `services/api` code:
+  - `workspace_members` is a real EF-backed table/entity with
+    `owner`, `admin`, `editor`, and `viewer` roles.
+  - workspace member APIs support list, add existing user by email, role
+    update, and remove; there is no pending invitation lifecycle behind this
+    API.
+  - `workspace_groups` and `workspace_group_members` are real workspace-scoped
+    tables/entities.
+  - local static groups support backend create, update, archive, add member,
+    and remove member flows.
+  - IAM/external groups are represented by `external_provider`,
+    `external_group_id`, and `external_synced_at`; normal local group mutation
+    APIs reject these groups as read-only.
+  - provider-neutral IAM sync and workspace-scoped SCIM provisioning can create
+    external users/groups and group memberships without creating implicit access
+    outside the documented workspace boundary.
+- Verified in current `apps/web` code:
+  - Members and Groups are first-class left-nav workspace surfaces. `#members`
+    owns member lifecycle management; `#groups` opens the existing read/detail
+    group view. Directory Sync and Permissions Summary remain available inside
+    the identity administration surface.
+  - Workspace Settings no longer exposes a member management tab; legacy
+    `#settings?scope=workspace&tab=members` redirects to `#members`.
+  - Member Lifecycle Hardening V1 keeps the member flow as add-existing-user,
+    not invite lifecycle; it adds frontend guards for supported roles,
+    last-owner demotion/removal, owner role-change confirmation, self-action
+    protection when current user identity is available, and clearer mutation
+    errors.
+  - Workspace Settings Permissions surfaces list real group metadata but
+    do not expose local group create/update/archive/member mutation controls.
+    The Groups surface keeps groups read/detail-only and marks directory-managed
+    groups as read-only.
+  - The identity surface no longer renders connection/status summary cards for
+    API, workspace ID/source, members, groups, or SCIM token readiness; each
+    section owns its own loading, error, empty, and read-only states.
+  - SCIM token management remains live-backed in Settings Integrations; the new
+    Directory Sync tab surfaces discovery/token status and links back to
+    Settings for token management. SCIM provisioning UI and IAM sync UI remain
+    not exposed.
+- Current IA promotes workspace identity administration out of Settings into
+  separate left-nav Members and Groups surfaces. Implemented V1 exposes Members
+  plus read/detail Groups and Directory Sync status while keeping group mutation
+  as a later explicit round.
+
 ## Comments State
 
 - Status: `comment v1 / beta-complete`.
@@ -119,7 +171,15 @@ Explicitly not included in comment v1:
 - Public-link architecture decision approved:
   - public links are read-only token-scoped capabilities;
   - public document links are supported;
-  - public collection links are supported as summary-only;
+  - public collection links retain the legacy summary-only endpoint and now
+    support Public Share Scope V1 through a dedicated public-safe tree endpoint
+    plus scoped readonly document reads;
+  - public library links support Library Public Scope V1 through the same
+    dedicated public-safe tree endpoint plus scoped readonly document reads
+    when `AllowLibraryScope` is enabled; library is the largest supported public
+    knowledge-base boundary;
+  - workspace public links remain unsupported and must not directly expose a
+    workspace;
   - public links are created only through share-link APIs;
   - generic policy patch still rejects direct `linkMode = public`;
   - public share-link creation may internally set resource policy `LinkMode = public`;
@@ -166,6 +226,51 @@ Explicitly not included in comment v1:
   - backend step-up enforcement for high-risk permission mutations
   - workspace link-management inventory, pause/resume, access analytics, and
     audited copy with token ciphertext
+  - Share Governance Hardening V1 access analytics categories and governance
+    signals: `resolve`, `document_view`, `tree_view`, `scope_denied`, and
+    `password_failed`; Access & Sharing displays token-safe stats, recent event
+    categories, scope type, risk labels, and reason summaries
+  - frontend document Share Drawer scope cleanup: document-local sharing now
+    creates and manages document links only, while related broader
+    collection/library links are shown as read-only context and remain managed
+    from Access & Sharing or container contexts; workspace public scope is still
+    unsupported
+  - frontend container public share entry V1: the Libraries page now creates
+    Library public links from the Library header context and Collection/Folder
+    public links from the current library folder list context, both through the
+    dedicated share-link API; Access & Sharing remains the governance center
+    for all document/collection/library links
+  - frontend Public Knowledge Base Experience V1 for collection/library public
+    links: public-safe tree navigation, scope-aware header, breadcrumb,
+    current-document highlight, previous/next scoped document navigation, empty
+    states, and content protection behavior under `#public/share-links/{token}`
+  - Security Policy Controls V1 for public share-link creation:
+    configurable public-share enabled state, viewer-only role enforcement,
+    document/collection/library scope allow flags, required expiry, max expiry,
+    required password, collection/library-specific required password,
+    library-specific max expiry, optional library watermark requirement, and
+    token-safe policy-blocked reasons; legacy links receive advisory policy
+    warnings rather than automatic revocation
+  - Content Protection Policy V1 for document/collection public links:
+    link-level `disableDownload`, `disablePrint`, `disableCopy`, and
+    `watermarkEnabled` metadata with token-safe `watermarkText`; metadata is
+    stored on `share_links` rather than Tiptap JSON or permission grants; public
+    resolve/document/tree responses and management DTOs return normalized
+    defaults for legacy links; download-disabled enforcement is enabled by
+    default and collection watermark enforcement is configurable; print/copy/
+    watermark reader behavior is advisory deterrence, not DRM
+- Share V1 closeout state is documented in
+  `docs/agent/reports/share-v1-closeout.md`:
+  - completed surface includes document public share, collection public share,
+    policy-gated library public share, public-safe tree, scoped readonly public
+    document reads, Public Knowledge Base reader V1, audited copy,
+    pause/resume/revoke, Access & Sharing governance, analytics categories,
+    risk labels, security policy controls, and content protection metadata;
+  - workspace public scope, public edit, public comment, public download/file
+    download, public search, SEO, custom domain, theme, and public site product
+    behavior remain out of scope;
+  - final production-like browser QA and PostgreSQL smoke remain environment
+    dependent.
 - Conflict status:
   - public collection links and public `linkMode` source conflicts are resolved by approved architecture decision in `docs/agent/reports/public-link-architecture-decision.md`;
   - conflict history remains preserved in `docs/agent/02-conflict-register.md`.

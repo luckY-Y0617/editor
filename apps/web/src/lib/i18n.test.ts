@@ -83,7 +83,11 @@ describe("i18n", () => {
     expect(t("en", "topbar.personalSettings")).toBe("Personal settings");
     expect(t("en", "topbar.organizationSettings")).toBe("Organization settings");
     expect(t("en", "topbar.workspaceSwitchingDeferred")).toContain("not supported");
+    expect(t("en", "nav.members")).toBe("Members");
+    expect(t("en", "nav.groups")).toBe("Groups");
     expect(t("zh-CN", "nav.settings")).toBe("\u8bbe\u7f6e");
+    expect(t("zh-CN", "nav.members")).toBe("\u6210\u5458");
+    expect(t("zh-CN", "nav.groups")).toBe("\u7ec4");
     expect(t("zh-CN", "settings.libraryHeading")).toBe("\u8d44\u6599\u5e93\u8bbe\u7f6e");
     expect(t("zh-CN", "settings.editOrganizationProfile")).toBe("\u7f16\u8f91\u7ec4\u7ec7\u8d44\u6599");
     expect(t("zh-CN", "settings.profileUpdated")).toBe("\u8d44\u6599\u5df2\u66f4\u65b0");
